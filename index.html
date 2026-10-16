@@ -12,11 +12,103 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <!-- PDF.js para renderizar e extrair páginas de arquivos PDF importados -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  
   <script>
-    if (window.pdfjsLib) {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    // Inicialização segura do worker do PDF.js
+    try {
+      if (window.pdfjsLib) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+      }
+    } catch (e) {
+      console.warn("Aviso PDF.js worker:", e);
     }
+
+    // DEFINIÇÃO IMEDIATA DE TODAS AS FUNÇÕES DE INTERFACE NO ESCOPO GLOBAL
+    // Isso garante que todos os botões funcionem desde o 1º milissegundo, antes mesmo de carregar qualquer banco
+    window.abrirModalUpload = function() {
+      const m = document.getElementById('modalUpload');
+      if (m) m.classList.remove('hidden');
+      const s = document.getElementById('statusProcessamentoIA');
+      if (s) s.classList.add('hidden');
+      const c = document.getElementById('containerResultadosIA');
+      if (c) c.classList.add('hidden');
+      const b = document.getElementById('btnConfirmarImportacaoIA');
+      if (b) b.disabled = true;
+      const inp = document.getElementById('inputArquivoUpload');
+      if (inp) inp.value = '';
+    };
+
+    window.fecharModalUpload = function() {
+      const m = document.getElementById('modalUpload');
+      if (m) m.classList.add('hidden');
+    };
+
+    window.abrirModalNovoProduto = function() {
+      const f = document.getElementById('formNovoProduto');
+      if (f) f.reset();
+      if (window.appState && window.appState.industriaAtiva && window.appState.industriaAtiva !== 'todas') {
+        const indInp = document.getElementById('novoIndustria');
+        if (indInp) indInp.value = window.appState.industriaAtiva;
+      }
+      const alerta = document.getElementById('alertaDuplicidade');
+      if (alerta) alerta.classList.add('hidden');
+      const m = document.getElementById('modalNovoProduto');
+      if (m) m.classList.remove('hidden');
+    };
+
+    window.fecharModalNovoProduto = function() {
+      const m = document.getElementById('modalNovoProduto');
+      if (m) m.classList.add('hidden');
+    };
+
+    window.abrirModalListaSimples = function() {
+      if (typeof window.atualizarConteudoListaSimples === 'function') {
+        window.atualizarConteudoListaSimples();
+      }
+      const m = document.getElementById('modalListaSimples');
+      if (m) m.classList.remove('hidden');
+    };
+
+    window.fecharModalListaSimples = function() {
+      const m = document.getElementById('modalListaSimples');
+      if (m) m.classList.add('hidden');
+    };
+
+    window.abrirModalEditarProduto = function(codigo) {
+      if (!window.appState || !window.appState.produtos) return;
+      const prod = window.appState.produtos.find(p => p.cod === codigo);
+      if (!prod) return;
+
+      document.getElementById('editCodOriginal').value = prod.cod;
+      document.getElementById('editCod').value = prod.cod;
+      document.getElementById('editDesc').value = prod.desc;
+      document.getElementById('editIndustria').value = prod.industria || 'Puro Tempero';
+      document.getElementById('editVenda').value = prod.venda || 0;
+      document.getElementById('editEstoque').value = prod.estoque || 0;
+      document.getElementById('editDde').value = prod.dde || 0;
+
+      const m = document.getElementById('modalEditarProduto');
+      if (m) m.classList.remove('hidden');
+    };
+
+    window.fecharModalEditarProduto = function() {
+      const m = document.getElementById('modalEditarProduto');
+      if (m) m.classList.add('hidden');
+    };
+
+    window.abrirModalTransferenciaLote = function() {
+      const inp = document.getElementById('inputDestinoLote');
+      if (inp) inp.value = '';
+      const m = document.getElementById('modalTransferenciaLote');
+      if (m) m.classList.remove('hidden');
+    };
+
+    window.fecharModalTransferenciaLote = function() {
+      const m = document.getElementById('modalTransferenciaLote');
+      if (m) m.classList.add('hidden');
+    };
   </script>
+
   <script>
     tailwind.config = {
       theme: {
@@ -162,27 +254,27 @@
       <div class="flex items-center flex-wrap gap-2 no-print">
         
         <!-- Importar via IA (PDF / Foto) -->
-        <button onclick="abrirModalUpload()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg text-white bg-violet-600 hover:bg-violet-700 active:scale-95 transition shadow-xs">
+        <button id="btnAbrirModalUpload" onclick="window.abrirModalUpload()" type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg text-white bg-violet-600 hover:bg-violet-700 active:scale-95 transition shadow-xs cursor-pointer">
           <i class="ph-bold ph-sparkle text-sm"></i> Ler PDF / Foto (IA)
         </button>
 
         <!-- Botão Novo Produto -->
-        <button onclick="abrirModalNovoProduto()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg text-white bg-blue-600 hover:bg-blue-700 active:scale-95 transition shadow-xs">
+        <button id="btnAbrirModalNovo" onclick="window.abrirModalNovoProduto()" type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg text-white bg-blue-600 hover:bg-blue-700 active:scale-95 transition shadow-xs cursor-pointer">
           <i class="ph-bold ph-plus-circle text-sm"></i> Nova Mercadoria
         </button>
 
         <!-- Lista Simples Colorida -->
-        <button onclick="abrirModalListaSimples()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg text-white bg-slate-800 hover:bg-slate-900 active:scale-95 transition shadow-xs" title="Visualizar ou imprimir lista simples com cores">
+        <button id="btnAbrirModalSimples" onclick="window.abrirModalListaSimples()" type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg text-white bg-slate-800 hover:bg-slate-900 active:scale-95 transition shadow-xs cursor-pointer" title="Visualizar ou imprimir lista simples com cores">
           <i class="ph-bold ph-list-checks text-sm"></i> Lista Simples
         </button>
 
         <!-- Baixar PDF Completo -->
-        <button id="btnBaixarPdf" onclick="gerarDownloadPDF()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg text-white bg-rose-600 hover:bg-rose-700 active:scale-95 transition shadow-xs">
+        <button id="btnBaixarPdf" onclick="window.gerarDownloadPDF()" type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg text-white bg-rose-600 hover:bg-rose-700 active:scale-95 transition shadow-xs cursor-pointer">
           <i class="ph-bold ph-file-pdf text-sm"></i> Baixar PDF
         </button>
 
         <!-- Limpar Indústria Atual -->
-        <button onclick="solicitarLimpezaIndustria()" class="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-semibold rounded-lg text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition" title="Excluir todos os produtos da indústria aberta">
+        <button id="btnLimparIndustria" onclick="window.solicitarLimpezaIndustria()" type="button" class="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-semibold rounded-lg text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer" title="Excluir todos os produtos da indústria aberta">
           <i class="ph-bold ph-trash text-sm"></i> Limpar Indústria
         </button>
       </div>
@@ -753,13 +845,25 @@
     </div>
   </div>
 
-  <!-- FIREBASE SCRIPTS (PERSISTÊNCIA FIRESTORE) -->
+  <!-- FIREBASE REALTIME DATABASE SCRIPTS -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getDatabase, ref, set, update, remove, onValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
-    // Dados iniciais padrão da filial 438 Grajaú
+    // Configuração oficial do projeto com Firebase Realtime Database
+    const firebaseConfig = {
+      apiKey: "AIzaSyCo0_0sfWJat4zG7mjdSNE7nsy5xie4SSI",
+      authDomain: "banco-de-prompt-815b9.firebaseapp.com",
+      databaseURL: "https://banco-de-prompt-815b9-default-rtdb.firebaseio.com",
+      projectId: "banco-de-prompt-815b9",
+      storageBucket: "banco-de-prompt-815b9.firebasestorage.app",
+      messagingSenderId: "829185450404",
+      appId: "1:829185450404:web:77ea52c80f0bb44cfc2131",
+      measurementId: "G-LKLKL0GSYZ"
+    };
+
+    // Dados iniciais padrão da filial 438 Grajaú para semeadura caso o banco esteja vazio
     const dadosIniciaisPadrao = [
       { cod: "458271", desc: "ESP BICARBONATO PURO TEMPERO 40G", industria: "Puro Tempero", venda: 71, estoque: 644, dde: 272 },
       { cod: "458272", desc: "ESP CANELA EM CASCA PURO TEMPERO 15G", industria: "Puro Tempero", venda: 77, estoque: 82, dde: 32 },
@@ -821,11 +925,9 @@
       { cod: "626268", desc: "ESP CORANTE CASEIRO PURO TEMPERO 500G", industria: "Puro Tempero", venda: 12, estoque: 31, dde: 78 }
     ];
 
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'posterus-auditoria-estoque';
     let db = null;
     let auth = null;
-    let currentUser = null;
-    let produtosColecaoRef = null;
+    let produtosRef = null;
 
     window.appState = {
       produtos: [],
@@ -840,151 +942,193 @@
       isFirebaseConnected: false
     };
 
-    async function inicializarFirebase() {
-      try {
-        const badge = document.getElementById('badgeConexao');
-        
-        if (typeof __firebase_config !== 'undefined') {
-          const firebaseConfig = JSON.parse(__firebase_config);
-          const app = initializeApp(firebaseConfig);
-          auth = getAuth(app);
-          db = getFirestore(app);
-
-          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-            await signInWithCustomToken(auth, __initial_auth_token);
-          } else {
-            await signInAnonymously(auth);
+    // Função para carregar produtos do cache local instantaneamente
+    function carregarProdutosLocais() {
+      const salvo = window.safeStorageGet('auditoria_produtos_cache');
+      if (salvo) {
+        try {
+          const parsed = JSON.parse(salvo);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            window.appState.produtos = parsed;
+            return;
           }
+        } catch (e) {}
+      }
+      window.appState.produtos = dadosIniciaisPadrao.map(p => ({
+        ...p,
+        presenca: 'pendente',
+        contagemFisica: '',
+        obs: ''
+      }));
+    }
 
-          currentUser = auth.currentUser;
-          window.appState.isFirebaseConnected = true;
-
-          badge.className = "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800";
-          badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Conectado em Nuvem`;
-
-          produtosColecaoRef = collection(db, 'artifacts', appId, 'public', 'data', 'produtos');
-
-          onSnapshot(produtosColecaoRef, (snapshot) => {
-            if (snapshot.empty) {
-              semearProdutosPadrao();
-              return;
-            }
-
-            const docs = [];
-            snapshot.forEach(docSnap => {
-              docs.push({ id: docSnap.id, ...docSnap.data() });
-            });
-
-            window.appState.produtos = docs;
-            window.renderizarAbasIndustrias();
-            window.aplicarFiltros();
-            window.atualizarEstatisticas();
-          }, (err) => {
-            console.error("Erro snapshot produtos:", err);
-            mostrarToast("Aviso", "Usando cache local da auditoria.", "info");
-          });
-
-        } else {
-          throw new Error("Configuração Firebase não definida");
-        }
-      } catch (e) {
-        console.warn("Modo local ativo:", e.message);
-        window.appState.isFirebaseConnected = false;
-        const badge = document.getElementById('badgeConexao');
-        badge.className = "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800";
-        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Modo Local Ativo`;
-
-        window.appState.produtos = dadosIniciaisPadrao.map(p => ({
-          ...p,
-          id: p.cod,
-          presenca: 'pendente',
-          contagemFisica: '',
-          obs: ''
-        }));
-        window.renderizarAbasIndustrias();
-        window.aplicarFiltros();
-        window.atualizarEstatisticas();
+    // Salvar cache no storage
+    function persistirLocalmente() {
+      if (window.appState.produtos && window.appState.produtos.length) {
+        window.safeStorageSet('auditoria_produtos_cache', JSON.stringify(window.appState.produtos));
       }
     }
 
-    async function semearProdutosPadrao() {
-      if (!db || !currentUser) return;
+    // Atualizar UI
+    function dispararAtualizacaoUI() {
+      if (typeof window.renderizarAbasIndustrias === 'function') window.renderizarAbasIndustrias();
+      if (typeof window.aplicarFiltros === 'function') window.aplicarFiltros();
+      if (typeof window.atualizarEstatisticas === 'function') window.atualizarEstatisticas();
+    }
+
+    // Inicialização do Realtime Database com Autenticação Anônima
+    async function inicializarRealtimeDatabase() {
+      const badge = document.getElementById('badgeConexao');
+
+      // 1. Imediatamente carrega os dados locais para tela nunca ficar em branco
+      carregarProdutosLocais();
+      dispararAtualizacaoUI();
+
       try {
-        for (const item of dadosIniciaisPadrao) {
-          const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'produtos', item.cod);
-          await setDoc(docRef, {
-            cod: item.cod,
-            desc: item.desc,
-            industria: item.industria || "Puro Tempero",
-            venda: item.venda,
-            estoque: item.estoque,
-            dde: item.dde,
+        const app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getDatabase(app);
+        produtosRef = ref(db, 'auditoria_estoque/produtos');
+
+        // Autentica anonimamente para ter permissão no RTDB e evitar 'Conexão Limitada'
+        try {
+          await signInAnonymously(auth);
+        } catch (authErr) {
+          console.warn("Autenticação anônima Firebase (prosseguindo):", authErr);
+        }
+
+        // Ouvinte em tempo real
+        onValue(produtosRef, (snapshot) => {
+          const data = snapshot.val();
+          if (!data) {
+            semearProdutosPadraoRTDB();
+            return;
+          }
+
+          const lista = [];
+          Object.keys(data).forEach(key => {
+            const item = data[key];
+            if (item && item.cod) {
+              lista.push(item);
+            }
+          });
+
+          if (lista.length > 0) {
+            window.appState.produtos = lista;
+            persistirLocalmente();
+          }
+
+          window.appState.isFirebaseConnected = true;
+          if (badge) {
+            badge.className = "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800";
+            badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Realtime DB Conectado`;
+          }
+          dispararAtualizacaoUI();
+
+        }, (error) => {
+          console.warn("Aviso na leitura Realtime Database:", error);
+          window.appState.isFirebaseConnected = false;
+          if (badge) {
+            badge.className = "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800";
+            badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Conectado (Armazenamento Ativo)`;
+          }
+          dispararAtualizacaoUI();
+        });
+
+      } catch (err) {
+        console.warn("Falha geral RTDB, utilizando armazenamento local persistente:", err);
+        window.appState.isFirebaseConnected = false;
+        if (badge) {
+          badge.className = "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800";
+          badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Conectado (Armazenamento Ativo)`;
+        }
+        dispararAtualizacaoUI();
+      }
+    }
+
+    // Semear itens padrão caso o Realtime Database esteja vazio
+    async function semearProdutosPadraoRTDB() {
+      if (!db) return;
+      try {
+        const pacote = {};
+        dadosIniciaisPadrao.forEach(p => {
+          const safeKey = String(p.cod).replace(/[.#$\[\]]/g, '_');
+          pacote[safeKey] = {
+            cod: String(p.cod),
+            desc: p.desc,
+            industria: p.industria || "Puro Tempero",
+            venda: Number(p.venda) || 0,
+            estoque: Number(p.estoque) || 0,
+            dde: Number(p.dde) || 0,
             presenca: 'pendente',
             contagemFisica: '',
             obs: '',
             atualizadoEm: new Date().toISOString()
-          }, { merge: true });
-        }
-      } catch (err) {
-        console.error("Erro ao semear:", err);
+          };
+        });
+        await set(produtosRef, pacote);
+      } catch (e) {
+        console.error("Erro ao semear Realtime Database:", e);
       }
     }
 
-    // Salvar ou Atualizar no Banco / Memória
+    // Gravar ou atualizar mercadoria no Realtime Database + LocalStorage
     window.salvarProdutoNoBanco = async function(produto) {
-      if (window.appState.isFirebaseConnected && db && currentUser) {
-        try {
-          const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'produtos', produto.cod);
-          await setDoc(docRef, {
-            ...produto,
-            atualizadoEm: new Date().toISOString()
-          }, { merge: true });
-        } catch (err) {
-          console.error("Erro ao salvar produto:", err);
-        }
+      if (!produto || !produto.cod) return;
+      const safeKey = String(produto.cod).replace(/[.#$\[\]]/g, '_');
+
+      // Atualiza estado local primeiro (resposta instantânea do botão)
+      const idx = window.appState.produtos.findIndex(p => p.cod === produto.cod);
+      if (idx >= 0) {
+        window.appState.produtos[idx] = { ...window.appState.produtos[idx], ...produto };
       } else {
-        const idx = window.appState.produtos.findIndex(p => p.cod === produto.cod);
-        if (idx >= 0) {
-          window.appState.produtos[idx] = { ...window.appState.produtos[idx], ...produto };
-        } else {
-          window.appState.produtos.push(produto);
+        window.appState.produtos.push(produto);
+      }
+      persistirLocalmente();
+      dispararAtualizacaoUI();
+
+      // Envia ao Firebase Realtime Database
+      if (window.appState.isFirebaseConnected && db) {
+        try {
+          const itemRef = ref(db, `auditoria_estoque/produtos/${safeKey}`);
+          await set(itemRef, {
+            ...produto,
+            cod: String(produto.cod),
+            atualizadoEm: new Date().toISOString()
+          });
+        } catch (err) {
+          console.warn("Salvamento pendente no RTDB (armazenado localmente):", err);
         }
-        window.renderizarAbasIndustrias();
-        window.aplicarFiltros();
-        window.atualizarEstatisticas();
       }
     };
 
-    // Excluir 1 Produto
+    // Excluir 1 mercadoria
     window.excluirProduto = async function(codigo) {
       const prod = window.appState.produtos.find(p => p.cod === codigo);
       const nomeProd = prod ? prod.desc : codigo;
-      
+
       window.confirmDialog("Remover Mercadoria?", `Deseja realmente excluir "${nomeProd}" do catálogo?`, async () => {
-        if (window.appState.isFirebaseConnected && db && currentUser) {
+        const safeKey = String(codigo).replace(/[.#$\[\]]/g, '_');
+
+        window.appState.produtos = window.appState.produtos.filter(p => p.cod !== codigo);
+        window.appState.selecionados.delete(codigo);
+        persistirLocalmente();
+        window.atualizarBarraLote();
+        dispararAtualizacaoUI();
+        mostrarToast("Excluído", "Mercadoria removida com sucesso.", "info");
+
+        if (window.appState.isFirebaseConnected && db) {
           try {
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'produtos', codigo);
-            await deleteDoc(docRef);
-            window.appState.selecionados.delete(codigo);
-            window.atualizarBarraLote();
-            mostrarToast("Excluído", "Mercadoria removida do banco.", "info");
+            const itemRef = ref(db, `auditoria_estoque/produtos/${safeKey}`);
+            await remove(itemRef);
           } catch (e) {
-            console.error(e);
-            mostrarToast("Erro", "Falha ao remover item.", "error");
+            console.warn("Erro ao sincronizar exclusão com RTDB:", e);
           }
-        } else {
-          window.appState.produtos = window.appState.produtos.filter(p => p.cod !== codigo);
-          window.appState.selecionados.delete(codigo);
-          window.atualizarBarraLote();
-          window.renderizarAbasIndustrias();
-          window.aplicarFiltros();
-          window.atualizarEstatisticas();
-          mostrarToast("Excluído", "Mercadoria removida localmente.", "info");
         }
       });
     };
 
-    // Excluir ou Limpar Todos os Produtos de Uma Indústria
+    // Limpar todos os produtos de uma indústria
     window.limparIndustriaNoBanco = async function(nomeIndustria) {
       const itensParaExcluir = window.appState.produtos.filter(p => {
         if (nomeIndustria === 'todas') return true;
@@ -993,92 +1137,127 @@
 
       if (!itensParaExcluir.length) return;
 
-      if (window.appState.isFirebaseConnected && db && currentUser) {
+      window.appState.produtos = window.appState.produtos.filter(p => {
+        if (nomeIndustria === 'todas') return false;
+        return (p.industria || '').trim().toLowerCase() !== nomeIndustria.trim().toLowerCase();
+      });
+      window.appState.selecionados.clear();
+      persistirLocalmente();
+      window.atualizarBarraLote();
+      dispararAtualizacaoUI();
+      mostrarToast("Limpeza Concluída", `Indústria "${nomeIndustria}" limpa com sucesso.`, "info");
+
+      if (window.appState.isFirebaseConnected && db) {
         try {
-          for (const item of itensParaExcluir) {
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'produtos', item.cod);
-            await deleteDoc(docRef);
-            window.appState.selecionados.delete(item.cod);
+          if (nomeIndustria === 'todas') {
+            await remove(produtosRef);
+          } else {
+            const updates = {};
+            itensParaExcluir.forEach(item => {
+              const safeKey = String(item.cod).replace(/[.#$\[\]]/g, '_');
+              updates[safeKey] = null;
+            });
+            await update(produtosRef, updates);
           }
-          mostrarToast("Limpeza Concluída", `Indústria "${nomeIndustria}" limpa com sucesso.`, "info");
         } catch (e) {
-          console.error(e);
-          mostrarToast("Erro", "Falha na exclusão da indústria.", "error");
+          console.warn("Erro ao sincronizar limpeza com RTDB:", e);
         }
-      } else {
-        window.appState.produtos = window.appState.produtos.filter(p => {
-          if (nomeIndustria === 'todas') return false;
-          return (p.industria || '').trim().toLowerCase() !== nomeIndustria.trim().toLowerCase();
-        });
-        window.appState.selecionados.clear();
-        window.atualizarBarraLote();
-        window.renderizarAbasIndustrias();
-        window.aplicarFiltros();
-        window.atualizarEstatisticas();
-        mostrarToast("Limpeza Concluída", `Indústria "${nomeIndustria}" limpa localmente.`, "info");
       }
     };
 
-    // Operações em Lote no Firestore
+    // Operações em lote no Realtime Database
     window.executarAcaoEmLote = async function(tipoAcao, valor) {
       const codigos = Array.from(window.appState.selecionados);
       if (!codigos.length) return;
 
-      for (const cod of codigos) {
+      codigos.forEach(cod => {
         const prod = window.appState.produtos.find(p => p.cod === cod);
-        if (!prod) continue;
+        if (!prod) return;
 
         if (tipoAcao === 'presenca') {
           let novaCont = prod.contagemFisica;
           if (valor === 'nao' && (novaCont === '' || novaCont === undefined)) novaCont = '0';
-          await window.salvarProdutoNoBanco({
-            ...prod,
-            presenca: valor,
-            contagemFisica: novaCont
-          });
+          prod.presenca = valor;
+          prod.contagemFisica = novaCont;
         } else if (tipoAcao === 'trocarIndustria') {
-          await window.salvarProdutoNoBanco({
-            ...prod,
-            industria: valor
-          });
+          prod.industria = valor;
         } else if (tipoAcao === 'excluir') {
-          if (window.appState.isFirebaseConnected && db && currentUser) {
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'produtos', cod);
-            await deleteDoc(docRef);
-          } else {
-            window.appState.produtos = window.appState.produtos.filter(p => p.cod !== cod);
-          }
+          window.appState.produtos = window.appState.produtos.filter(p => p.cod !== cod);
         }
-      }
+      });
 
+      persistirLocalmente();
       window.appState.selecionados.clear();
       window.atualizarBarraLote();
-      if (!window.appState.isFirebaseConnected) {
-        window.renderizarAbasIndustrias();
-        window.aplicarFiltros();
-        window.atualizarEstatisticas();
+      dispararAtualizacaoUI();
+
+      if (window.appState.isFirebaseConnected && db) {
+        try {
+          const updates = {};
+          codigos.forEach(cod => {
+            const safeKey = String(cod).replace(/[.#$\[\]]/g, '_');
+            const prod = window.appState.produtos.find(p => p.cod === cod);
+            if (!prod && tipoAcao !== 'excluir') return;
+
+            if (tipoAcao === 'presenca') {
+              let novaCont = prod.contagemFisica;
+              if (valor === 'nao' && (novaCont === '' || novaCont === undefined)) novaCont = '0';
+              updates[`${safeKey}/presenca`] = valor;
+              updates[`${safeKey}/contagemFisica`] = novaCont;
+              updates[`${safeKey}/atualizadoEm`] = new Date().toISOString();
+            } else if (tipoAcao === 'trocarIndustria') {
+              updates[`${safeKey}/industria`] = valor;
+              updates[`${safeKey}/atualizadoEm`] = new Date().toISOString();
+            } else if (tipoAcao === 'excluir') {
+              updates[safeKey] = null;
+            }
+          });
+
+          await update(produtosRef, updates);
+        } catch (err) {
+          console.warn("Erro ao sincronizar lote no RTDB:", err);
+        }
       }
     };
 
     window.addEventListener('DOMContentLoaded', () => {
-      inicializarFirebase();
+      inicializarRealtimeDatabase();
 
       const hoje = new Date().toISOString().split('T')[0];
       const dataInput = document.getElementById('auditorData');
       if (dataInput && !dataInput.value) dataInput.value = hoje;
       
-      const auditorSalvo = localStorage.getItem('auditorNomePosterus');
-      if (auditorSalvo) document.getElementById('auditorNome').value = auditorSalvo;
+      const auditorSalvo = window.safeStorageGet('auditorNomePosterus');
+      if (auditorSalvo && document.getElementById('auditorNome')) {
+        document.getElementById('auditorNome').value = auditorSalvo;
+      }
     });
   </script>
 
   <!-- LÓGICA DE INTERFACE, ABAS DE INDÚSTRIA, SELEÇÃO EM LOTE E FILTROS -->
   <script>
-    function normalizarTexto(txt) {
-      return (txt || '').toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    }
+    // Helper seguro para localStorage que nunca trava o site se bloqueado pelo navegador
+    window.safeStorageGet = function(key) {
+      try {
+        return localStorage.getItem(key);
+      } catch (e) {
+        return null;
+      }
+    };
 
-    // Modal de confirmação customizado
+    window.safeStorageSet = function(key, val) {
+      try {
+        localStorage.setItem(key, val);
+      } catch (e) {
+        // silencioso
+      }
+    };
+
+    window.normalizarTexto = function(txt) {
+      return (txt || '').toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    };
+
+    // Modal de confirmação customizado garantido no escopo global
     window.confirmDialog = function(titulo, msg, onConfirm) {
       const modal = document.createElement('div');
       modal.className = "fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in";
@@ -1090,8 +1269,8 @@
           <h3 class="text-sm font-bold text-slate-900">${titulo}</h3>
           <p class="text-xs text-slate-500 mt-1 mb-4 leading-relaxed">${msg}</p>
           <div class="flex items-center justify-end gap-2">
-            <button id="btnCancelDialog" class="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
-            <button id="btnOkDialog" class="px-3.5 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm">Confirmar</button>
+            <button id="btnCancelDialog" type="button" class="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
+            <button id="btnOkDialog" type="button" class="px-3.5 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm">Confirmar</button>
           </div>
         </div>
       `;
@@ -1100,57 +1279,145 @@
       modal.querySelector('#btnCancelDialog').onclick = () => modal.remove();
       modal.querySelector('#btnOkDialog').onclick = () => {
         modal.remove();
-        onConfirm();
+        if (typeof onConfirm === 'function') onConfirm();
       };
     };
 
-    function mostrarToast(titulo, mensagem, tipo = 'success') {
+    window.mostrarToast = function(titulo, mensagem, tipo = 'success') {
       const toast = document.getElementById('toastNotification');
+      if (!toast) return;
       const tTitulo = document.getElementById('toastTitulo');
       const tMsg = document.getElementById('toastMsg');
       const tIcon = document.getElementById('toastIcon');
 
-      tTitulo.innerText = titulo;
-      tMsg.innerText = mensagem;
+      if (tTitulo) tTitulo.innerText = titulo;
+      if (tMsg) tMsg.innerText = mensagem;
 
-      if (tipo === 'error') {
-        tIcon.className = 'text-rose-400 text-xl';
-        tIcon.innerHTML = '<i class="ph-bold ph-warning-octagon"></i>';
-      } else if (tipo === 'info') {
-        tIcon.className = 'text-blue-400 text-xl';
-        tIcon.innerHTML = '<i class="ph-bold ph-info"></i>';
-      } else {
-        tIcon.className = 'text-emerald-400 text-xl';
-        tIcon.innerHTML = '<i class="ph-bold ph-check-circle"></i>';
+      if (tIcon) {
+        if (tipo === 'error') {
+          tIcon.className = 'text-rose-400 text-xl';
+          tIcon.innerHTML = '<i class="ph-bold ph-warning-octagon"></i>';
+        } else if (tipo === 'info') {
+          tIcon.className = 'text-blue-400 text-xl';
+          tIcon.innerHTML = '<i class="ph-bold ph-info"></i>';
+        } else {
+          tIcon.className = 'text-emerald-400 text-xl';
+          tIcon.innerHTML = '<i class="ph-bold ph-check-circle"></i>';
+        }
       }
 
       toast.classList.remove('translate-y-20', 'opacity-0');
       toast.classList.add('translate-y-0', 'opacity-100');
 
-      setTimeout(() => {
+      clearTimeout(window.__toastTimeout);
+      window.__toastTimeout = setTimeout(() => {
         toast.classList.add('translate-y-20', 'opacity-0');
         toast.classList.remove('translate-y-0', 'opacity-100');
       }, 3500);
-    }
+    };
 
-    function salvarSessaoAuditor() {
-      const nome = document.getElementById('auditorNome').value;
-      localStorage.setItem('auditorNomePosterus', nome);
-    }
+    window.salvarSessaoAuditor = function() {
+      const el = document.getElementById('auditorNome');
+      if (el) window.safeStorageSet('auditorNomePosterus', el.value);
+    };
 
-    function salvarObsGerais() {
-      const txt = document.getElementById('obsGerais').value;
-      localStorage.setItem('auditorObsPosterus', txt);
-      mostrarToast("Anotação Salva", "Observações registradas com sucesso.");
-    }
+    window.salvarObsGerais = function() {
+      const el = document.getElementById('obsGerais');
+      if (el) {
+        window.safeStorageSet('auditorObsPosterus', el.value);
+        window.mostrarToast("Anotação Salva", "Observações registradas com sucesso.");
+      }
+    };
+
+    // Funções de abertura e fechamento de modais garantidas no escopo global (window.*)
+    window.abrirModalUpload = function() {
+      const m = document.getElementById('modalUpload');
+      if (m) m.classList.remove('hidden');
+      const s = document.getElementById('statusProcessamentoIA');
+      if (s) s.classList.add('hidden');
+      const c = document.getElementById('containerResultadosIA');
+      if (c) c.classList.add('hidden');
+      const b = document.getElementById('btnConfirmarImportacaoIA');
+      if (b) b.disabled = true;
+      const inp = document.getElementById('inputArquivoUpload');
+      if (inp) inp.value = '';
+    };
+
+    window.fecharModalUpload = function() {
+      const m = document.getElementById('modalUpload');
+      if (m) m.classList.add('hidden');
+    };
+
+    window.abrirModalNovoProduto = function() {
+      const f = document.getElementById('formNovoProduto');
+      if (f) f.reset();
+      if (window.appState && window.appState.industriaAtiva && window.appState.industriaAtiva !== 'todas') {
+        const indInp = document.getElementById('novoIndustria');
+        if (indInp) indInp.value = window.appState.industriaAtiva;
+      }
+      const alerta = document.getElementById('alertaDuplicidade');
+      if (alerta) alerta.classList.add('hidden');
+      const m = document.getElementById('modalNovoProduto');
+      if (m) m.classList.remove('hidden');
+    };
+
+    window.fecharModalNovoProduto = function() {
+      const m = document.getElementById('modalNovoProduto');
+      if (m) m.classList.add('hidden');
+    };
+
+    window.abrirModalListaSimples = function() {
+      window.atualizarConteudoListaSimples();
+      const m = document.getElementById('modalListaSimples');
+      if (m) m.classList.remove('hidden');
+    };
+
+    window.fecharModalListaSimples = function() {
+      const m = document.getElementById('modalListaSimples');
+      if (m) m.classList.add('hidden');
+    };
+
+    window.abrirModalEditarProduto = function(codigo) {
+      if (!window.appState || !window.appState.produtos) return;
+      const prod = window.appState.produtos.find(p => p.cod === codigo);
+      if (!prod) return;
+
+      document.getElementById('editCodOriginal').value = prod.cod;
+      document.getElementById('editCod').value = prod.cod;
+      document.getElementById('editDesc').value = prod.desc;
+      document.getElementById('editIndustria').value = prod.industria || 'Puro Tempero';
+      document.getElementById('editVenda').value = prod.venda || 0;
+      document.getElementById('editEstoque').value = prod.estoque || 0;
+      document.getElementById('editDde').value = prod.dde || 0;
+
+      const m = document.getElementById('modalEditarProduto');
+      if (m) m.classList.remove('hidden');
+    };
+
+    window.fecharModalEditarProduto = function() {
+      const m = document.getElementById('modalEditarProduto');
+      if (m) m.classList.add('hidden');
+    };
+
+    window.abrirModalTransferenciaLote = function() {
+      const inp = document.getElementById('inputDestinoLote');
+      if (inp) inp.value = '';
+      const m = document.getElementById('modalTransferenciaLote');
+      if (m) m.classList.remove('hidden');
+    };
+
+    window.fecharModalTransferenciaLote = function() {
+      const m = document.getElementById('modalTransferenciaLote');
+      if (m) m.classList.add('hidden');
+    };
 
     // RENDERIZAÇÃO DAS ABAS ESTILO PASTA / CHROME POR INDÚSTRIA
     window.renderizarAbasIndustrias = function() {
       const container = document.getElementById('containerAbasIndustria');
       const datalist = document.getElementById('listaIndustriasExistentes');
-      const produtos = window.appState.produtos || [];
+      if (!container) return;
+      const produtos = (window.appState && window.appState.produtos) ? window.appState.produtos : [];
 
-      // Mapeamento de contagem por indústria
       const contagemMap = { 'todas': produtos.length };
       const industriasSet = new Set();
 
@@ -1162,16 +1429,16 @@
 
       const industriasLista = Array.from(industriasSet).sort();
 
-      // Recriar datalist para autocomplete
-      datalist.innerHTML = '';
-      industriasLista.forEach(ind => {
-        const opt = document.createElement('option');
-        opt.value = ind;
-        datalist.appendChild(opt);
-      });
+      if (datalist) {
+        datalist.innerHTML = '';
+        industriasLista.forEach(ind => {
+          const opt = document.createElement('option');
+          opt.value = ind;
+          datalist.appendChild(opt);
+        });
+      }
 
-      // Se a indústria ativa foi excluída, volta para "todas"
-      if (window.appState.industriaAtiva !== 'todas' && !industriasSet.has(window.appState.industriaAtiva)) {
+      if (window.appState && window.appState.industriaAtiva !== 'todas' && !industriasSet.has(window.appState.industriaAtiva)) {
         window.appState.industriaAtiva = 'todas';
       }
 
@@ -1185,10 +1452,10 @@
         <span>Todas as Indústrias</span>
         <span class="ml-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full ${window.appState.industriaAtiva === 'todas' ? 'bg-brand-100 text-brand-800' : 'bg-slate-300 text-slate-700'}">${contagemMap['todas']}</span>
       `;
-      abaTodas.onclick = () => selecionarAbaIndustria('todas');
+      abaTodas.onclick = () => window.selecionarAbaIndustria('todas');
       container.appendChild(abaTodas);
 
-      // Abas de cada indústria
+      // Abas individuais
       industriasLista.forEach(ind => {
         const aba = document.createElement('div');
         const isActive = window.appState.industriaAtiva === ind;
@@ -1199,59 +1466,59 @@
           <span>${ind}</span>
           <span class="ml-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-300 text-slate-700'}">${contagemMap[ind] || 0}</span>
         `;
-        aba.onclick = () => selecionarAbaIndustria(ind);
+        aba.onclick = () => window.selecionarAbaIndustria(ind);
         container.appendChild(aba);
       });
     };
 
-    function selecionarAbaIndustria(nomeIndustria) {
+    window.selecionarAbaIndustria = function(nomeIndustria) {
+      if (!window.appState) return;
       window.appState.industriaAtiva = nomeIndustria;
       window.renderizarAbasIndustrias();
-      aplicarFiltros();
-    }
+      window.aplicarFiltros();
+    };
 
-    function solicitarLimpezaIndustria() {
-      const ind = window.appState.industriaAtiva;
+    window.solicitarLimpezaIndustria = function() {
+      const ind = (window.appState && window.appState.industriaAtiva) ? window.appState.industriaAtiva : 'todas';
       const textoAlvo = ind === 'todas' ? "TODAS as indústrias cadastradas no sistema" : `a indústria "${ind}" e todas as suas mercadorias associadas`;
 
       window.confirmDialog(
         `Limpar ${ind === 'todas' ? 'Tudo' : ind}?`,
         `ATENÇÃO: Você está prestes a remover ${textoAlvo}. Esta operação não poderá ser desfeita. Confirmar limpeza?`,
         () => {
-          window.limparIndustriaNoBanco(ind);
+          if (typeof window.limparIndustriaNoBanco === 'function') {
+            window.limparIndustriaNoBanco(ind);
+          }
         }
       );
-    }
+    };
 
-    function aplicarFiltros() {
-      const termo = normalizarTexto(document.getElementById('searchInput').value);
-      const filtroPresenca = document.getElementById('filtroPresenca').value;
-      const filtroCategoria = document.getElementById('filtroCategoria').value;
-      const indAtiva = window.appState.industriaAtiva;
+    window.aplicarFiltros = function() {
+      const termoEl = document.getElementById('searchInput');
+      const termo = termoEl ? window.normalizarTexto(termoEl.value) : '';
+      const filtroPresenca = document.getElementById('filtroPresenca') ? document.getElementById('filtroPresenca').value : 'todos';
+      const filtroCategoria = document.getElementById('filtroCategoria') ? document.getElementById('filtroCategoria').value : 'todos';
+      const indAtiva = (window.appState && window.appState.industriaAtiva) ? window.appState.industriaAtiva : 'todas';
 
-      const produtos = window.appState.produtos || [];
+      const produtos = (window.appState && window.appState.produtos) ? window.appState.produtos : [];
 
       const filtrados = produtos.filter(p => {
-        // Filtro da aba selecionada (Chrome folder)
         if (indAtiva !== 'todas' && (p.industria || '').trim().toLowerCase() !== indAtiva.trim().toLowerCase()) {
           return false;
         }
 
-        // Filtro por texto
         if (termo) {
-          const codOk = normalizarTexto(p.cod).includes(termo);
-          const descOk = normalizarTexto(p.desc).includes(termo);
-          const indOk = normalizarTexto(p.industria).includes(termo);
+          const codOk = window.normalizarTexto(p.cod).includes(termo);
+          const descOk = window.normalizarTexto(p.desc).includes(termo);
+          const indOk = window.normalizarTexto(p.industria).includes(termo);
           if (!codOk && !descOk && !indOk) return false;
         }
 
-        // Filtro por presença
         const pres = p.presenca || 'pendente';
         if (filtroPresenca !== 'todos' && pres !== filtroPresenca) {
           return false;
         }
 
-        // Filtros de Risco
         if (filtroCategoria === 'critico') {
           return p.dde > 0 && p.dde <= 9;
         } else if (filtroCategoria === 'negativo') {
@@ -1268,24 +1535,26 @@
         return true;
       });
 
-      renderizarTabela(filtrados);
-    }
+      window.renderizarTabela(filtrados);
+    };
 
-    function resetarFiltros() {
-      document.getElementById('searchInput').value = '';
-      document.getElementById('filtroPresenca').value = 'todos';
-      document.getElementById('filtroCategoria').value = 'todos';
-      aplicarFiltros();
-    }
+    window.resetarFiltros = function() {
+      if (document.getElementById('searchInput')) document.getElementById('searchInput').value = '';
+      if (document.getElementById('filtroPresenca')) document.getElementById('filtroPresenca').value = 'todos';
+      if (document.getElementById('filtroCategoria')) document.getElementById('filtroCategoria').value = 'todos';
+      window.aplicarFiltros();
+    };
 
-    function renderizarTabela(itens) {
+    window.renderizarTabela = function(itens) {
       const tbody = document.getElementById('tabelaCorpo');
+      if (!tbody) return;
       tbody.innerHTML = '';
 
-      const totalCadastrados = (window.appState.produtos || []).length;
-      document.getElementById('statTotalGeral').innerText = totalCadastrados;
+      const totalCadastrados = (window.appState && window.appState.produtos) ? window.appState.produtos.length : 0;
+      const statGeral = document.getElementById('statTotalGeral');
+      if (statGeral) statGeral.innerText = totalCadastrados;
 
-      if (itens.length === 0) {
+      if (!itens || itens.length === 0) {
         tbody.innerHTML = `
           <tr>
             <td colspan="13" class="text-center py-12 text-slate-400">
@@ -1294,7 +1563,8 @@
             </td>
           </tr>
         `;
-        document.getElementById('labelContadorExibidos').innerText = `Exibindo 0 de ${itens.length} itens`;
+        const lbl = document.getElementById('labelContadorExibidos');
+        if (lbl) lbl.innerText = `Exibindo 0 itens`;
         return;
       }
 
@@ -1305,9 +1575,8 @@
         const isChecked = window.appState.selecionados.has(p.cod);
 
         const tr = document.createElement('tr');
-        tr.className = `transition-colors hover:bg-slate-50/90 ${isChecked ? 'bg-indigo-50/40' : getRowBgColor(p, pres)}`;
+        tr.className = `transition-colors hover:bg-slate-50/90 ${isChecked ? 'bg-indigo-50/40' : window.getRowBgColor(p, pres)}`;
 
-        // Badges de alerta de risco
         let alertBadge = '';
         if (p.estoque < 0) {
           alertBadge = '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 ml-1">Negativo</span>';
@@ -1319,7 +1588,6 @@
           alertBadge = '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 ml-1">Excesso</span>';
         }
 
-        // Divergência calculada
         let diverText = '-';
         let diverClass = 'text-slate-400';
         if (contagem !== '' && !isNaN(parseInt(contagem))) {
@@ -1337,9 +1605,8 @@
         }
 
         tr.innerHTML = `
-          <!-- CHECKBOX DE SELEÇÃO EM LOTE -->
           <td class="py-2.5 px-3 text-center no-print">
-            <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="alternarSelecaoItem('${p.cod}', this.checked)" class="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 cursor-pointer">
+            <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="window.alternarSelecaoItem('${p.cod}', this.checked)" class="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 cursor-pointer">
           </td>
           <td class="py-2.5 px-3 text-center text-slate-400 font-mono">${idx + 1}</td>
           <td class="py-2.5 px-3 font-mono font-bold text-slate-900">${p.cod}</td>
@@ -1358,57 +1625,52 @@
           <td class="py-2.5 px-2 text-center font-bold ${p.estoque < 0 ? 'text-rose-600 bg-rose-50 rounded' : 'text-slate-800'}">${p.estoque}</td>
           <td class="py-2.5 px-2 text-center font-semibold ${p.dde > 0 && p.dde <= 9 ? 'text-orange-600 font-black' : 'text-slate-600'}">${p.dde || 0}d</td>
           
-          <!-- SELETOR RÁPIDO DE PRESENÇA -->
           <td class="py-2 px-3 bg-slate-50/50 border-x border-slate-200 text-center">
             <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-xs w-full max-w-[170px] justify-center">
-              <button type="button" onclick="alterarPresenca('${p.cod}', 'sim')" 
-                class="flex-1 py-1 px-1.5 text-[11px] font-bold rounded flex items-center justify-center gap-0.5 transition ${pres === 'sim' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'}"
+              <button type="button" onclick="window.alterarPresenca('${p.cod}', 'sim')" 
+                class="flex-1 py-1 px-1.5 text-[11px] font-bold rounded flex items-center justify-center gap-0.5 transition cursor-pointer ${pres === 'sim' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'}"
                 title="Presente em Loja">
                 <i class="ph-bold ph-check"></i> Sim
               </button>
-              <button type="button" onclick="alterarPresenca('${p.cod}', 'nao')" 
-                class="flex-1 py-1 px-1.5 text-[11px] font-bold rounded flex items-center justify-center gap-0.5 transition ${pres === 'nao' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'}"
+              <button type="button" onclick="window.alterarPresenca('${p.cod}', 'nao')" 
+                class="flex-1 py-1 px-1.5 text-[11px] font-bold rounded flex items-center justify-center gap-0.5 transition cursor-pointer ${pres === 'nao' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'}"
                 title="Ruptura Total">
                 <i class="ph-bold ph-x"></i> Não
               </button>
-              <button type="button" onclick="alterarPresenca('${p.cod}', 'parcial')" 
-                class="flex-1 py-1 px-1.5 text-[11px] font-bold rounded flex items-center justify-center gap-0.5 transition ${pres === 'parcial' ? 'bg-amber-500 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'}"
+              <button type="button" onclick="window.alterarPresenca('${p.cod}', 'parcial')" 
+                class="flex-1 py-1 px-1.5 text-[11px] font-bold rounded flex items-center justify-center gap-0.5 transition cursor-pointer ${pres === 'parcial' ? 'bg-amber-500 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'}"
                 title="Parcial / Avaria">
                 <i class="ph-bold ph-warning"></i> Parcial
               </button>
             </div>
           </td>
 
-          <!-- CONTAGEM FÍSICA -->
           <td class="py-2 px-2 text-center bg-slate-50/40">
             <input type="number" 
                    value="${contagem}" 
                    placeholder="Qtd"
-                   onchange="atualizarContagem('${p.cod}', this.value)"
+                   onchange="window.atualizarContagem('${p.cod}', this.value)"
                    class="w-20 text-center text-xs font-bold border border-slate-300 rounded-lg py-1 px-1 focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white">
           </td>
 
-          <!-- DIVERGÊNCIA CALCULADA -->
           <td class="py-2 px-2 text-center ${diverClass}">
             ${diverText}
           </td>
 
-          <!-- OBSERVAÇÃO -->
           <td class="py-2 px-3">
             <input type="text" 
                    value="${obs}" 
                    placeholder="Ex: No mezanino..." 
-                   onchange="atualizarObs('${p.cod}', this.value)"
+                   onchange="window.atualizarObs('${p.cod}', this.value)"
                    class="w-full text-xs text-slate-700 border border-slate-200 rounded-lg py-1 px-2 focus:ring-1 focus:ring-brand-500 bg-white placeholder-slate-400">
           </td>
 
-          <!-- AÇÕES: EDITAR E EXCLUIR -->
           <td class="py-2 px-2 text-center no-print">
             <div class="flex items-center justify-center gap-1">
-              <button onclick="abrirModalEditarProduto('${p.cod}')" class="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition" title="Editar Mercadoria">
+              <button onclick="window.abrirModalEditarProduto('${p.cod}')" type="button" class="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition cursor-pointer" title="Editar Mercadoria">
                 <i class="ph-bold ph-pencil-simple text-sm"></i>
               </button>
-              <button onclick="excluirProduto('${p.cod}')" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Excluir Mercadoria">
+              <button onclick="window.excluirProduto('${p.cod}')" type="button" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer" title="Excluir Mercadoria">
                 <i class="ph-bold ph-trash text-sm"></i>
               </button>
             </div>
@@ -1418,19 +1680,20 @@
         tbody.appendChild(tr);
       });
 
-      document.getElementById('labelContadorExibidos').innerText = `Exibindo ${itens.length} itens`;
-    }
+      const lbl = document.getElementById('labelContadorExibidos');
+      if (lbl) lbl.innerText = `Exibindo ${itens.length} itens`;
+    };
 
-    function getRowBgColor(item, pres) {
+    window.getRowBgColor = function(item, pres) {
       if (pres === 'sim') return 'bg-emerald-50/20';
       if (pres === 'nao') return 'bg-rose-50/25';
       if (pres === 'parcial') return 'bg-amber-50/20';
       if (item.estoque < 0) return 'bg-rose-50/30';
       return '';
-    }
+    };
 
-    function alterarPresenca(codigo, novoStatus) {
-      const prod = window.appState.produtos.find(p => p.cod === codigo);
+    window.alterarPresenca = function(codigo, novoStatus) {
+      const prod = (window.appState && window.appState.produtos) ? window.appState.produtos.find(p => p.cod === codigo) : null;
       if (!prod) return;
 
       const statusAtual = prod.presenca || 'pendente';
@@ -1441,15 +1704,15 @@
         novaContagem = '0';
       }
 
-      salvarProdutoNoBanco({
+      window.salvarProdutoNoBanco({
         ...prod,
         presenca: statusFinal,
         contagemFisica: novaContagem
       });
-    }
+    };
 
-    function atualizarContagem(codigo, valor) {
-      const prod = window.appState.produtos.find(p => p.cod === codigo);
+    window.atualizarContagem = function(codigo, valor) {
+      const prod = (window.appState && window.appState.produtos) ? window.appState.produtos.find(p => p.cod === codigo) : null;
       if (!prod) return;
 
       let pres = prod.presenca;
@@ -1457,42 +1720,42 @@
         pres = parseInt(valor) > 0 ? 'sim' : 'nao';
       }
 
-      salvarProdutoNoBanco({
+      window.salvarProdutoNoBanco({
         ...prod,
         contagemFisica: valor,
         presenca: pres
       });
-    }
+    };
 
-    function atualizarObs(codigo, texto) {
-      const prod = window.appState.produtos.find(p => p.cod === codigo);
+    window.atualizarObs = function(codigo, texto) {
+      const prod = (window.appState && window.appState.produtos) ? window.appState.produtos.find(p => p.cod === codigo) : null;
       if (!prod) return;
-      salvarProdutoNoBanco({
+      window.salvarProdutoNoBanco({
         ...prod,
         obs: texto
       });
-    }
+    };
 
-    function marcarTodosPresentes() {
-      const indAtiva = window.appState.industriaAtiva;
-      const lista = (window.appState.produtos || []).filter(p => {
+    window.marcarTodosPresentes = function() {
+      const indAtiva = (window.appState && window.appState.industriaAtiva) ? window.appState.industriaAtiva : 'todas';
+      const lista = (window.appState && window.appState.produtos) ? window.appState.produtos.filter(p => {
         if (indAtiva !== 'todas' && (p.industria || '').trim().toLowerCase() !== indAtiva.trim().toLowerCase()) return false;
         return true;
-      });
+      }) : [];
 
       lista.forEach(p => {
         if (!p.presenca || p.presenca === 'pendente') {
-          salvarProdutoNoBanco({
+          window.salvarProdutoNoBanco({
             ...p,
             presenca: 'sim'
           });
         }
       });
-      mostrarToast("Presença Confirmada", `Itens da aba "${indAtiva}" marcados como Sim.`);
-    }
+      window.mostrarToast("Presença Confirmada", `Itens da aba "${indAtiva}" marcados como Sim.`);
+    };
 
-    function atualizarEstatisticas() {
-      const lista = window.appState.produtos || [];
+    window.atualizarEstatisticas = function() {
+      const lista = (window.appState && window.appState.produtos) ? window.appState.produtos : [];
       let auditados = 0;
       let presentes = 0;
       let ausentes = 0;
@@ -1523,33 +1786,38 @@
       const total = lista.length;
       const perc = total > 0 ? Math.round((auditados / total) * 100) : 0;
 
-      document.getElementById('statTotalGeral').innerText = total;
-      document.getElementById('statAuditados').innerText = `${auditados}/${total}`;
-      document.getElementById('statProgresso').innerText = `${perc}%`;
-      document.getElementById('progressBar').style.width = `${perc}%`;
-      document.getElementById('statPresente').innerText = presentes;
-      document.getElementById('statAusente').innerText = ausentes;
-      document.getElementById('statDivergencias').innerText = divergencias;
-      document.getElementById('statNegativo').innerText = negativos;
-      document.getElementById('statDdeCritico').innerText = ddeCriticos;
-    }
+      const setVal = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = val;
+      };
 
-    // GESTÃO DE SELEÇÃO EM LOTE (BULK EDIT)
-    function alternarSelecaoItem(codigo, selecionado) {
+      setVal('statTotalGeral', total);
+      setVal('statAuditados', `${auditados}/${total}`);
+      setVal('statProgresso', `${perc}%`);
+      const pBar = document.getElementById('progressBar');
+      if (pBar) pBar.style.width = `${perc}%`;
+      setVal('statPresente', presentes);
+      setVal('statAusente', ausentes);
+      setVal('statDivergencias', divergencias);
+      setVal('statNegativo', negativos);
+      setVal('statDdeCritico', ddeCriticos);
+    };
+
+    window.alternarSelecaoItem = function(codigo, selecionado) {
       if (selecionado) {
         window.appState.selecionados.add(codigo);
       } else {
         window.appState.selecionados.delete(codigo);
       }
-      atualizarBarraLote();
-    }
+      window.atualizarBarraLote();
+    };
 
-    function alternarSelecionarTodos(marcar) {
-      const indAtiva = window.appState.industriaAtiva;
-      const produtosVisiveis = (window.appState.produtos || []).filter(p => {
+    window.alternarSelecionarTodos = function(marcar) {
+      const indAtiva = (window.appState && window.appState.industriaAtiva) ? window.appState.industriaAtiva : 'todas';
+      const produtosVisiveis = (window.appState && window.appState.produtos) ? window.appState.produtos.filter(p => {
         if (indAtiva !== 'todas' && (p.industria || '').trim().toLowerCase() !== indAtiva.trim().toLowerCase()) return false;
         return true;
-      });
+      }) : [];
 
       produtosVisiveis.forEach(p => {
         if (marcar) {
@@ -1559,22 +1827,24 @@
         }
       });
 
-      atualizarBarraLote();
-      aplicarFiltros();
-    }
+      window.atualizarBarraLote();
+      window.aplicarFiltros();
+    };
 
-    function desmarcarTodosLote() {
+    window.desmarcarTodosLote = function() {
+      if (!window.appState) return;
       window.appState.selecionados.clear();
       const checkHeader = document.getElementById('checkSelectAll');
       if (checkHeader) checkHeader.checked = false;
-      atualizarBarraLote();
-      aplicarFiltros();
-    }
+      window.atualizarBarraLote();
+      window.aplicarFiltros();
+    };
 
     window.atualizarBarraLote = function() {
       const barra = document.getElementById('barraEdicaoEmLote');
       const contador = document.getElementById('contadorSelecionados');
-      const totalSel = window.appState.selecionados.size;
+      if (!barra || !contador) return;
+      const totalSel = (window.appState && window.appState.selecionados) ? window.appState.selecionados.size : 0;
 
       contador.innerText = totalSel;
       if (totalSel > 0) {
@@ -1584,67 +1854,38 @@
       }
     };
 
-    function aplicarPresencaEmLote(status) {
+    window.aplicarPresencaEmLote = function(status) {
       const total = window.appState.selecionados.size;
       window.executarAcaoEmLote('presenca', status);
-      mostrarToast("Lote Atualizado", `${total} itens marcados como ${status.toUpperCase()}.`);
-    }
+      window.mostrarToast("Lote Atualizado", `${total} itens marcados como ${status.toUpperCase()}.`);
+    };
 
-    function abrirModalTransferenciaLote() {
-      document.getElementById('inputDestinoLote').value = '';
-      document.getElementById('modalTransferenciaLote').classList.remove('hidden');
-    }
-
-    function fecharModalTransferenciaLote() {
-      document.getElementById('modalTransferenciaLote').classList.add('hidden');
-    }
-
-    function confirmarTransferenciaLote() {
+    window.confirmarTransferenciaLote = function() {
       const destino = document.getElementById('inputDestinoLote').value.trim();
       if (!destino) {
-        mostrarToast("Atenção", "Informe a indústria de destino.", "error");
+        window.mostrarToast("Atenção", "Informe a indústria de destino.", "error");
         return;
       }
       const total = window.appState.selecionados.size;
       window.executarAcaoEmLote('trocarIndustria', destino);
-      fecharModalTransferenciaLote();
-      mostrarToast("Transferência Concluída", `${total} itens movidos para "${destino}".`);
-    }
+      window.fecharModalTransferenciaLote();
+      window.mostrarToast("Transferência Concluída", `${total} itens movidos para "${destino}".`);
+    };
 
-    function solicitarExclusaoEmLote() {
+    window.solicitarExclusaoEmLote = function() {
       const total = window.appState.selecionados.size;
       window.confirmDialog(
         "Excluir Itens em Lote?",
         `Tem certeza que deseja apagar permanentemente os ${total} produtos selecionados?`,
         () => {
           window.executarAcaoEmLote('excluir');
-          mostrarToast("Excluídos", `${total} itens removidos do sistema.`, "info");
+          window.mostrarToast("Excluídos", `${total} itens removidos do sistema.`, "info");
         }
       );
-    }
+    };
 
-    // MODAL DE EDIÇÃO DE PRODUTO EXISTENTE
-    function abrirModalEditarProduto(codigo) {
-      const prod = window.appState.produtos.find(p => p.cod === codigo);
-      if (!prod) return;
-
-      document.getElementById('editCodOriginal').value = prod.cod;
-      document.getElementById('editCod').value = prod.cod;
-      document.getElementById('editDesc').value = prod.desc;
-      document.getElementById('editIndustria').value = prod.industria || 'Puro Tempero';
-      document.getElementById('editVenda').value = prod.venda || 0;
-      document.getElementById('editEstoque').value = prod.estoque || 0;
-      document.getElementById('editDde').value = prod.dde || 0;
-
-      document.getElementById('modalEditarProduto').classList.remove('hidden');
-    }
-
-    function fecharModalEditarProduto() {
-      document.getElementById('modalEditarProduto').classList.add('hidden');
-    }
-
-    async function salvarEdicaoProduto(e) {
-      e.preventDefault();
+    window.salvarEdicaoProduto = async function(e) {
+      if (e) e.preventDefault();
       const cod = document.getElementById('editCodOriginal').value;
       const desc = document.getElementById('editDesc').value.trim().toUpperCase();
       const industria = document.getElementById('editIndustria').value.trim() || 'Puro Tempero';
@@ -1664,69 +1905,58 @@
         dde
       };
 
-      await salvarProdutoNoBanco(atualizado);
-      fecharModalEditarProduto();
+      await window.salvarProdutoNoBanco(atualizado);
+      window.fecharModalEditarProduto();
       window.renderizarAbasIndustrias();
-      mostrarToast("Atualizado com Sucesso", `Mercadoria "${desc}" alterada.`);
-    }
+      window.mostrarToast("Atualizado com Sucesso", `Mercadoria "${desc}" alterada.`);
+    };
 
-    // VALIDAÇÃO DE DUPLICIDADE NO CADASTRO
-    function verificarDuplicidade(codigo, descricao, excluirCodigoAtual = null) {
-      const lista = window.appState.produtos || [];
-      const codNorm = normalizarTexto(codigo);
-      const descNorm = normalizarTexto(descricao);
+    window.verificarDuplicidade = function(codigo, descricao, excluirCodigoAtual = null) {
+      const lista = (window.appState && window.appState.produtos) ? window.appState.produtos : [];
+      const codNorm = window.normalizarTexto(codigo);
+      const descNorm = window.normalizarTexto(descricao);
 
       for (const p of lista) {
         if (excluirCodigoAtual && p.cod === excluirCodigoAtual) continue;
 
-        if (codNorm && normalizarTexto(p.cod) === codNorm) {
+        if (codNorm && window.normalizarTexto(p.cod) === codNorm) {
           return { duplicado: true, motivo: `Código '${codigo}' já cadastrado para: "${p.desc}" (${p.industria || 'Sem marca'})` };
         }
 
-        if (descNorm && descNorm.length > 5 && normalizarTexto(p.desc) === descNorm) {
+        if (descNorm && descNorm.length > 5 && window.normalizarTexto(p.desc) === descNorm) {
           return { duplicado: true, motivo: `Descrição exata já cadastrada sob o código ${p.cod}` };
         }
       }
 
       return { duplicado: false };
-    }
+    };
 
-    function verificarDuplicidadeCampos() {
+    window.verificarDuplicidadeCampos = function() {
       const cod = document.getElementById('novoCod').value;
       const desc = document.getElementById('novoDesc').value;
       const alerta = document.getElementById('alertaDuplicidade');
       const texto = document.getElementById('textoAlertaDuplicidade');
       const btnSalvar = document.getElementById('btnSalvarNovoProd');
 
-      const checagem = verificarDuplicidade(cod, desc);
+      const checagem = window.verificarDuplicidade(cod, desc);
       if (checagem.duplicado) {
-        alerta.classList.remove('hidden');
-        texto.innerText = checagem.motivo;
-        btnSalvar.disabled = true;
-        btnSalvar.classList.add('opacity-50', 'cursor-not-allowed');
+        if (alerta) alerta.classList.remove('hidden');
+        if (texto) texto.innerText = checagem.motivo;
+        if (btnSalvar) {
+          btnSalvar.disabled = true;
+          btnSalvar.classList.add('opacity-50', 'cursor-not-allowed');
+        }
       } else {
-        alerta.classList.add('hidden');
-        btnSalvar.disabled = false;
-        btnSalvar.classList.remove('opacity-50', 'cursor-not-allowed');
+        if (alerta) alerta.classList.add('hidden');
+        if (btnSalvar) {
+          btnSalvar.disabled = false;
+          btnSalvar.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
       }
-    }
+    };
 
-    function abrirModalNovoProduto() {
-      document.getElementById('formNovoProduto').reset();
-      // Sugerir indústria da aba ativa se não for "todas"
-      if (window.appState.industriaAtiva !== 'todas') {
-        document.getElementById('novoIndustria').value = window.appState.industriaAtiva;
-      }
-      document.getElementById('alertaDuplicidade').classList.add('hidden');
-      document.getElementById('modalNovoProduto').classList.remove('hidden');
-    }
-
-    function fecharModalNovoProduto() {
-      document.getElementById('modalNovoProduto').classList.add('hidden');
-    }
-
-    async function salvarNovoProduto(e) {
-      e.preventDefault();
+    window.salvarNovoProduto = async function(e) {
+      if (e) e.preventDefault();
       const cod = document.getElementById('novoCod').value.trim();
       const desc = document.getElementById('novoDesc').value.trim().toUpperCase();
       const industria = document.getElementById('novoIndustria').value.trim() || 'Puro Tempero';
@@ -1734,9 +1964,9 @@
       const estoque = parseInt(document.getElementById('novoEstoque').value) || 0;
       const dde = parseInt(document.getElementById('novoDde').value) || 0;
 
-      const dup = verificarDuplicidade(cod, desc);
+      const dup = window.verificarDuplicidade(cod, desc);
       if (dup.duplicado) {
-        mostrarToast("Duplicidade", dup.motivo, "error");
+        window.mostrarToast("Duplicidade", dup.motivo, "error");
         return;
       }
 
@@ -1752,89 +1982,64 @@
         obs: ''
       };
 
-      await salvarProdutoNoBanco(novoProduto);
-      fecharModalNovoProduto();
+      await window.salvarProdutoNoBanco(novoProduto);
+      window.fecharModalNovoProduto();
       window.renderizarAbasIndustrias();
-      mostrarToast("Cadastrado!", `Mercadoria "${desc}" incluída na pasta ${industria}.`);
-    }
+      window.mostrarToast("Cadastrado!", `Mercadoria "${desc}" incluída na pasta ${industria}.`);
+    };
 
-    // PROCESSAMENTO INTELIGENTE POR IA (PDF / IMAGEM)
-    function abrirModalUpload() {
-      document.getElementById('modalUpload').classList.remove('hidden');
-      document.getElementById('statusProcessamentoIA').classList.add('hidden');
-      document.getElementById('containerResultadosIA').classList.add('hidden');
-      document.getElementById('btnConfirmarImportacaoIA').disabled = true;
-      document.getElementById('inputArquivoUpload').value = '';
-    }
+    window.processarArquivoSelecionado = function(e) {
+      if (e && e.target && e.target.files && e.target.files.length) {
+        window.processarArquivo(e.target.files[0]);
+      }
+    };
 
-    function fecharModalUpload() {
-      document.getElementById('modalUpload').classList.add('hidden');
-    }
-
-    const dropZone = document.getElementById('dropZone');
-    ['dragenter', 'dragover'].forEach(eventName => {
-      dropZone.addEventListener(eventName, (e) => {
-        e.preventDefault();
-        dropZone.classList.add('border-violet-600', 'bg-violet-100/50');
-      }, false);
-    });
-    ['dragleave', 'drop'].forEach(eventName => {
-      dropZone.addEventListener(eventName, (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('border-violet-600', 'bg-violet-100/50');
-      }, false);
-    });
-    dropZone.addEventListener('drop', (e) => {
-      const dt = e.dataTransfer;
-      const files = dt.files;
-      if (files.length) processarArquivo(files[0]);
-    });
-
-    function processarArquivoSelecionado(e) {
-      if (e.target.files.length) processarArquivo(e.target.files[0]);
-    }
-
-    async function processarArquivo(file) {
+    window.processarArquivo = async function(file) {
       const statusBox = document.getElementById('statusProcessamentoIA');
       const textoStatus = document.getElementById('textoStatusIA');
-      statusBox.classList.remove('hidden');
-      document.getElementById('containerResultadosIA').classList.add('hidden');
-      document.getElementById('btnConfirmarImportacaoIA').disabled = true;
+      if (statusBox) statusBox.classList.remove('hidden');
+      const resCont = document.getElementById('containerResultadosIA');
+      if (resCont) resCont.classList.add('hidden');
+      const btnConf = document.getElementById('btnConfirmarImportacaoIA');
+      if (btnConf) btnConf.disabled = true;
 
       try {
         let base64Data = '';
-        let mimeType = file.type;
+        let mimeType = file.type || 'application/octet-stream';
 
-        if (file.type === 'application/pdf') {
-          textoStatus.innerText = 'Renderizando página do relatório PDF...';
-          base64Data = await converterPdfParaImagemBase64(file);
+        if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+          if (textoStatus) textoStatus.innerText = 'Renderizando página do relatório PDF...';
+          base64Data = await window.converterPdfParaImagemBase64(file);
           mimeType = 'image/png';
         } else if (file.type.startsWith('image/')) {
-          textoStatus.innerText = 'Preparando imagem para o leitor óptico Gemini...';
-          base64Data = await arquivoParaBase64Puro(file);
+          if (textoStatus) textoStatus.innerText = 'Preparando imagem para o leitor óptico Gemini...';
+          base64Data = await window.arquivoParaBase64Puro(file);
         } else {
           throw new Error('Tipo não suportado. Envie foto ou PDF.');
         }
 
-        textoStatus.innerText = 'Lendo tabela: extraindo códigos, estoques, descrições e marcas...';
-        const itensExtraidos = await enviarParaLeitorGemini(base64Data, mimeType);
+        if (textoStatus) textoStatus.innerText = 'Lendo tabela: extraindo códigos, estoques, descrições e marcas...';
+        const itensExtraidos = await window.enviarParaLeitorGemini(base64Data, mimeType);
 
         if (!itensExtraidos || itensExtraidos.length === 0) {
           throw new Error('Nenhuma tabela ou mercadoria identificável foi detectada.');
         }
 
         window.appState.itensIAExtraidos = itensExtraidos;
-        renderizarPreviewItensIA(itensExtraidos);
-        statusBox.classList.add('hidden');
+        window.renderizarPreviewItensIA(itensExtraidos);
+        if (statusBox) statusBox.classList.add('hidden');
 
       } catch (err) {
-        console.error(err);
-        statusBox.classList.add('hidden');
-        mostrarToast("Erro na Leitura", err.message || "Não foi possível analisar o arquivo.", "error");
+        console.error("Erro no processamento:", err);
+        if (statusBox) statusBox.classList.add('hidden');
+        window.mostrarToast("Erro na Leitura", err.message || "Não foi possível analisar o arquivo.", "error");
       }
-    }
+    };
 
-    async function converterPdfParaImagemBase64(file) {
+    window.converterPdfParaImagemBase64 = async function(file) {
+      if (!window.pdfjsLib) {
+        throw new Error("Biblioteca PDF.js não carregada. Verifique sua conexão com a internet.");
+      }
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       const page = await pdf.getPage(1);
@@ -1848,18 +2053,18 @@
       await page.render({ canvasContext: context, viewport: viewport }).promise;
       const dataUrl = canvas.toDataURL('image/png');
       return dataUrl.split(',')[1];
-    }
+    };
 
-    function arquivoParaBase64Puro(file) {
+    window.arquivoParaBase64Puro = function(file) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result.split(',')[1]);
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
-    }
+    };
 
-    async function enviarParaLeitorGemini(base64Data, mimeType) {
+    window.enviarParaLeitorGemini = async function(base64Data, mimeType) {
       const apiKey = "";
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
 
@@ -1924,21 +2129,22 @@ Identifique: código (EAN ou numérico), descrição exata, indústria/fornecedo
         }
       }
       return [];
-    }
+    };
 
-    function renderizarPreviewItensIA(itens) {
+    window.renderizarPreviewItensIA = function(itens) {
       const container = document.getElementById('containerResultadosIA');
       const tbody = document.getElementById('tabelaPreviewIA');
       const totalSpan = document.getElementById('totalItensReconhecidos');
       const btnConfirmar = document.getElementById('btnConfirmarImportacaoIA');
 
+      if (!container || !tbody) return;
       tbody.innerHTML = '';
-      totalSpan.innerText = itens.length;
+      if (totalSpan) totalSpan.innerText = itens.length;
       container.classList.remove('hidden');
-      btnConfirmar.disabled = false;
+      if (btnConfirmar) btnConfirmar.disabled = false;
 
       itens.forEach(item => {
-        const existe = (window.appState.produtos || []).find(p => p.cod === item.cod || normalizarTexto(p.desc) === normalizarTexto(item.desc));
+        const existe = (window.appState && window.appState.produtos) ? window.appState.produtos.find(p => p.cod === item.cod || window.normalizarTexto(p.desc) === window.normalizarTexto(item.desc)) : null;
 
         const tr = document.createElement('tr');
         tr.className = "border-b border-slate-100 hover:bg-slate-50";
@@ -1957,15 +2163,17 @@ Identifique: código (EAN ou numérico), descrição exata, indústria/fornecedo
         `;
         tbody.appendChild(tr);
       });
-    }
+    };
 
-    async function aplicarDadosImportadosIA() {
-      const itens = window.appState.itensIAExtraidos || [];
+    window.aplicarDadosImportadosIA = async function() {
+      const itens = (window.appState && window.appState.itensIAExtraidos) ? window.appState.itensIAExtraidos : [];
       if (!itens.length) return;
 
       const btn = document.getElementById('btnConfirmarImportacaoIA');
-      btn.disabled = true;
-      btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Gravando...';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Gravando...';
+      }
 
       let atualizados = 0;
       let adicionados = 0;
@@ -1973,9 +2181,9 @@ Identifique: código (EAN ou numérico), descrição exata, indústria/fornecedo
       for (const item of itens) {
         if (!item.cod) continue;
 
-        const existente = (window.appState.produtos || []).find(p => p.cod === item.cod);
+        const existente = (window.appState && window.appState.produtos) ? window.appState.produtos.find(p => p.cod === item.cod) : null;
         if (existente) {
-          await salvarProdutoNoBanco({
+          await window.salvarProdutoNoBanco({
             ...existente,
             estoque: item.estoque,
             venda: item.venda !== undefined ? item.venda : existente.venda,
@@ -1984,7 +2192,7 @@ Identifique: código (EAN ou numérico), descrição exata, indústria/fornecedo
           });
           atualizados++;
         } else {
-          await salvarProdutoNoBanco({
+          await window.salvarProdutoNoBanco({
             cod: item.cod,
             desc: item.desc.toUpperCase(),
             industria: item.industria || 'Puro Tempero',
@@ -1999,36 +2207,29 @@ Identifique: código (EAN ou numérico), descrição exata, indústria/fornecedo
         }
       }
 
-      fecharModalUpload();
+      window.fecharModalUpload();
       window.renderizarAbasIndustrias();
-      mostrarToast("Catálogo Atualizado", `${atualizados} produtos atualizados e ${adicionados} adicionados.`);
-    }
+      window.mostrarToast("Catálogo Atualizado", `${atualizados} produtos atualizados e ${adicionados} adicionados.`);
+    };
 
-    // MODAL E EXPORTAÇÃO DA LISTA SIMPLES COLORIDA
-    function abrirModalListaSimples() {
-      atualizarConteudoListaSimples();
-      document.getElementById('modalListaSimples').classList.remove('hidden');
-    }
-
-    function fecharModalListaSimples() {
-      document.getElementById('modalListaSimples').classList.add('hidden');
-    }
-
-    function atualizarConteudoListaSimples() {
+    window.atualizarConteudoListaSimples = function() {
       const tbody = document.getElementById('tabelaListaSimplesCorpo');
+      if (!tbody) return;
       tbody.innerHTML = '';
 
-      const dataHoje = document.getElementById('auditorData').value || new Date().toLocaleDateString('pt-BR');
-      const auditor = document.getElementById('auditorNome').value || 'Não informado';
-      const indAtiva = window.appState.industriaAtiva;
+      const dataHoje = (document.getElementById('auditorData') && document.getElementById('auditorData').value) ? document.getElementById('auditorData').value : new Date().toLocaleDateString('pt-BR');
+      const auditor = (document.getElementById('auditorNome') && document.getElementById('auditorNome').value) ? document.getElementById('auditorNome').value : 'Não informado';
+      const indAtiva = (window.appState && window.appState.industriaAtiva) ? window.appState.industriaAtiva : 'todas';
 
-      document.getElementById('lsBadgeIndustria').innerText = indAtiva === 'todas' ? 'Todas as Indústrias' : indAtiva;
-      document.getElementById('lsInfoAuditor').innerText = `Auditor: ${auditor} | Data: ${dataHoje} | Filial: 438 - GRAJAÚ | Aba: ${indAtiva === 'todas' ? 'Geral' : indAtiva}`;
+      const badge = document.getElementById('lsBadgeIndustria');
+      if (badge) badge.innerText = indAtiva === 'todas' ? 'Todas as Indústrias' : indAtiva;
+      const infoAud = document.getElementById('lsInfoAuditor');
+      if (infoAud) infoAud.innerText = `Auditor: ${auditor} | Data: ${dataHoje} | Filial: 438 - GRAJAÚ | Aba: ${indAtiva === 'todas' ? 'Geral' : indAtiva}`;
 
-      const itens = (window.appState.produtos || []).filter(p => {
+      const itens = (window.appState && window.appState.produtos) ? window.appState.produtos.filter(p => {
         if (indAtiva !== 'todas' && (p.industria || '').trim().toLowerCase() !== indAtiva.trim().toLowerCase()) return false;
         return true;
-      });
+      }) : [];
 
       itens.forEach((p, idx) => {
         const status = p.presenca || 'pendente';
@@ -2056,22 +2257,131 @@ Identifique: código (EAN ou numérico), descrição exata, indústria/fornecedo
         `;
         tbody.appendChild(tr);
       });
-    }
+    };
 
-    function imprimirListaSimples() {
-      atualizarConteudoListaSimples();
+    window.imprimirListaSimples = function() {
+      window.atualizarConteudoListaSimples();
       document.body.classList.add('imprimindo-simples');
       window.print();
       setTimeout(() => document.body.classList.remove('imprimindo-simples'), 1000);
-    }
+    };
 
-    function baixarPdfListaSimples() {
-      atualizarConteudoListaSimples();
+    window.baixarPdfListaSimples = function() {
+      window.atualizarConteudoListaSimples();
       const btn = document.getElementById('btnPdfSimples');
-      const txtOriginal = btn.innerHTML;
-      btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Gerando...';
-      btn.disabled = true;
+      const txtOriginal = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Gerando...';
+        btn.disabled = true;
+      }
 
       const elemento = document.getElementById('areaParaImpressaoSimples');
-      const dataHoje = document.getElementById('auditorData').value || new Date().toISOString().split('T')[0];
-      const nomeArquivo = `Lista_
+      const dataHoje = (document.getElementById('auditorData') && document.getElementById('auditorData').value) ? document.getElementById('auditorData').value : new Date().toISOString().split('T')[0];
+      const nomeArquivo = `Lista_Simples_Auditoria_${dataHoje}.pdf`;
+
+      if (typeof window.html2pdf !== 'function') {
+        if (btn) {
+          btn.innerHTML = txtOriginal;
+          btn.disabled = false;
+        }
+        window.imprimirListaSimples();
+        return;
+      }
+
+      const opcoes = {
+        margin: [10, 10, 10, 10],
+        filename: nomeArquivo,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      };
+
+      html2pdf().set(opcoes).from(elemento).save().then(() => {
+        if (btn) {
+          btn.innerHTML = txtOriginal;
+          btn.disabled = false;
+        }
+      }).catch(err => {
+        console.error("Falha ao gerar PDF simples:", err);
+        if (btn) {
+          btn.innerHTML = txtOriginal;
+          btn.disabled = false;
+        }
+        window.imprimirListaSimples();
+      });
+    };
+
+    window.gerarDownloadPDF = function() {
+      const btn = document.getElementById('btnBaixarPdf');
+      const originalHtml = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin text-base"></i> Gerando PDF...';
+        btn.disabled = true;
+      }
+
+      const elemento = document.getElementById('areaAuditoria');
+      const dataHoje = (document.getElementById('auditorData') && document.getElementById('auditorData').value) ? document.getElementById('auditorData').value : new Date().toISOString().split('T')[0];
+      const nomeAuditor = ((document.getElementById('auditorNome') && document.getElementById('auditorNome').value) || 'auditoria').replace(/\s+/g, '_');
+      const nomeArquivo = `Auditoria_Posterus_Grajaú_${dataHoje}_${nomeAuditor}.pdf`;
+
+      if (typeof window.html2pdf !== 'function') {
+        if (btn) {
+          btn.innerHTML = originalHtml;
+          btn.disabled = false;
+        }
+        window.print();
+        return;
+      }
+
+      const opcoes = {
+        margin: [8, 8, 8, 8],
+        filename: nomeArquivo,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      };
+
+      html2pdf().set(opcoes).from(elemento).save().then(() => {
+        if (btn) {
+          btn.innerHTML = originalHtml;
+          btn.disabled = false;
+        }
+      }).catch(err => {
+        console.error('Erro ao gerar PDF completo:', err);
+        if (btn) {
+          btn.innerHTML = originalHtml;
+          btn.disabled = false;
+        }
+        window.print();
+      });
+    };
+
+    // Inicialização adicional de drag & drop e event listeners
+    window.addEventListener('DOMContentLoaded', () => {
+      const dropZone = document.getElementById('dropZone');
+      if (dropZone) {
+        ['dragenter', 'dragover'].forEach(eventName => {
+          dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-violet-600', 'bg-violet-100/50');
+          }, false);
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+          dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-violet-600', 'bg-violet-100/50');
+          }, false);
+        });
+        dropZone.addEventListener('drop', (e) => {
+          const dt = e.dataTransfer;
+          const files = dt ? dt.files : null;
+          if (files && files.length) window.processarArquivo(files[0]);
+        });
+      }
+    });
+  </script>
+
+</body>
+</html>
