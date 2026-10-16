@@ -1,0 +1,2078 @@
+```html
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auditoria de Estoque Profissional - Posterus Supermercados</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Phosphor Icons para ícones modernos -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <!-- html2pdf.js para exportação direta de PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <!-- PDF.js para renderizar e extrair páginas de arquivos PDF importados -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    }
+  </script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              800: '#065f46',
+              900: '#064e3b',
+            },
+            desk: {
+              card: '#ffffff',
+              border: '#e2e8f0',
+              tabactive: '#ffffff',
+              tabinactive: '#e6edf5'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Estilo de Abas Chrome / Pastas de Arquivo (Folder Tabs) */
+    .chrome-tab-container {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      overflow-x: auto;
+      scrollbar-width: thin;
+      padding-top: 6px;
+      padding-left: 8px;
+      padding-right: 8px;
+    }
+    .chrome-tab {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 18px 10px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #475569;
+      background: #e2e8f0;
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+      border: 1px solid #cbd5e1;
+      border-bottom: none;
+      cursor: pointer;
+      transition: all 0.15s ease-in-out;
+      white-space: nowrap;
+      user-select: none;
+      box-shadow: inset 0 -3px 4px -2px rgba(0,0,0,0.06);
+    }
+    .chrome-tab:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .chrome-tab.active {
+      background: #ffffff;
+      color: #0f172a;
+      font-weight: 700;
+      border-color: #cbd5e1;
+      border-top: 3px solid #059669;
+      box-shadow: 0 -2px 6px -1px rgba(0, 0, 0, 0.08);
+      z-index: 10;
+      padding-bottom: 11px;
+      margin-bottom: -1px;
+    }
+
+    @media print {
+      .no-print {
+        display: none !important;
+      }
+      body {
+        background: white !important;
+        font-size: 10px;
+        color: #0f172a !important;
+      }
+      .card-container {
+        box-shadow: none !important;
+        border: 1px solid #e2e8f0;
+      }
+      table {
+        page-break-inside: auto;
+      }
+      tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+      }
+      thead {
+        display: table-header-group;
+      }
+      body.imprimindo-simples #areaAuditoria,
+      body.imprimindo-simples header {
+        display: none !important;
+      }
+      body.imprimindo-simples #areaListaSimples {
+        display: block !important;
+      }
+    }
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { 
+      -webkit-appearance: none; 
+      margin: 0; 
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col font-sans antialiased selection:bg-brand-500 selection:text-white">
+
+  <!-- CABEÇALHO PRINCIPAL COM ELEVAÇÃO E AÇÕES -->
+  <header class="bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Logotipo & Identificação de Filial -->
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-700 to-emerald-500 text-white flex items-center justify-center shadow-md shadow-brand-500/20">
+          <i class="ph-bold ph-clipboard-text text-2xl"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base font-extrabold text-slate-900 tracking-tight">Auditoria & Presença</h1>
+            <span id="badgeConexao" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> Conectando...
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 font-medium">Filial: <span class="text-slate-800 font-bold">438 - POSTERUS SUPERMERCADOS GRAJAÚ</span></p>
+        </div>
+      </div>
+
+      <!-- Barra de Ações Rápidas -->
+      <div class="flex items-center flex-wrap gap-2 no-print">
+        
+        <!-- Importar via IA (PDF / Foto) -->
+        <button onclick="abrirModalUpload()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg text-white bg-violet-600 hover:bg-violet-700 active:scale-95 transition shadow-xs">
+          <i class="ph-bold ph-sparkle text-sm"></i> Ler PDF / Foto (IA)
+        </button>
+
+        <!-- Botão Novo Produto -->
+        <button onclick="abrirModalNovoProduto()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg text-white bg-blue-600 hover:bg-blue-700 active:scale-95 transition shadow-xs">
+          <i class="ph-bold ph-plus-circle text-sm"></i> Nova Mercadoria
+        </button>
+
+        <!-- Lista Simples Colorida -->
+        <button onclick="abrirModalListaSimples()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg text-white bg-slate-800 hover:bg-slate-900 active:scale-95 transition shadow-xs" title="Visualizar ou imprimir lista simples com cores">
+          <i class="ph-bold ph-list-checks text-sm"></i> Lista Simples
+        </button>
+
+        <!-- Baixar PDF Completo -->
+        <button id="btnBaixarPdf" onclick="gerarDownloadPDF()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg text-white bg-rose-600 hover:bg-rose-700 active:scale-95 transition shadow-xs">
+          <i class="ph-bold ph-file-pdf text-sm"></i> Baixar PDF
+        </button>
+
+        <!-- Limpar Indústria Atual -->
+        <button onclick="solicitarLimpezaIndustria()" class="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-semibold rounded-lg text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition" title="Excluir todos os produtos da indústria aberta">
+          <i class="ph-bold ph-trash text-sm"></i> Limpar Indústria
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="areaAuditoria" class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-4">
+
+    <!-- Card de Dados da Sessão / Auditor -->
+    <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Nome do Auditor(a)</label>
+          <div class="relative">
+            <i class="ph-bold ph-user absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+            <input type="text" id="auditorNome" onchange="salvarSessaoAuditor()" placeholder="Ex: Roberto Carlos" class="w-full pl-8 text-xs font-semibold border border-slate-300 rounded-lg py-2 pr-3 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+          </div>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Data da Auditoria</label>
+          <div class="relative">
+            <i class="ph-bold ph-calendar absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+            <input type="date" id="auditorData" onchange="salvarSessaoAuditor()" class="w-full pl-8 text-xs font-semibold border border-slate-300 rounded-lg py-2 pr-3 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+          </div>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Tipo de Conferência</label>
+          <select id="tipoConferencia" class="w-full text-xs font-semibold border border-slate-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <option>Auditoria Preventiva de Ruptura & DDE</option>
+            <option>Inventário Cíclico de Temperos</option>
+            <option>Conferência de Estoque Negativo</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 border-t sm:border-t-0 sm:border-l border-slate-200 pt-3 sm:pt-0 sm:pl-5 w-full sm:w-auto justify-end">
+        <div class="text-right">
+          <p class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Itens Totais</p>
+          <p class="text-2xl font-black text-slate-900 leading-none mt-0.5" id="statTotalGeral">0</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Indicadores Rápidos (KPIs em Cards Compactos e Elegantes) -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+      <!-- Total Auditados -->
+      <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
+        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Conferidos</span>
+        <div class="flex items-baseline justify-between mt-1">
+          <span class="text-lg font-black text-slate-900" id="statAuditados">0/0</span>
+          <span class="text-xs font-extrabold text-emerald-600" id="statProgresso">0%</span>
+        </div>
+        <div class="w-full bg-slate-100 rounded-full h-1.5 mt-1.5">
+          <div id="progressBar" class="bg-emerald-500 h-1.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- Presentes (Sim) -->
+      <div class="bg-white p-3 rounded-xl border border-emerald-100 bg-emerald-50/20 shadow-xs flex flex-col justify-between">
+        <span class="text-[11px] font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1">
+          <i class="ph-bold ph-check-circle"></i> Presente (Sim)
+        </span>
+        <span class="text-xl font-black text-emerald-700 mt-1" id="statPresente">0</span>
+        <span class="text-[10px] text-emerald-600 font-medium">Gôndola / Depósito</span>
+      </div>
+
+      <!-- Rupturas (Não) -->
+      <div class="bg-white p-3 rounded-xl border border-rose-200 bg-rose-50/25 shadow-xs flex flex-col justify-between">
+        <span class="text-[11px] font-bold uppercase tracking-wider text-rose-600 flex items-center gap-1">
+          <i class="ph-bold ph-x-circle"></i> Ruptura (Não)
+        </span>
+        <span class="text-xl font-black text-rose-600 mt-1" id="statAusente">0</span>
+        <span class="text-[10px] text-rose-500 font-medium">Sem estoque físico</span>
+      </div>
+
+      <!-- Estoque Negativo no ERP -->
+      <div class="bg-white p-3 rounded-xl border border-amber-200 bg-amber-50/25 shadow-xs flex flex-col justify-between">
+        <span class="text-[11px] font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1">
+          <i class="ph-bold ph-warning"></i> Negativo no ERP
+        </span>
+        <span class="text-xl font-black text-amber-700 mt-1" id="statNegativo">0</span>
+        <span class="text-[10px] text-amber-600 font-medium">Inconsistência</span>
+      </div>
+
+      <!-- DDE Crítico (< 10 Dias) -->
+      <div class="bg-white p-3 rounded-xl border border-orange-200 bg-orange-50/25 shadow-xs flex flex-col justify-between">
+        <span class="text-[11px] font-bold uppercase tracking-wider text-orange-700 flex items-center gap-1">
+          <i class="ph-bold ph-clock-countdown"></i> DDE &lt; 10d
+        </span>
+        <span class="text-xl font-black text-orange-700 mt-1" id="statDdeCritico">0</span>
+        <span class="text-[10px] text-orange-600 font-medium">Ruptura iminente</span>
+      </div>
+
+      <!-- Divergências Detectadas -->
+      <div class="bg-white p-3 rounded-xl border border-indigo-200 bg-indigo-50/25 shadow-xs flex flex-col justify-between">
+        <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-700 flex items-center gap-1">
+          <i class="ph-bold ph-arrows-left-right"></i> Divergências
+        </span>
+        <span class="text-xl font-black text-indigo-700 mt-1" id="statDivergencias">0</span>
+        <span class="text-[10px] text-indigo-600 font-medium">Físico ≠ ERP</span>
+      </div>
+    </div>
+
+    <!-- BARRA DE ABAS ESTILO PASTA DE ARQUIVO / GOOGLE CHROME -->
+    <div class="w-full pt-2">
+      <div class="chrome-tab-container custom-scrollbar border-b border-slate-300" id="containerAbasIndustria">
+        <!-- Renderizado dinamicamente via JS com as indústrias cadastradas -->
+      </div>
+    </div>
+
+    <!-- CONTAINER DA TABELA COM FORMATO DE PASTA DE ESCRITÓRIO -->
+    <div class="bg-white rounded-b-2xl rounded-tr-2xl border border-slate-300 shadow-sm overflow-hidden">
+      
+      <!-- Barra Superior de Ferramentas e Filtros -->
+      <div class="p-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2.5 bg-slate-50/80 no-print">
+        
+        <!-- Campo de Pesquisa em Tempo Real -->
+        <div class="relative flex-1 min-w-[240px]">
+          <i class="ph-bold ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base"></i>
+          <input type="text" id="searchInput" oninput="aplicarFiltros()" placeholder="Buscar por código, descrição ou marca..." class="w-full pl-9 pr-3 py-1.5 text-xs font-medium border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+        </div>
+
+        <!-- Filtros Rápidos -->
+        <div class="flex flex-wrap items-center gap-2">
+          <select id="filtroPresenca" onchange="aplicarFiltros()" class="text-xs font-semibold border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 focus:outline-none">
+            <option value="todos">Status: Todos</option>
+            <option value="pendente">Pendente de Conferência</option>
+            <option value="sim">Presença Confirmada (Sim)</option>
+            <option value="nao">Ruptura Física (Não)</option>
+            <option value="parcial">Presença Parcial</option>
+          </select>
+
+          <select id="filtroCategoria" onchange="aplicarFiltros()" class="text-xs font-semibold border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 focus:outline-none">
+            <option value="todos">Todos os Riscos</option>
+            <option value="critico">DDE Crítico (&lt; 10 dias)</option>
+            <option value="negativo">Estoque Negativo / Anomalia</option>
+            <option value="sem_venda">Sem Venda (Giro Zero)</option>
+            <option value="excesso">Superestocagem (&gt; 250d)</option>
+            <option value="divergente">Com Divergência Físico/ERP</option>
+          </select>
+
+          <button onclick="resetarFiltros()" class="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition" title="Limpar Filtros">
+            <i class="ph-bold ph-arrow-counter-clockwise text-base"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- BARRA DE EDIÇÃO EM LOTE (BULK EDIT ACTIONS) -->
+      <div id="barraEdicaoEmLote" class="hidden bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between gap-3 text-xs shadow-inner animate-in fade-in duration-200">
+        <div class="flex items-center gap-3">
+          <span class="inline-flex items-center justify-center bg-brand-500 text-slate-950 font-black rounded-full w-6 h-6 text-[11px]" id="contadorSelecionados">0</span>
+          <span class="font-bold text-slate-100">Mercadorias Selecionadas</span>
+          <span class="text-slate-400">| Ações Rápidas em Lote:</span>
+        </div>
+
+        <div class="flex items-center flex-wrap gap-2">
+          <!-- Marcar Sim em Lote -->
+          <button onclick="aplicarPresencaEmLote('sim')" class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-md bg-emerald-600 hover:bg-emerald-500 text-white transition">
+            <i class="ph-bold ph-check"></i> Marcar "Sim"
+          </button>
+
+          <!-- Marcar Não em Lote -->
+          <button onclick="aplicarPresencaEmLote('nao')" class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-md bg-rose-600 hover:bg-rose-500 text-white transition">
+            <i class="ph-bold ph-x"></i> Marcar "Não"
+          </button>
+
+          <!-- Alterar Indústria em Lote -->
+          <button onclick="abrirModalTransferenciaLote()" class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-md bg-indigo-600 hover:bg-indigo-500 text-white transition">
+            <i class="ph-bold ph-folder-notch-open"></i> Trocar Indústria
+          </button>
+
+          <!-- Excluir Itens em Lote -->
+          <button onclick="solicitarExclusaoEmLote()" class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-md bg-rose-900/80 hover:bg-rose-700 text-rose-200 transition">
+            <i class="ph-bold ph-trash"></i> Excluir Selecionados
+          </button>
+
+          <!-- Desmarcar Todos -->
+          <button onclick="desmarcarTodosLote()" class="text-slate-400 hover:text-white underline text-[11px] ml-2">
+            Desmarcar
+          </button>
+        </div>
+      </div>
+
+      <!-- Tabela Responsiva com Controles Integrados -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+              <th class="py-2.5 px-3 w-10 text-center no-print">
+                <input type="checkbox" id="checkSelectAll" onchange="alternarSelecionarTodos(this.checked)" class="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 cursor-pointer">
+              </th>
+              <th class="py-2.5 px-3 w-12 text-center">#</th>
+              <th class="py-2.5 px-3 w-24">Código</th>
+              <th class="py-2.5 px-3 min-w-[220px]">Descrição da Mercadoria</th>
+              <th class="py-2.5 px-3 w-32">Indústria</th>
+              <th class="py-2.5 px-2 text-center w-16">Venda</th>
+              <th class="py-2.5 px-2 text-center w-20">Saldo ERP</th>
+              <th class="py-2.5 px-2 text-center w-16">DDE</th>
+              <th class="py-2.5 px-4 w-44 text-center bg-slate-200/70 font-black text-slate-900 border-x border-slate-300">
+                <div class="flex items-center justify-center gap-1">
+                  <i class="ph-bold ph-check-square-offset"></i> Confirma Presença?
+                </div>
+              </th>
+              <th class="py-2.5 px-3 w-28 text-center bg-slate-100">Contagem Física</th>
+              <th class="py-2.5 px-3 w-24 text-center">Divergência</th>
+              <th class="py-2.5 px-3 min-w-[140px]">Anotação / Local</th>
+              <th class="py-2.5 px-2 w-20 text-center no-print">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tabelaCorpo" class="divide-y divide-slate-200 text-slate-700">
+            <!-- Linhas renderizadas dinamicamente via JavaScript -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Rodapé da tabela com informações do registro -->
+      <div class="p-3 border-t border-slate-200 bg-slate-50/80 flex items-center justify-between text-xs text-slate-500">
+        <span id="labelContadorExibidos">Carregando itens...</span>
+        <div class="flex items-center gap-2">
+          <button onclick="marcarTodosPresentes()" class="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 hover:underline">
+            <i class="ph-bold ph-check-circle"></i> Confirmar todos desta aba como "Sim"
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Observações Gerais e Assinaturas -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800 mb-2 flex items-center gap-2">
+          <i class="ph-bold ph-notepad text-brand-600 text-base"></i> Observações Gerais da Auditoria
+        </h3>
+        <textarea id="obsGerais" onchange="salvarObsGerais()" rows="3" placeholder="Registre avarias, caixas encontradas em aéreos, lotes vencidos ou justificativas..." class="w-full text-xs border border-slate-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500"></textarea>
+      </div>
+
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800 mb-1 flex items-center gap-2">
+            <i class="ph-bold ph-signature text-brand-600 text-base"></i> Termo de Conferência Operacional
+          </h3>
+          <p class="text-xs text-slate-500">Validação gerencial e controle de perdas de estoque.</p>
+        </div>
+        <div class="grid grid-cols-2 gap-4 mt-6 pt-2 border-t border-dashed border-slate-200">
+          <div class="text-center">
+            <div class="border-b border-slate-300 pb-1 h-6"></div>
+            <p class="text-[11px] font-semibold text-slate-600 mt-1">Assinatura do Auditor</p>
+          </div>
+          <div class="text-center">
+            <div class="border-b border-slate-300 pb-1 h-6"></div>
+            <p class="text-[11px] font-semibold text-slate-600 mt-1">Visto Gerência / Prevenção</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL: EDITAR MERCADORIA EXISTENTE -->
+  <div id="modalEditarProduto" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+      
+      <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 bg-amber-100 text-amber-700 rounded-xl">
+            <i class="ph-bold ph-pencil-simple text-xl"></i>
+          </div>
+          <div>
+            <h2 class="text-sm font-bold text-slate-900">Editar Mercadoria</h2>
+            <p class="text-xs text-slate-500">Atualize dados cadastrais, estoque sistêmico ou indústria.</p>
+          </div>
+        </div>
+        <button onclick="fecharModalEditarProduto()" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg">
+          <i class="ph-bold ph-x text-lg"></i>
+        </button>
+      </div>
+
+      <form id="formEditarProduto" onsubmit="salvarEdicaoProduto(event)" class="p-5 space-y-3.5 text-xs">
+        <input type="hidden" id="editCodOriginal">
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Código / EAN</label>
+            <input type="text" id="editCod" required class="w-full border border-slate-300 rounded-lg px-3 py-2 font-mono font-bold bg-slate-100 text-slate-700 cursor-not-allowed" readonly>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Indústria / Pasta *</label>
+            <input list="listaIndustriasExistentes" type="text" id="editIndustria" required placeholder="Ex: Puro Tempero" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Descrição do Produto *</label>
+          <input type="text" id="editDesc" required class="w-full border border-slate-300 rounded-lg px-3 py-2 uppercase font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none">
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Venda Período</label>
+            <input type="number" id="editVenda" min="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-center focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Estoque Sistêmico *</label>
+            <input type="number" id="editEstoque" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-center font-bold focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">DDE (Dias)</label>
+            <input type="number" id="editDde" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-center focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
+          <button type="button" onclick="fecharModalEditarProduto()" class="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition">Cancelar</button>
+          <button type="submit" class="px-4 py-2 font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition flex items-center gap-1.5 shadow-xs">
+            <i class="ph-bold ph-check text-base"></i> Gravar Alterações
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: ALTERAÇÃO DE INDÚSTRIA EM LOTE -->
+  <div id="modalTransferenciaLote" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-5 border border-slate-200 text-xs">
+      <div class="flex items-center gap-2 mb-3 text-slate-900 font-bold text-sm">
+        <i class="ph-bold ph-folders text-indigo-600 text-xl"></i>
+        <span>Mover Itens em Lote</span>
+      </div>
+      <p class="text-slate-600 mb-4">Escolha a nova indústria/aba para transferir os itens selecionados:</p>
+      
+      <div class="mb-4">
+        <label class="block font-bold text-slate-700 mb-1">Indústria de Destino</label>
+        <input list="listaIndustriasExistentes" type="text" id="inputDestinoLote" placeholder="Ex: Puro Tempero" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+      </div>
+
+      <div class="flex justify-end gap-2">
+        <button onclick="fecharModalTransferenciaLote()" class="px-3.5 py-1.5 text-slate-600 hover:bg-slate-100 rounded-lg font-semibold">Cancelar</button>
+        <button onclick="confirmarTransferenciaLote()" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold">Transferir Agora</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: INCLUIR NOVA MERCADORIA COM VERIFICAÇÃO DE DUPLICIDADE -->
+  <div id="modalNovoProduto" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+      
+      <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 bg-blue-100 text-blue-700 rounded-xl">
+            <i class="ph-bold ph-package text-xl"></i>
+          </div>
+          <div>
+            <h2 class="text-sm font-bold text-slate-900">Cadastrar Nova Mercadoria</h2>
+            <p class="text-xs text-slate-500">Validação automática de duplicidade por código e descrição.</p>
+          </div>
+        </div>
+        <button onclick="fecharModalNovoProduto()" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg">
+          <i class="ph-bold ph-x text-lg"></i>
+        </button>
+      </div>
+
+      <form id="formNovoProduto" onsubmit="salvarNovoProduto(event)" class="p-5 space-y-3.5 text-xs">
+        
+        <!-- Alerta de Duplicidade em tempo real -->
+        <div id="alertaDuplicidade" class="hidden p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 flex items-start gap-2">
+          <i class="ph-bold ph-warning-octagon text-lg shrink-0 mt-0.5"></i>
+          <span id="textoAlertaDuplicidade">Produto já cadastrado no catálogo!</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Código do Item / EAN *</label>
+            <input type="text" id="novoCod" required oninput="verificarDuplicidadeCampos()" placeholder="Ex: 458399" class="w-full border border-slate-300 rounded-lg px-3 py-2 font-mono uppercase focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Indústria / Pasta *</label>
+            <input list="listaIndustriasExistentes" type="text" id="novoIndustria" required placeholder="Ex: Puro Tempero" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            <datalist id="listaIndustriasExistentes">
+              <option value="Puro Tempero"></option>
+              <option value="Alho Achei"></option>
+            </datalist>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Descrição Completa da Mercadoria *</label>
+          <input type="text" id="novoDesc" required oninput="verificarDuplicidadeCampos()" placeholder="Ex: ESP COENTRO MOIDO PURO TEMPERO 30G" class="w-full border border-slate-300 rounded-lg px-3 py-2 uppercase focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Venda Período</label>
+            <input type="number" id="novoVenda" min="0" value="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-center focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Estoque Sistêmico *</label>
+            <input type="number" id="novoEstoque" required value="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-center focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">DDE (Dias)</label>
+            <input type="number" id="novoDde" value="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-center focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
+          <button type="button" onclick="fecharModalNovoProduto()" class="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition">Cancelar</button>
+          <button type="submit" id="btnSalvarNovoProd" class="px-4 py-2 font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+            <i class="ph-bold ph-floppy-disk text-base"></i> Gravar Mercadoria
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: LEITURA DE PDF / IMAGEM COM INTELIGÊNCIA ARTIFICIAL -->
+  <div id="modalUpload" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
+      
+      <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 bg-violet-100 text-violet-700 rounded-xl">
+            <i class="ph-bold ph-sparkle text-xl"></i>
+          </div>
+          <div>
+            <h2 class="text-sm font-bold text-slate-900">Atualizar Estoque por PDF ou Imagem (IA)</h2>
+            <p class="text-xs text-slate-500">Envie foto de relatório, planilha impressa ou PDF para atualizar estoques e importar itens.</p>
+          </div>
+        </div>
+        <button onclick="fecharModalUpload()" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg">
+          <i class="ph-bold ph-x text-lg"></i>
+        </button>
+      </div>
+
+      <div class="p-5 overflow-y-auto space-y-4 text-xs">
+        <div id="dropZone" onclick="document.getElementById('inputArquivoUpload').click()" class="border-2 border-dashed border-violet-300 hover:border-violet-500 bg-violet-50/30 rounded-2xl p-6 text-center cursor-pointer transition flex flex-col items-center justify-center">
+          <input type="file" id="inputArquivoUpload" accept="image/*,application/pdf" class="hidden" onchange="processarArquivoSelecionado(event)">
+          <div class="w-12 h-12 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center mb-2">
+            <i class="ph-bold ph-cloud-arrow-up text-2xl"></i>
+          </div>
+          <p class="text-sm font-bold text-slate-800">Clique para selecionar foto/PDF ou arraste aqui</p>
+          <p class="text-xs text-slate-500 mt-1">Formatos aceitos: JPG, PNG, WEBP ou documentos PDF (relatórios de estoque)</p>
+        </div>
+
+        <div id="statusProcessamentoIA" class="hidden p-4 rounded-xl bg-slate-100 border border-slate-200 space-y-2">
+          <div class="flex items-center gap-2 text-violet-700 font-bold">
+            <i class="ph-bold ph-spinner animate-spin text-base"></i>
+            <span id="textoStatusIA">Processando documento com visão computacional...</span>
+          </div>
+          <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+            <div id="barraProgressoIA" class="bg-violet-600 h-1.5 rounded-full w-1/3 animate-pulse"></div>
+          </div>
+        </div>
+
+        <div id="containerResultadosIA" class="hidden space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-700">Itens Reconhecidos (<span id="totalItensReconhecidos">0</span>):</span>
+            <span class="text-[11px] text-slate-500">Itens existentes terão saldo atualizado. Novos itens serão adicionados.</span>
+          </div>
+          <div class="max-h-56 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 custom-scrollbar text-xs">
+            <table class="w-full text-left">
+              <thead class="bg-slate-50 sticky top-0 font-semibold text-slate-600 text-[11px]">
+                <tr>
+                  <th class="py-2 px-3">Código</th>
+                  <th class="py-2 px-3">Descrição</th>
+                  <th class="py-2 px-2 text-center">Indústria</th>
+                  <th class="py-2 px-2 text-center">Estoque</th>
+                  <th class="py-2 px-2 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaPreviewIA"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+        <button type="button" onclick="fecharModalUpload()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-lg transition">Fechar</button>
+        <button type="button" id="btnConfirmarImportacaoIA" disabled onclick="aplicarDadosImportadosIA()" class="px-4 py-2 text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition flex items-center gap-1.5 shadow-sm">
+          <i class="ph-bold ph-cloud-arrow-up text-base"></i> Confirmar & Atualizar Estoque
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL: LISTA SIMPLES COLORIDA (IMPRESSÃO E PDF) -->
+  <div id="modalListaSimples" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 hidden">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
+      
+      <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 no-print">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 bg-indigo-100 text-indigo-700 rounded-xl">
+            <i class="ph-bold ph-list-checks text-xl"></i>
+          </div>
+          <div>
+            <h2 class="text-sm font-bold text-slate-800">Visualização de Impressão - Lista Simples</h2>
+            <p class="text-xs text-slate-500">Exibindo Código, Descrição, Estoque e Presença (Sim / Não) em cores.</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="btnPdfSimples" onclick="baixarPdfListaSimples()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg text-white bg-rose-600 hover:bg-rose-700 transition shadow-xs">
+            <i class="ph-bold ph-file-pdf text-base"></i> Baixar PDF
+          </button>
+          <button onclick="imprimirListaSimples()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition shadow-xs">
+            <i class="ph-bold ph-printer text-base"></i> Imprimir
+          </button>
+          <button onclick="fecharModalListaSimples()" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition" title="Fechar">
+            <i class="ph-bold ph-x text-lg"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100">
+        <div id="areaParaImpressaoSimples" class="bg-white p-6 sm:p-8 rounded-xl shadow-xs border border-slate-200 max-w-3xl mx-auto">
+          
+          <div class="border-b-2 border-indigo-600 pb-3 mb-4 flex justify-between items-end">
+            <div>
+              <h2 class="text-base font-black tracking-tight text-slate-900 uppercase">Auditoria de Presença em Loja</h2>
+              <p class="text-xs font-semibold text-indigo-700 uppercase">POSTERUS SUPERMERCADOS - FILIAL 438 GRAJAÚ</p>
+            </div>
+            <div class="text-right">
+              <span id="lsBadgeIndustria" class="text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">Todas as Indústrias</span>
+            </div>
+          </div>
+
+          <p id="lsInfoAuditor" class="text-xs text-slate-600 mb-4 pb-2 border-b border-dashed border-slate-200">
+            Auditor: Roberto Carlos | Data: 16/10/2026 | Filial: 438 - GRAJAÚ
+          </p>
+
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-indigo-900 text-white text-xs uppercase tracking-wider">
+                <th class="py-2.5 px-3 rounded-l font-bold w-24">Código</th>
+                <th class="py-2.5 px-3 font-bold">Descrição do Produto</th>
+                <th class="py-2.5 px-3 text-center font-bold w-24">Estoque</th>
+                <th class="py-2.5 px-3 text-center rounded-r font-bold w-28">Presença</th>
+              </tr>
+            </thead>
+            <tbody id="tabelaListaSimplesCorpo">
+              <!-- Renderizado dinamicamente -->
+            </tbody>
+          </table>
+
+          <div class="grid grid-cols-2 gap-8 mt-8 pt-4 border-t border-slate-200 text-center">
+            <div>
+              <div class="border-b border-slate-400 h-8"></div>
+              <p class="text-[11px] font-semibold text-slate-600 mt-1">Assinatura do Auditor</p>
+            </div>
+            <div>
+              <div class="border-b border-slate-400 h-8"></div>
+              <p class="text-[11px] font-semibold text-slate-600 mt-1">Visto do Gerente / Prevenção</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- TOAST / CAIXA DE MENSAGEM CUSTOMIZADA -->
+  <div id="toastNotification" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 max-w-md bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-700">
+    <div id="toastIcon" class="text-emerald-400 text-xl">
+      <i class="ph-bold ph-check-circle"></i>
+    </div>
+    <div class="text-xs">
+      <p id="toastTitulo" class="font-bold text-white">Notificação</p>
+      <p id="toastMsg" class="text-slate-300">Mensagem aqui</p>
+    </div>
+  </div>
+
+  <!-- FIREBASE SCRIPTS (PERSISTÊNCIA FIRESTORE) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Dados iniciais padrão da filial 438 Grajaú
+    const dadosIniciaisPadrao = [
+      { cod: "458271", desc: "ESP BICARBONATO PURO TEMPERO 40G", industria: "Puro Tempero", venda: 71, estoque: 644, dde: 272 },
+      { cod: "458272", desc: "ESP CANELA EM CASCA PURO TEMPERO 15G", industria: "Puro Tempero", venda: 77, estoque: 82, dde: 32 },
+      { cod: "458274", desc: "ESP CANELA EM PO PURO TEMPERO 20G", industria: "Puro Tempero", venda: 62, estoque: 134, dde: 65 },
+      { cod: "458280", desc: "COMINHO MOIDO PURO TEMPERO 25G", industria: "Puro Tempero", venda: 14, estoque: 46, dde: 99 },
+      { cod: "458282", desc: "ESP PAPRICA PIC. PURO TEMPERO 30G", industria: "Puro Tempero", venda: 54, estoque: 7, dde: 4 },
+      { cod: "458283", desc: "ESP ERVA DOCE PURO TEMPERO 20G", industria: "Puro Tempero", venda: 73, estoque: 62, dde: 25 },
+      { cod: "458286", desc: "ESP GENGIBRE EM PO PURO TEMPERO 30G", industria: "Puro Tempero", venda: 8, estoque: 14, dde: 53 },
+      { cod: "458287", desc: "ESP PIMENTA CALAB PURO TEMPERO 20G", industria: "Puro Tempero", venda: 63, estoque: 228, dde: 109 },
+      { cod: "458288", desc: "ESP LOURO PURO TEMPERO 10G", industria: "Puro Tempero", venda: 186, estoque: 90, dde: 15 },
+      { cod: "458290", desc: "ESP ACAFRAO PURO TEMPERO 25G", industria: "Puro Tempero", venda: 161, estoque: 318, dde: 59 },
+      { cod: "458292", desc: "ESP OREGANO PURO TEMPERO 10G", industria: "Puro Tempero", venda: 105, estoque: 767, dde: 219 },
+      { cod: "458294", desc: "PIMENTA PRETA MOI. PURO TEMPERO 30G", industria: "Puro Tempero", venda: 160, estoque: 491, dde: 92 },
+      { cod: "458296", desc: "PIMENTA PRETA EM GRAO PURO TEMPERO 30G", industria: "Puro Tempero", venda: 258, estoque: 737, dde: 86 },
+      { cod: "458297", desc: "ESP CRAVO DA INDIA PURO TEMPERO 15G", industria: "Puro Tempero", venda: 83, estoque: 292, dde: 106 },
+      { cod: "458303", desc: "ESP CHA VERDE PURO TEMPERO 20G", industria: "Puro Tempero", venda: 0, estoque: 0, dde: 0 },
+      { cod: "458311", desc: "ALECRIM 15G PURO TEMPERO", industria: "Puro Tempero", venda: 16, estoque: 77, dde: 144 },
+      { cod: "458314", desc: "ESP CORANTE CASEIRO PURO TEMPERO 150G", industria: "Puro Tempero", venda: 619, estoque: 1359, dde: 66 },
+      { cod: "458316", desc: "ESP CORANTE CASEIRO PURO TEMPERO 70G", industria: "Puro Tempero", venda: 53, estoque: 97, dde: 55 },
+      { cod: "458320", desc: "ESP CAMOMILA PURO TEMPERO 12G", industria: "Puro Tempero", venda: 25, estoque: 0, dde: 0 },
+      { cod: "458324", desc: "ESPIHEIRA SANTA 10G PURO TEMPERO", industria: "Puro Tempero", venda: 17, estoque: 70, dde: 124 },
+      { cod: "458329", desc: "ESP LEMON PEPPER PURO TEMPERO 20G", industria: "Puro Tempero", venda: 145, estoque: 1876, dde: 388 },
+      { cod: "458332", desc: "ESP CHIMICHURRI PICANTE PURO TEMPERO 30G", industria: "Puro Tempero", venda: 205, estoque: 683, dde: 100 },
+      { cod: "458334", desc: "ESP CEBOLA SALSA E ALHO PURO TEMPERO 40G", industria: "Puro Tempero", venda: 200, estoque: 630, dde: 95 },
+      { cod: "458336", desc: "ESP TEMPERO BAIANO PURO TEMPERO 30G", industria: "Puro Tempero", venda: 63, estoque: 240, dde: 114 },
+      { cod: "458338", desc: "ESP CURRY PURO TEMPERO 40G", industria: "Puro Tempero", venda: 0, estoque: 0, dde: 0 },
+      { cod: "458340", desc: "ESP SENE PURO TEMPERO 15G", industria: "Puro Tempero", venda: 0, estoque: 0, dde: 0 },
+      { cod: "458341", desc: "ESP TEMPERO DO CHEF TEMPERO 30G", industria: "Puro Tempero", venda: 45, estoque: -19, dde: -13 },
+      { cod: "458343", desc: "ESP ALFAZEMA PURO TEMPERO 10G", industria: "Puro Tempero", venda: 0, estoque: 0, dde: 0 },
+      { cod: "458347", desc: "ESP FOLHA DE AMORA PURO TEMPERO 20G", industria: "Puro Tempero", venda: 15, estoque: 19, dde: 38 },
+      { cod: "458351", desc: "ESP BOLDO PURO TEMPERO 10G", industria: "Puro Tempero", venda: 1, estoque: 1, dde: 30 },
+      { cod: "458355", desc: "ESP MANJERICAO PURO TEMPERO 15G", industria: "Puro Tempero", venda: 0, estoque: 0, dde: 0 },
+      { cod: "458359", desc: "ESP VINAGRETE PURO TEMPERO 30G", industria: "Puro Tempero", venda: 0, estoque: 0, dde: 0 },
+      { cod: "515108", desc: "OREGANO PURO TEMPERO 500G", industria: "Puro Tempero", venda: 17, estoque: 28, dde: 49 },
+      { cod: "534789", desc: "ESP FLOR DE HIBISCO PURO TEMPERO 30G", industria: "Puro Tempero", venda: 46, estoque: 132, dde: 86 },
+      { cod: "534790", desc: "ESP PAPRICA DEF PURO TEMPERO 30G", industria: "Puro Tempero", venda: 32, estoque: 71, dde: 67 },
+      { cod: "534792", desc: "ESP PAPRICA DOCE PURO TEMPERO 30G", industria: "Puro Tempero", venda: 154, estoque: 387, dde: 75 },
+      { cod: "534794", desc: "ESP TEMP PEGA MARIDO PURO TEMPERO 30G", industria: "Puro Tempero", venda: 191, estoque: 457, dde: 72 },
+      { cod: "567969", desc: "ALHO CARTELADO PURO TEMPERO 100G", industria: "Puro Tempero", venda: 0, estoque: 28, dde: 0 },
+      { cod: "567972", desc: "ALHO CARTELADO PURO TEMPERO 200G", industria: "Puro Tempero", venda: 0, estoque: 37, dde: 0 },
+      { cod: "567982", desc: "MOLHO CREM PURO TEMPERO ALHO/ERVAS 220ML", industria: "Puro Tempero", venda: 14, estoque: 29, dde: 62 },
+      { cod: "567984", desc: "MOLHO CREM PIM PURO TEMPERO 220ML", industria: "Puro Tempero", venda: 12, estoque: 27, dde: 68 },
+      { cod: "567985", desc: "MOLHO CREM PIM PURO TEMPERO 250ML", industria: "Puro Tempero", venda: 3, estoque: 2, dde: 20 },
+      { cod: "567987", desc: "MOLHO CREM PIM PURO TEMPERO CALAB 250ML", industria: "Puro Tempero", venda: 14, estoque: 16, dde: 34 },
+      { cod: "568005", desc: "MOLHO PIM PURO TEMPERO CUMARI 150ML", industria: "Puro Tempero", venda: 15, estoque: 0, dde: 0 },
+      { cod: "568011", desc: "MOLHO PIM PURO TEMPERO EXT FORTE 150ML", industria: "Puro Tempero", venda: 31, estoque: 10, dde: 10 },
+      { cod: "568020", desc: "MOLHO INGLES PURO TEMPERO 150ML", industria: "Puro Tempero", venda: 3, estoque: 15, dde: 150 },
+      { cod: "568021", desc: "MOLHO SHOYU PURO TEMPERO 150ML", industria: "Puro Tempero", venda: 13, estoque: 1, dde: 2 },
+      { cod: "568022", desc: "TEMP COMP PURO TEMPERO 500ML", industria: "Puro Tempero", venda: 10, estoque: 41, dde: 123 },
+      { cod: "568024", desc: "TEMP DO EDU PURO TEMPERO 30G", industria: "Puro Tempero", venda: 207, estoque: 32, dde: 5 },
+      { cod: "568025", desc: "TEMP PEGA ESPOSA PURO TEMPERO 30G", industria: "Puro Tempero", venda: 114, estoque: 14, dde: 4 },
+      { cod: "569440", desc: "MOLHO PIM PURO TEMPERO COCO BABACU 250ML", industria: "Puro Tempero", venda: 12, estoque: 12, dde: 30 },
+      { cod: "569445", desc: "MOLHO PIM PURO TEMPERO MALAGUETA 150ML", industria: "Puro Tempero", venda: 16, estoque: 4, dde: 8 },
+      { cod: "569459", desc: "TEMPERO CASEIRO PURO TEMPERO 500ML", industria: "Puro Tempero", venda: 12, estoque: 37, dde: 93 },
+      { cod: "625790", desc: "ALHO ACHEI PICADO 200G", industria: "Alho Achei", venda: 14, estoque: 153, dde: 328 },
+      { cod: "625791", desc: "ALHO ACHEI PICADO 400G", industria: "Alho Achei", venda: 66, estoque: 19, dde: 9 },
+      { cod: "626261", desc: "ESP TEMP MISTO PURO TEMPERO 500G", industria: "Puro Tempero", venda: 2, estoque: 43, dde: 645 },
+      { cod: "626266", desc: "ESP ACAFRAO PURO TEMPERO 500G", industria: "Puro Tempero", venda: 8, estoque: 35, dde: 131 },
+      { cod: "626268", desc: "ESP CORANTE CASEIRO PURO TEMPERO 500G", industria: "Puro Tempero", venda: 12, estoque: 31, dde: 78 }
+    ];
+
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'posterus-auditoria-estoque';
+    let db = null;
+    let auth = null;
+    let currentUser = null;
+    let produtosColecaoRef = null;
+
+    window.appState = {
+      produtos: [],
+      industriaAtiva: 'todas',
+      selecionados: new Set(),
+      filtros: {
+        busca: '',
+        presenca: 'todos',
+        categoria: 'todos'
+      },
+      itensIAExtraidos: [],
+      isFirebaseConnected: false
+    };
+
+    async function inicializarFirebase() {
+      try {
+        const badge = document.getElementById('badgeConexao');
+        
+        if (typeof __firebase_config !== 'undefined') {
+          const firebaseConfig = JSON.parse(__firebase_config);
+          const app = initializeApp(firebaseConfig);
+          auth = getAuth(app);
+          db = getFirestore(app);
+
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(auth);
+          }
+
+          currentUser = auth.currentUser;
+          window.appState.isFirebaseConnected = true;
+
+          badge.className = "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800";
+          badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Conectado em Nuvem`;
+
+          produtosColecaoRef = collection(db, 'artifacts', appId, 'public', 'data', 'produtos');
+
+          onSnapshot(produtosColecaoRef, (snapshot) => {
+            if (snapshot.empty) {
+              semearProdutosPadrao();
+              return;
+            }
+
+            const docs = [];
+            snapshot.forEach(docSnap => {
+              docs.push({ id: docSnap.id, ...docSnap.data() });
+            });
+
+            window.appState.produtos = docs;
+            window.renderizarAbasIndustrias();
+            window.aplicarFiltros();
+            window.atualizarEstatisticas();
+          }, (err) => {
+            console.error("Erro snapshot produtos:", err);
+            mostrarToast("Aviso", "Usando cache local da auditoria.", "info");
+          });
+
+        } else {
+          throw new Error("Configuração Firebase não definida");
+        }
+      } catch (e) {
+        console.warn("Modo local ativo:", e.message);
+        window.appState.isFirebaseConnected = false;
+        const badge = document.getElementById('badgeConexao');
+        badge.className = "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800";
+        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Modo Local Ativo`;
+
+        window.appState.produtos = dadosIniciaisPadrao.map(p => ({
+          ...p,
+          id: p.cod,
+          presenca: 'pendente',
+          contagemFisica: '',
+          obs: ''
+        }));
+        window.renderizarAbasIndustrias();
+        window.aplicarFiltros();
+        window.atualizarEstatisticas();
+      }
+    }
+
+    async function semearProdutosPadrao() {
+      if (!db || !currentUser) return;
+      try {
+        for (const item of dadosIniciaisPadrao) {
+          const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'produtos', item.cod);
+          await setDoc(docRef, {
+            cod: item.cod,
+            desc: item.desc,
+            industria: item.industria || "Puro Tempero",
+            venda: item.venda,
+            estoque: item.estoque,
+            dde: item.dde,
+            presenca: 'pendente',
+            contagemFisica: '',
+            obs: '',
+            atualizadoEm: new Date().toISOString()
+          }, { merge: true });
+        }
+      } catch (err) {
+        console.error("Erro ao semear:", err);
+      }
+    }
+
+    // Salvar ou Atualizar no Banco / Memória
+    window.salvarProdutoNoBanco = async function(produto) {
+      if (window.appState.isFirebaseConnected && db && currentUser) {
+        try {
+          const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'produtos', produto.cod);
+          await setDoc(docRef, {
+            ...produto,
+            atualizadoEm: new Date().toISOString()
+          }, { merge: true });
+        } catch (err) {
+          console.error("Erro ao salvar produto:", err);
+        }
+      } else {
+        const idx = window.appState.produtos.findIndex(p => p.cod === produto.cod);
+        if (idx >= 0) {
+          window.appState.produtos[idx] = { ...window.appState.produtos[idx], ...produto };
+        } else {
+          window.appState.produtos.push(produto);
+        }
+        window.renderizarAbasIndustrias();
+        window.aplicarFiltros();
+        window.atualizarEstatisticas();
+      }
+    };
+
+    // Excluir 1 Produto
+    window.excluirProduto = async function(codigo) {
+      const prod = window.appState.produtos.find(p => p.cod === codigo);
+      const nomeProd = prod ? prod.desc : codigo;
+      
+      window.confirmDialog("Remover Mercadoria?", `Deseja realmente excluir "${nomeProd}" do catálogo?`, async () => {
+        if (window.appState.isFirebaseConnected && db && currentUser) {
+          try {
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'produtos', codigo);
+            await deleteDoc(docRef);
+            window.appState.selecionados.delete(codigo);
+            window.atualizarBarraLote();
+            mostrarToast("Excluído", "Mercadoria removida do banco.", "info");
+          } catch (e) {
+            console.error(e);
+            mostrarToast("Erro", "Falha ao remover item.", "error");
+          }
+        } else {
+          window.appState.produtos = window.appState.produtos.filter(p => p.cod !== codigo);
+          window.appState.selecionados.delete(codigo);
+          window.atualizarBarraLote();
+          window.renderizarAbasIndustrias();
+          window.aplicarFiltros();
+          window.atualizarEstatisticas();
+          mostrarToast("Excluído", "Mercadoria removida localmente.", "info");
+        }
+      });
+    };
+
+    // Excluir ou Limpar Todos os Produtos de Uma Indústria
+    window.limparIndustriaNoBanco = async function(nomeIndustria) {
+      const itensParaExcluir = window.appState.produtos.filter(p => {
+        if (nomeIndustria === 'todas') return true;
+        return (p.industria || '').trim().toLowerCase() === nomeIndustria.trim().toLowerCase();
+      });
+
+      if (!itensParaExcluir.length) return;
+
+      if (window.appState.isFirebaseConnected && db && currentUser) {
+        try {
+          for (const item of itensParaExcluir) {
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'produtos', item.cod);
+            await deleteDoc(docRef);
+            window.appState.selecionados.delete(item.cod);
+          }
+          mostrarToast("Limpeza Concluída", `Indústria "${nomeIndustria}" limpa com sucesso.`, "info");
+        } catch (e) {
+          console.error(e);
+          mostrarToast("Erro", "Falha na exclusão da indústria.", "error");
+        }
+      } else {
+        window.appState.produtos = window.appState.produtos.filter(p => {
+          if (nomeIndustria === 'todas') return false;
+          return (p.industria || '').trim().toLowerCase() !== nomeIndustria.trim().toLowerCase();
+        });
+        window.appState.selecionados.clear();
+        window.atualizarBarraLote();
+        window.renderizarAbasIndustrias();
+        window.aplicarFiltros();
+        window.atualizarEstatisticas();
+        mostrarToast("Limpeza Concluída", `Indústria "${nomeIndustria}" limpa localmente.`, "info");
+      }
+    };
+
+    // Operações em Lote no Firestore
+    window.executarAcaoEmLote = async function(tipoAcao, valor) {
+      const codigos = Array.from(window.appState.selecionados);
+      if (!codigos.length) return;
+
+      for (const cod of codigos) {
+        const prod = window.appState.produtos.find(p => p.cod === cod);
+        if (!prod) continue;
+
+        if (tipoAcao === 'presenca') {
+          let novaCont = prod.contagemFisica;
+          if (valor === 'nao' && (novaCont === '' || novaCont === undefined)) novaCont = '0';
+          await window.salvarProdutoNoBanco({
+            ...prod,
+            presenca: valor,
+            contagemFisica: novaCont
+          });
+        } else if (tipoAcao === 'trocarIndustria') {
+          await window.salvarProdutoNoBanco({
+            ...prod,
+            industria: valor
+          });
+        } else if (tipoAcao === 'excluir') {
+          if (window.appState.isFirebaseConnected && db && currentUser) {
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'produtos', cod);
+            await deleteDoc(docRef);
+          } else {
+            window.appState.produtos = window.appState.produtos.filter(p => p.cod !== cod);
+          }
+        }
+      }
+
+      window.appState.selecionados.clear();
+      window.atualizarBarraLote();
+      if (!window.appState.isFirebaseConnected) {
+        window.renderizarAbasIndustrias();
+        window.aplicarFiltros();
+        window.atualizarEstatisticas();
+      }
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+      inicializarFirebase();
+
+      const hoje = new Date().toISOString().split('T')[0];
+      const dataInput = document.getElementById('auditorData');
+      if (dataInput && !dataInput.value) dataInput.value = hoje;
+      
+      const auditorSalvo = localStorage.getItem('auditorNomePosterus');
+      if (auditorSalvo) document.getElementById('auditorNome').value = auditorSalvo;
+    });
+  </script>
+
+  <!-- LÓGICA DE INTERFACE, ABAS DE INDÚSTRIA, SELEÇÃO EM LOTE E FILTROS -->
+  <script>
+    function normalizarTexto(txt) {
+      return (txt || '').toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    }
+
+    // Modal de confirmação customizado
+    window.confirmDialog = function(titulo, msg, onConfirm) {
+      const modal = document.createElement('div');
+      modal.className = "fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in";
+      modal.innerHTML = `
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-5 border border-slate-200">
+          <div class="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mb-3">
+            <i class="ph-bold ph-warning text-xl"></i>
+          </div>
+          <h3 class="text-sm font-bold text-slate-900">${titulo}</h3>
+          <p class="text-xs text-slate-500 mt-1 mb-4 leading-relaxed">${msg}</p>
+          <div class="flex items-center justify-end gap-2">
+            <button id="btnCancelDialog" class="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
+            <button id="btnOkDialog" class="px-3.5 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm">Confirmar</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      modal.querySelector('#btnCancelDialog').onclick = () => modal.remove();
+      modal.querySelector('#btnOkDialog').onclick = () => {
+        modal.remove();
+        onConfirm();
+      };
+    };
+
+    function mostrarToast(titulo, mensagem, tipo = 'success') {
+      const toast = document.getElementById('toastNotification');
+      const tTitulo = document.getElementById('toastTitulo');
+      const tMsg = document.getElementById('toastMsg');
+      const tIcon = document.getElementById('toastIcon');
+
+      tTitulo.innerText = titulo;
+      tMsg.innerText = mensagem;
+
+      if (tipo === 'error') {
+        tIcon.className = 'text-rose-400 text-xl';
+        tIcon.innerHTML = '<i class="ph-bold ph-warning-octagon"></i>';
+      } else if (tipo === 'info') {
+        tIcon.className = 'text-blue-400 text-xl';
+        tIcon.innerHTML = '<i class="ph-bold ph-info"></i>';
+      } else {
+        tIcon.className = 'text-emerald-400 text-xl';
+        tIcon.innerHTML = '<i class="ph-bold ph-check-circle"></i>';
+      }
+
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+        toast.classList.remove('translate-y-0', 'opacity-100');
+      }, 3500);
+    }
+
+    function salvarSessaoAuditor() {
+      const nome = document.getElementById('auditorNome').value;
+      localStorage.setItem('auditorNomePosterus', nome);
+    }
+
+    function salvarObsGerais() {
+      const txt = document.getElementById('obsGerais').value;
+      localStorage.setItem('auditorObsPosterus', txt);
+      mostrarToast("Anotação Salva", "Observações registradas com sucesso.");
+    }
+
+    // RENDERIZAÇÃO DAS ABAS ESTILO PASTA / CHROME POR INDÚSTRIA
+    window.renderizarAbasIndustrias = function() {
+      const container = document.getElementById('containerAbasIndustria');
+      const datalist = document.getElementById('listaIndustriasExistentes');
+      const produtos = window.appState.produtos || [];
+
+      // Mapeamento de contagem por indústria
+      const contagemMap = { 'todas': produtos.length };
+      const industriasSet = new Set();
+
+      produtos.forEach(p => {
+        const ind = (p.industria || 'Sem Indústria').trim();
+        industriasSet.add(ind);
+        contagemMap[ind] = (contagemMap[ind] || 0) + 1;
+      });
+
+      const industriasLista = Array.from(industriasSet).sort();
+
+      // Recriar datalist para autocomplete
+      datalist.innerHTML = '';
+      industriasLista.forEach(ind => {
+        const opt = document.createElement('option');
+        opt.value = ind;
+        datalist.appendChild(opt);
+      });
+
+      // Se a indústria ativa foi excluída, volta para "todas"
+      if (window.appState.industriaAtiva !== 'todas' && !industriasSet.has(window.appState.industriaAtiva)) {
+        window.appState.industriaAtiva = 'todas';
+      }
+
+      container.innerHTML = '';
+
+      // Aba: Todas as Indústrias
+      const abaTodas = document.createElement('div');
+      abaTodas.className = `chrome-tab ${window.appState.industriaAtiva === 'todas' ? 'active' : ''}`;
+      abaTodas.innerHTML = `
+        <i class="ph-bold ph-folder-notch text-base text-brand-600"></i>
+        <span>Todas as Indústrias</span>
+        <span class="ml-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full ${window.appState.industriaAtiva === 'todas' ? 'bg-brand-100 text-brand-800' : 'bg-slate-300 text-slate-700'}">${contagemMap['todas']}</span>
+      `;
+      abaTodas.onclick = () => selecionarAbaIndustria('todas');
+      container.appendChild(abaTodas);
+
+      // Abas de cada indústria
+      industriasLista.forEach(ind => {
+        const aba = document.createElement('div');
+        const isActive = window.appState.industriaAtiva === ind;
+        aba.className = `chrome-tab ${isActive ? 'active' : ''}`;
+        
+        aba.innerHTML = `
+          <i class="ph-bold ph-tag text-base ${isActive ? 'text-indigo-600' : 'text-slate-400'}"></i>
+          <span>${ind}</span>
+          <span class="ml-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-300 text-slate-700'}">${contagemMap[ind] || 0}</span>
+        `;
+        aba.onclick = () => selecionarAbaIndustria(ind);
+        container.appendChild(aba);
+      });
+    };
+
+    function selecionarAbaIndustria(nomeIndustria) {
+      window.appState.industriaAtiva = nomeIndustria;
+      window.renderizarAbasIndustrias();
+      aplicarFiltros();
+    }
+
+    function solicitarLimpezaIndustria() {
+      const ind = window.appState.industriaAtiva;
+      const textoAlvo = ind === 'todas' ? "TODAS as indústrias cadastradas no sistema" : `a indústria "${ind}" e todas as suas mercadorias associadas`;
+
+      window.confirmDialog(
+        `Limpar ${ind === 'todas' ? 'Tudo' : ind}?`,
+        `ATENÇÃO: Você está prestes a remover ${textoAlvo}. Esta operação não poderá ser desfeita. Confirmar limpeza?`,
+        () => {
+          window.limparIndustriaNoBanco(ind);
+        }
+      );
+    }
+
+    function aplicarFiltros() {
+      const termo = normalizarTexto(document.getElementById('searchInput').value);
+      const filtroPresenca = document.getElementById('filtroPresenca').value;
+      const filtroCategoria = document.getElementById('filtroCategoria').value;
+      const indAtiva = window.appState.industriaAtiva;
+
+      const produtos = window.appState.produtos || [];
+
+      const filtrados = produtos.filter(p => {
+        // Filtro da aba selecionada (Chrome folder)
+        if (indAtiva !== 'todas' && (p.industria || '').trim().toLowerCase() !== indAtiva.trim().toLowerCase()) {
+          return false;
+        }
+
+        // Filtro por texto
+        if (termo) {
+          const codOk = normalizarTexto(p.cod).includes(termo);
+          const descOk = normalizarTexto(p.desc).includes(termo);
+          const indOk = normalizarTexto(p.industria).includes(termo);
+          if (!codOk && !descOk && !indOk) return false;
+        }
+
+        // Filtro por presença
+        const pres = p.presenca || 'pendente';
+        if (filtroPresenca !== 'todos' && pres !== filtroPresenca) {
+          return false;
+        }
+
+        // Filtros de Risco
+        if (filtroCategoria === 'critico') {
+          return p.dde > 0 && p.dde <= 9;
+        } else if (filtroCategoria === 'negativo') {
+          return p.estoque < 0 || (p.venda > 0 && p.estoque === 0);
+        } else if (filtroCategoria === 'sem_venda') {
+          return p.venda === 0;
+        } else if (filtroCategoria === 'excesso') {
+          return p.dde >= 250;
+        } else if (filtroCategoria === 'divergente') {
+          if (p.contagemFisica === '' || p.contagemFisica === undefined) return false;
+          return parseInt(p.contagemFisica) !== p.estoque;
+        }
+
+        return true;
+      });
+
+      renderizarTabela(filtrados);
+    }
+
+    function resetarFiltros() {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('filtroPresenca').value = 'todos';
+      document.getElementById('filtroCategoria').value = 'todos';
+      aplicarFiltros();
+    }
+
+    function renderizarTabela(itens) {
+      const tbody = document.getElementById('tabelaCorpo');
+      tbody.innerHTML = '';
+
+      const totalCadastrados = (window.appState.produtos || []).length;
+      document.getElementById('statTotalGeral').innerText = totalCadastrados;
+
+      if (itens.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="13" class="text-center py-12 text-slate-400">
+              <i class="ph-bold ph-folder-dashed text-4xl block mb-2 text-slate-300"></i>
+              Nenhuma mercadoria encontrada nesta aba ou com os filtros aplicados.
+            </td>
+          </tr>
+        `;
+        document.getElementById('labelContadorExibidos').innerText = `Exibindo 0 de ${itens.length} itens`;
+        return;
+      }
+
+      itens.forEach((p, idx) => {
+        const pres = p.presenca || 'pendente';
+        const contagem = p.contagemFisica !== undefined ? p.contagemFisica : '';
+        const obs = p.obs || '';
+        const isChecked = window.appState.selecionados.has(p.cod);
+
+        const tr = document.createElement('tr');
+        tr.className = `transition-colors hover:bg-slate-50/90 ${isChecked ? 'bg-indigo-50/40' : getRowBgColor(p, pres)}`;
+
+        // Badges de alerta de risco
+        let alertBadge = '';
+        if (p.estoque < 0) {
+          alertBadge = '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 ml-1">Negativo</span>';
+        } else if (p.venda > 0 && p.estoque === 0) {
+          alertBadge = '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 ml-1">Venda s/ Estoque</span>';
+        } else if (p.dde > 0 && p.dde <= 9) {
+          alertBadge = `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-800 ml-1">DDE (${p.dde}d)</span>`;
+        } else if (p.dde >= 300) {
+          alertBadge = '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 ml-1">Excesso</span>';
+        }
+
+        // Divergência calculada
+        let diverText = '-';
+        let diverClass = 'text-slate-400';
+        if (contagem !== '' && !isNaN(parseInt(contagem))) {
+          const diff = parseInt(contagem) - p.estoque;
+          if (diff === 0) {
+            diverText = 'OK (0)';
+            diverClass = 'text-emerald-600 font-bold';
+          } else if (diff > 0) {
+            diverText = `+${diff}`;
+            diverClass = 'text-blue-600 font-bold';
+          } else {
+            diverText = `${diff}`;
+            diverClass = 'text-rose-600 font-bold';
+          }
+        }
+
+        tr.innerHTML = `
+          <!-- CHECKBOX DE SELEÇÃO EM LOTE -->
+          <td class="py-2.5 px-3 text-center no-print">
+            <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="alternarSelecaoItem('${p.cod}', this.checked)" class="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 cursor-pointer">
+          </td>
+          <td class="py-2.5 px-3 text-center text-slate-400 font-mono">${idx + 1}</td>
+          <td class="py-2.5 px-3 font-mono font-bold text-slate-900">${p.cod}</td>
+          <td class="py-2.5 px-3">
+            <div class="font-medium text-slate-900 flex flex-wrap items-center">
+              ${p.desc}
+              ${alertBadge}
+            </div>
+          </td>
+          <td class="py-2.5 px-3">
+            <span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+              ${p.industria || 'Sem Marca'}
+            </span>
+          </td>
+          <td class="py-2.5 px-2 text-center font-medium">${p.venda || 0}</td>
+          <td class="py-2.5 px-2 text-center font-bold ${p.estoque < 0 ? 'text-rose-600 bg-rose-50 rounded' : 'text-slate-800'}">${p.estoque}</td>
+          <td class="py-2.5 px-2 text-center font-semibold ${p.dde > 0 && p.dde <= 9 ? 'text-orange-600 font-black' : 'text-slate-600'}">${p.dde || 0}d</td>
+          
+          <!-- SELETOR RÁPIDO DE PRESENÇA -->
+          <td class="py-2 px-3 bg-slate-50/50 border-x border-slate-200 text-center">
+            <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-xs w-full max-w-[170px] justify-center">
+              <button type="button" onclick="alterarPresenca('${p.cod}', 'sim')" 
+                class="flex-1 py-1 px-1.5 text-[11px] font-bold rounded flex items-center justify-center gap-0.5 transition ${pres === 'sim' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'}"
+                title="Presente em Loja">
+                <i class="ph-bold ph-check"></i> Sim
+              </button>
+              <button type="button" onclick="alterarPresenca('${p.cod}', 'nao')" 
+                class="flex-1 py-1 px-1.5 text-[11px] font-bold rounded flex items-center justify-center gap-0.5 transition ${pres === 'nao' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'}"
+                title="Ruptura Total">
+                <i class="ph-bold ph-x"></i> Não
+              </button>
+              <button type="button" onclick="alterarPresenca('${p.cod}', 'parcial')" 
+                class="flex-1 py-1 px-1.5 text-[11px] font-bold rounded flex items-center justify-center gap-0.5 transition ${pres === 'parcial' ? 'bg-amber-500 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'}"
+                title="Parcial / Avaria">
+                <i class="ph-bold ph-warning"></i> Parcial
+              </button>
+            </div>
+          </td>
+
+          <!-- CONTAGEM FÍSICA -->
+          <td class="py-2 px-2 text-center bg-slate-50/40">
+            <input type="number" 
+                   value="${contagem}" 
+                   placeholder="Qtd"
+                   onchange="atualizarContagem('${p.cod}', this.value)"
+                   class="w-20 text-center text-xs font-bold border border-slate-300 rounded-lg py-1 px-1 focus:ring-2 focus:ring-brand-500 focus:outline-none bg-white">
+          </td>
+
+          <!-- DIVERGÊNCIA CALCULADA -->
+          <td class="py-2 px-2 text-center ${diverClass}">
+            ${diverText}
+          </td>
+
+          <!-- OBSERVAÇÃO -->
+          <td class="py-2 px-3">
+            <input type="text" 
+                   value="${obs}" 
+                   placeholder="Ex: No mezanino..." 
+                   onchange="atualizarObs('${p.cod}', this.value)"
+                   class="w-full text-xs text-slate-700 border border-slate-200 rounded-lg py-1 px-2 focus:ring-1 focus:ring-brand-500 bg-white placeholder-slate-400">
+          </td>
+
+          <!-- AÇÕES: EDITAR E EXCLUIR -->
+          <td class="py-2 px-2 text-center no-print">
+            <div class="flex items-center justify-center gap-1">
+              <button onclick="abrirModalEditarProduto('${p.cod}')" class="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition" title="Editar Mercadoria">
+                <i class="ph-bold ph-pencil-simple text-sm"></i>
+              </button>
+              <button onclick="excluirProduto('${p.cod}')" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Excluir Mercadoria">
+                <i class="ph-bold ph-trash text-sm"></i>
+              </button>
+            </div>
+          </td>
+        `;
+
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('labelContadorExibidos').innerText = `Exibindo ${itens.length} itens`;
+    }
+
+    function getRowBgColor(item, pres) {
+      if (pres === 'sim') return 'bg-emerald-50/20';
+      if (pres === 'nao') return 'bg-rose-50/25';
+      if (pres === 'parcial') return 'bg-amber-50/20';
+      if (item.estoque < 0) return 'bg-rose-50/30';
+      return '';
+    }
+
+    function alterarPresenca(codigo, novoStatus) {
+      const prod = window.appState.produtos.find(p => p.cod === codigo);
+      if (!prod) return;
+
+      const statusAtual = prod.presenca || 'pendente';
+      const statusFinal = statusAtual === novoStatus ? 'pendente' : novoStatus;
+      
+      let novaContagem = prod.contagemFisica;
+      if (statusFinal === 'nao' && (novaContagem === '' || novaContagem === undefined)) {
+        novaContagem = '0';
+      }
+
+      salvarProdutoNoBanco({
+        ...prod,
+        presenca: statusFinal,
+        contagemFisica: novaContagem
+      });
+    }
+
+    function atualizarContagem(codigo, valor) {
+      const prod = window.appState.produtos.find(p => p.cod === codigo);
+      if (!prod) return;
+
+      let pres = prod.presenca;
+      if (valor !== '' && (!pres || pres === 'pendente')) {
+        pres = parseInt(valor) > 0 ? 'sim' : 'nao';
+      }
+
+      salvarProdutoNoBanco({
+        ...prod,
+        contagemFisica: valor,
+        presenca: pres
+      });
+    }
+
+    function atualizarObs(codigo, texto) {
+      const prod = window.appState.produtos.find(p => p.cod === codigo);
+      if (!prod) return;
+      salvarProdutoNoBanco({
+        ...prod,
+        obs: texto
+      });
+    }
+
+    function marcarTodosPresentes() {
+      const indAtiva = window.appState.industriaAtiva;
+      const lista = (window.appState.produtos || []).filter(p => {
+        if (indAtiva !== 'todas' && (p.industria || '').trim().toLowerCase() !== indAtiva.trim().toLowerCase()) return false;
+        return true;
+      });
+
+      lista.forEach(p => {
+        if (!p.presenca || p.presenca === 'pendente') {
+          salvarProdutoNoBanco({
+            ...p,
+            presenca: 'sim'
+          });
+        }
+      });
+      mostrarToast("Presença Confirmada", `Itens da aba "${indAtiva}" marcados como Sim.`);
+    }
+
+    function atualizarEstatisticas() {
+      const lista = window.appState.produtos || [];
+      let auditados = 0;
+      let presentes = 0;
+      let ausentes = 0;
+      let divergencias = 0;
+      let negativos = 0;
+      let ddeCriticos = 0;
+
+      lista.forEach(p => {
+        const pres = p.presenca || 'pendente';
+        const contagem = p.contagemFisica;
+
+        if (pres !== 'pendente' || (contagem !== '' && contagem !== undefined)) {
+          auditados++;
+        }
+        if (pres === 'sim') presentes++;
+        if (pres === 'nao') ausentes++;
+
+        if (p.estoque < 0) negativos++;
+        if (p.dde > 0 && p.dde <= 9) ddeCriticos++;
+
+        if (contagem !== '' && contagem !== undefined && !isNaN(parseInt(contagem))) {
+          if (parseInt(contagem) !== p.estoque) {
+            divergencias++;
+          }
+        }
+      });
+
+      const total = lista.length;
+      const perc = total > 0 ? Math.round((auditados / total) * 100) : 0;
+
+      document.getElementById('statTotalGeral').innerText = total;
+      document.getElementById('statAuditados').innerText = `${auditados}/${total}`;
+      document.getElementById('statProgresso').innerText = `${perc}%`;
+      document.getElementById('progressBar').style.width = `${perc}%`;
+      document.getElementById('statPresente').innerText = presentes;
+      document.getElementById('statAusente').innerText = ausentes;
+      document.getElementById('statDivergencias').innerText = divergencias;
+      document.getElementById('statNegativo').innerText = negativos;
+      document.getElementById('statDdeCritico').innerText = ddeCriticos;
+    }
+
+    // GESTÃO DE SELEÇÃO EM LOTE (BULK EDIT)
+    function alternarSelecaoItem(codigo, selecionado) {
+      if (selecionado) {
+        window.appState.selecionados.add(codigo);
+      } else {
+        window.appState.selecionados.delete(codigo);
+      }
+      atualizarBarraLote();
+    }
+
+    function alternarSelecionarTodos(marcar) {
+      const indAtiva = window.appState.industriaAtiva;
+      const produtosVisiveis = (window.appState.produtos || []).filter(p => {
+        if (indAtiva !== 'todas' && (p.industria || '').trim().toLowerCase() !== indAtiva.trim().toLowerCase()) return false;
+        return true;
+      });
+
+      produtosVisiveis.forEach(p => {
+        if (marcar) {
+          window.appState.selecionados.add(p.cod);
+        } else {
+          window.appState.selecionados.delete(p.cod);
+        }
+      });
+
+      atualizarBarraLote();
+      aplicarFiltros();
+    }
+
+    function desmarcarTodosLote() {
+      window.appState.selecionados.clear();
+      const checkHeader = document.getElementById('checkSelectAll');
+      if (checkHeader) checkHeader.checked = false;
+      atualizarBarraLote();
+      aplicarFiltros();
+    }
+
+    window.atualizarBarraLote = function() {
+      const barra = document.getElementById('barraEdicaoEmLote');
+      const contador = document.getElementById('contadorSelecionados');
+      const totalSel = window.appState.selecionados.size;
+
+      contador.innerText = totalSel;
+      if (totalSel > 0) {
+        barra.classList.remove('hidden');
+      } else {
+        barra.classList.add('hidden');
+      }
+    };
+
+    function aplicarPresencaEmLote(status) {
+      const total = window.appState.selecionados.size;
+      window.executarAcaoEmLote('presenca', status);
+      mostrarToast("Lote Atualizado", `${total} itens marcados como ${status.toUpperCase()}.`);
+    }
+
+    function abrirModalTransferenciaLote() {
+      document.getElementById('inputDestinoLote').value = '';
+      document.getElementById('modalTransferenciaLote').classList.remove('hidden');
+    }
+
+    function fecharModalTransferenciaLote() {
+      document.getElementById('modalTransferenciaLote').classList.add('hidden');
+    }
+
+    function confirmarTransferenciaLote() {
+      const destino = document.getElementById('inputDestinoLote').value.trim();
+      if (!destino) {
+        mostrarToast("Atenção", "Informe a indústria de destino.", "error");
+        return;
+      }
+      const total = window.appState.selecionados.size;
+      window.executarAcaoEmLote('trocarIndustria', destino);
+      fecharModalTransferenciaLote();
+      mostrarToast("Transferência Concluída", `${total} itens movidos para "${destino}".`);
+    }
+
+    function solicitarExclusaoEmLote() {
+      const total = window.appState.selecionados.size;
+      window.confirmDialog(
+        "Excluir Itens em Lote?",
+        `Tem certeza que deseja apagar permanentemente os ${total} produtos selecionados?`,
+        () => {
+          window.executarAcaoEmLote('excluir');
+          mostrarToast("Excluídos", `${total} itens removidos do sistema.`, "info");
+        }
+      );
+    }
+
+    // MODAL DE EDIÇÃO DE PRODUTO EXISTENTE
+    function abrirModalEditarProduto(codigo) {
+      const prod = window.appState.produtos.find(p => p.cod === codigo);
+      if (!prod) return;
+
+      document.getElementById('editCodOriginal').value = prod.cod;
+      document.getElementById('editCod').value = prod.cod;
+      document.getElementById('editDesc').value = prod.desc;
+      document.getElementById('editIndustria').value = prod.industria || 'Puro Tempero';
+      document.getElementById('editVenda').value = prod.venda || 0;
+      document.getElementById('editEstoque').value = prod.estoque || 0;
+      document.getElementById('editDde').value = prod.dde || 0;
+
+      document.getElementById('modalEditarProduto').classList.remove('hidden');
+    }
+
+    function fecharModalEditarProduto() {
+      document.getElementById('modalEditarProduto').classList.add('hidden');
+    }
+
+    async function salvarEdicaoProduto(e) {
+      e.preventDefault();
+      const cod = document.getElementById('editCodOriginal').value;
+      const desc = document.getElementById('editDesc').value.trim().toUpperCase();
+      const industria = document.getElementById('editIndustria').value.trim() || 'Puro Tempero';
+      const venda = parseInt(document.getElementById('editVenda').value) || 0;
+      const estoque = parseInt(document.getElementById('editEstoque').value) || 0;
+      const dde = parseInt(document.getElementById('editDde').value) || 0;
+
+      const prodExistente = window.appState.produtos.find(p => p.cod === cod);
+      if (!prodExistente) return;
+
+      const atualizado = {
+        ...prodExistente,
+        desc,
+        industria,
+        venda,
+        estoque,
+        dde
+      };
+
+      await salvarProdutoNoBanco(atualizado);
+      fecharModalEditarProduto();
+      window.renderizarAbasIndustrias();
+      mostrarToast("Atualizado com Sucesso", `Mercadoria "${desc}" alterada.`);
+    }
+
+    // VALIDAÇÃO DE DUPLICIDADE NO CADASTRO
+    function verificarDuplicidade(codigo, descricao, excluirCodigoAtual = null) {
+      const lista = window.appState.produtos || [];
+      const codNorm = normalizarTexto(codigo);
+      const descNorm = normalizarTexto(descricao);
+
+      for (const p of lista) {
+        if (excluirCodigoAtual && p.cod === excluirCodigoAtual) continue;
+
+        if (codNorm && normalizarTexto(p.cod) === codNorm) {
+          return { duplicado: true, motivo: `Código '${codigo}' já cadastrado para: "${p.desc}" (${p.industria || 'Sem marca'})` };
+        }
+
+        if (descNorm && descNorm.length > 5 && normalizarTexto(p.desc) === descNorm) {
+          return { duplicado: true, motivo: `Descrição exata já cadastrada sob o código ${p.cod}` };
+        }
+      }
+
+      return { duplicado: false };
+    }
+
+    function verificarDuplicidadeCampos() {
+      const cod = document.getElementById('novoCod').value;
+      const desc = document.getElementById('novoDesc').value;
+      const alerta = document.getElementById('alertaDuplicidade');
+      const texto = document.getElementById('textoAlertaDuplicidade');
+      const btnSalvar = document.getElementById('btnSalvarNovoProd');
+
+      const checagem = verificarDuplicidade(cod, desc);
+      if (checagem.duplicado) {
+        alerta.classList.remove('hidden');
+        texto.innerText = checagem.motivo;
+        btnSalvar.disabled = true;
+        btnSalvar.classList.add('opacity-50', 'cursor-not-allowed');
+      } else {
+        alerta.classList.add('hidden');
+        btnSalvar.disabled = false;
+        btnSalvar.classList.remove('opacity-50', 'cursor-not-allowed');
+      }
+    }
+
+    function abrirModalNovoProduto() {
+      document.getElementById('formNovoProduto').reset();
+      // Sugerir indústria da aba ativa se não for "todas"
+      if (window.appState.industriaAtiva !== 'todas') {
+        document.getElementById('novoIndustria').value = window.appState.industriaAtiva;
+      }
+      document.getElementById('alertaDuplicidade').classList.add('hidden');
+      document.getElementById('modalNovoProduto').classList.remove('hidden');
+    }
+
+    function fecharModalNovoProduto() {
+      document.getElementById('modalNovoProduto').classList.add('hidden');
+    }
+
+    async function salvarNovoProduto(e) {
+      e.preventDefault();
+      const cod = document.getElementById('novoCod').value.trim();
+      const desc = document.getElementById('novoDesc').value.trim().toUpperCase();
+      const industria = document.getElementById('novoIndustria').value.trim() || 'Puro Tempero';
+      const venda = parseInt(document.getElementById('novoVenda').value) || 0;
+      const estoque = parseInt(document.getElementById('novoEstoque').value) || 0;
+      const dde = parseInt(document.getElementById('novoDde').value) || 0;
+
+      const dup = verificarDuplicidade(cod, desc);
+      if (dup.duplicado) {
+        mostrarToast("Duplicidade", dup.motivo, "error");
+        return;
+      }
+
+      const novoProduto = {
+        cod,
+        desc,
+        industria,
+        venda,
+        estoque,
+        dde,
+        presenca: 'pendente',
+        contagemFisica: '',
+        obs: ''
+      };
+
+      await salvarProdutoNoBanco(novoProduto);
+      fecharModalNovoProduto();
+      window.renderizarAbasIndustrias();
+      mostrarToast("Cadastrado!", `Mercadoria "${desc}" incluída na pasta ${industria}.`);
+    }
+
+    // PROCESSAMENTO INTELIGENTE POR IA (PDF / IMAGEM)
+    function abrirModalUpload() {
+      document.getElementById('modalUpload').classList.remove('hidden');
+      document.getElementById('statusProcessamentoIA').classList.add('hidden');
+      document.getElementById('containerResultadosIA').classList.add('hidden');
+      document.getElementById('btnConfirmarImportacaoIA').disabled = true;
+      document.getElementById('inputArquivoUpload').value = '';
+    }
+
+    function fecharModalUpload() {
+      document.getElementById('modalUpload').classList.add('hidden');
+    }
+
+    const dropZone = document.getElementById('dropZone');
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropZone.classList.add('border-violet-600', 'bg-violet-100/50');
+      }, false);
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('border-violet-600', 'bg-violet-100/50');
+      }, false);
+    });
+    dropZone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      if (files.length) processarArquivo(files[0]);
+    });
+
+    function processarArquivoSelecionado(e) {
+      if (e.target.files.length) processarArquivo(e.target.files[0]);
+    }
+
+    async function processarArquivo(file) {
+      const statusBox = document.getElementById('statusProcessamentoIA');
+      const textoStatus = document.getElementById('textoStatusIA');
+      statusBox.classList.remove('hidden');
+      document.getElementById('containerResultadosIA').classList.add('hidden');
+      document.getElementById('btnConfirmarImportacaoIA').disabled = true;
+
+      try {
+        let base64Data = '';
+        let mimeType = file.type;
+
+        if (file.type === 'application/pdf') {
+          textoStatus.innerText = 'Renderizando página do relatório PDF...';
+          base64Data = await converterPdfParaImagemBase64(file);
+          mimeType = 'image/png';
+        } else if (file.type.startsWith('image/')) {
+          textoStatus.innerText = 'Preparando imagem para o leitor óptico Gemini...';
+          base64Data = await arquivoParaBase64Puro(file);
+        } else {
+          throw new Error('Tipo não suportado. Envie foto ou PDF.');
+        }
+
+        textoStatus.innerText = 'Lendo tabela: extraindo códigos, estoques, descrições e marcas...';
+        const itensExtraidos = await enviarParaLeitorGemini(base64Data, mimeType);
+
+        if (!itensExtraidos || itensExtraidos.length === 0) {
+          throw new Error('Nenhuma tabela ou mercadoria identificável foi detectada.');
+        }
+
+        window.appState.itensIAExtraidos = itensExtraidos;
+        renderizarPreviewItensIA(itensExtraidos);
+        statusBox.classList.add('hidden');
+
+      } catch (err) {
+        console.error(err);
+        statusBox.classList.add('hidden');
+        mostrarToast("Erro na Leitura", err.message || "Não foi possível analisar o arquivo.", "error");
+      }
+    }
+
+    async function converterPdfParaImagemBase64(file) {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const page = await pdf.getPage(1);
+      const viewport = page.getViewport({ scale: 2.0 });
+
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      await page.render({ canvasContext: context, viewport: viewport }).promise;
+      const dataUrl = canvas.toDataURL('image/png');
+      return dataUrl.split(',')[1];
+    }
+
+    function arquivoParaBase64Puro(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function enviarParaLeitorGemini(base64Data, mimeType) {
+      const apiKey = "";
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+      const systemPrompt = `Você é um analista especialista em auditoria de supermercados. 
+Extraia cada linha de produto presente na imagem/relatório em formato JSON estruturado.
+Identifique: código (EAN ou numérico), descrição exata, indústria/fornecedor (ex: Puro Tempero, Alho Achei), saldo de estoque (preservando negativo), venda e DDE.`;
+
+      const userPrompt = `Extraia todos os itens da tabela de estoque fornecida com precisão cirúrgica. Responda apenas com o JSON.`;
+
+      const payload = {
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: userPrompt },
+              {
+                inlineData: {
+                  mimeType: mimeType,
+                  data: base64Data
+                }
+              }
+            ]
+          }
+        ],
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                cod: { type: "STRING" },
+                desc: { type: "STRING" },
+                industria: { type: "STRING" },
+                estoque: { type: "INTEGER" },
+                venda: { type: "INTEGER" },
+                dde: { type: "INTEGER" }
+              },
+              required: ["cod", "desc", "estoque"]
+            }
+          }
+        }
+      };
+
+      let delay = 1000;
+      for (let i = 0; i < 3; i++) {
+        try {
+          const resp = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (!resp.ok) throw new Error(`Status ${resp.status}`);
+          const result = await resp.json();
+          const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (jsonText) return JSON.parse(jsonText);
+        } catch (e) {
+          if (i === 2) throw e;
+          await new Promise(r => setTimeout(r, delay));
+          delay *= 2;
+        }
+      }
+      return [];
+    }
+
+    function renderizarPreviewItensIA(itens) {
+      const container = document.getElementById('containerResultadosIA');
+      const tbody = document.getElementById('tabelaPreviewIA');
+      const totalSpan = document.getElementById('totalItensReconhecidos');
+      const btnConfirmar = document.getElementById('btnConfirmarImportacaoIA');
+
+      tbody.innerHTML = '';
+      totalSpan.innerText = itens.length;
+      container.classList.remove('hidden');
+      btnConfirmar.disabled = false;
+
+      itens.forEach(item => {
+        const existe = (window.appState.produtos || []).find(p => p.cod === item.cod || normalizarTexto(p.desc) === normalizarTexto(item.desc));
+
+        const tr = document.createElement('tr');
+        tr.className = "border-b border-slate-100 hover:bg-slate-50";
+
+        let statusBadge = '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">Novo Item</span>';
+        if (existe) {
+          statusBadge = '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700">Atualizar Saldo</span>';
+        }
+
+        tr.innerHTML = `
+          <td class="py-1.5 px-3 font-mono font-bold">${item.cod || 'S/N'}</td>
+          <td class="py-1.5 px-3 font-medium">${item.desc}</td>
+          <td class="py-1.5 px-2 text-center text-slate-500">${item.industria || 'Puro Tempero'}</td>
+          <td class="py-1.5 px-2 text-center font-bold ${item.estoque < 0 ? 'text-rose-600' : 'text-slate-800'}">${item.estoque}</td>
+          <td class="py-1.5 px-2 text-center">${statusBadge}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function aplicarDadosImportadosIA() {
+      const itens = window.appState.itensIAExtraidos || [];
+      if (!itens.length) return;
+
+      const btn = document.getElementById('btnConfirmarImportacaoIA');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Gravando...';
+
+      let atualizados = 0;
+      let adicionados = 0;
+
+      for (const item of itens) {
+        if (!item.cod) continue;
+
+        const existente = (window.appState.produtos || []).find(p => p.cod === item.cod);
+        if (existente) {
+          await salvarProdutoNoBanco({
+            ...existente,
+            estoque: item.estoque,
+            venda: item.venda !== undefined ? item.venda : existente.venda,
+            dde: item.dde !== undefined ? item.dde : existente.dde,
+            industria: item.industria || existente.industria
+          });
+          atualizados++;
+        } else {
+          await salvarProdutoNoBanco({
+            cod: item.cod,
+            desc: item.desc.toUpperCase(),
+            industria: item.industria || 'Puro Tempero',
+            venda: item.venda || 0,
+            estoque: item.estoque || 0,
+            dde: item.dde || 0,
+            presenca: 'pendente',
+            contagemFisica: '',
+            obs: 'Importado por IA'
+          });
+          adicionados++;
+        }
+      }
+
+      fecharModalUpload();
+      window.renderizarAbasIndustrias();
+      mostrarToast("Catálogo Atualizado", `${atualizados} produtos atualizados e ${adicionados} adicionados.`);
+    }
+
+    // MODAL E EXPORTAÇÃO DA LISTA SIMPLES COLORIDA
+    function abrirModalListaSimples() {
+      atualizarConteudoListaSimples();
+      document.getElementById('modalListaSimples').classList.remove('hidden');
+    }
+
+    function fecharModalListaSimples() {
+      document.getElementById('modalListaSimples').classList.add('hidden');
+    }
+
+    function atualizarConteudoListaSimples() {
+      const tbody = document.getElementById('tabelaListaSimplesCorpo');
+      tbody.innerHTML = '';
+
+      const dataHoje = document.getElementById('auditorData').value || new Date().toLocaleDateString('pt-BR');
+      const auditor = document.getElementById('auditorNome').value || 'Não informado';
+      const indAtiva = window.appState.industriaAtiva;
+
+      document.getElementById('lsBadgeIndustria').innerText = indAtiva === 'todas' ? 'Todas as Indústrias' : indAtiva;
+      document.getElementById('lsInfoAuditor').innerText = `Auditor: ${auditor} | Data: ${dataHoje} | Filial: 438 - GRAJAÚ | Aba: ${indAtiva === 'todas' ? 'Geral' : indAtiva}`;
+
+      const itens = (window.appState.produtos || []).filter(p => {
+        if (indAtiva !== 'todas' && (p.industria || '').trim().toLowerCase() !== indAtiva.trim().toLowerCase()) return false;
+        return true;
+      });
+
+      itens.forEach((p, idx) => {
+        const status = p.presenca || 'pendente';
+
+        let badgeSimNao = '';
+        if (status === 'sim') {
+          badgeSimNao = `<span class="inline-block px-3 py-1 text-xs font-black rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300">SIM</span>`;
+        } else if (status === 'nao') {
+          badgeSimNao = `<span class="inline-block px-3 py-1 text-xs font-black rounded-md bg-rose-100 text-rose-800 border border-rose-300">NÃO</span>`;
+        } else if (status === 'parcial') {
+          badgeSimNao = `<span class="inline-block px-2.5 py-1 text-xs font-black rounded-md bg-amber-100 text-amber-800 border border-amber-300">PARCIAL</span>`;
+        } else {
+          badgeSimNao = `<span class="inline-block px-3 py-1 text-xs font-semibold rounded-md bg-slate-100 text-slate-500 border border-slate-300">PENDENTE</span>`;
+        }
+
+        const tr = document.createElement('tr');
+        tr.className = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70';
+        tr.innerHTML = `
+          <td class="py-2 px-3 font-mono font-bold text-slate-900 border-b border-slate-200 text-xs">${p.cod}</td>
+          <td class="py-2 px-3 font-medium text-slate-800 border-b border-slate-200 text-xs">${p.desc}</td>
+          <td class="py-2 px-3 text-center font-bold ${p.estoque < 0 ? 'text-rose-600 bg-rose-50' : 'text-slate-800'} border-b border-slate-200 text-xs">${p.estoque}</td>
+          <td class="py-2 px-3 text-center border-b border-slate-200">
+            ${badgeSimNao}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function imprimirListaSimples() {
+      atualizarConteudoListaSimples();
+      document.body.classList.add('imprimindo-simples');
+      window.print();
+      setTimeout(() => document.body.classList.remove('imprimindo-simples'), 1000);
+    }
+
+    function baixarPdfListaSimples() {
+      atualizarConteudoListaSimples();
+      const btn = document.getElementById('btnPdfSimples');
+      const txtOriginal = btn.innerHTML;
+      btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Gerando...';
+      btn.disabled = true;
+
+      const elemento = document.getElementById('areaParaImpressaoSimples');
+      const dataHoje = document.getElementById('auditorData').value || new Date().toISOString().split('T')[0];
+      const nomeArquivo = `Lista_
