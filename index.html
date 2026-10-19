@@ -33,9 +33,22 @@
       const c = document.getElementById('containerResultadosIA');
       if (c) c.classList.add('hidden');
       const b = document.getElementById('btnConfirmarImportacaoIA');
-      if (b) b.disabled = true;
+      if (b) {
+        b.disabled = true;
+        b.innerHTML = '<i class="ph-bold ph-cloud-arrow-up text-base"></i> Confirmar & Subir Selecionados';
+      }
       const inp = document.getElementById('inputArquivoUpload');
       if (inp) inp.value = '';
+      const txtColado = document.getElementById('inputTextoColadoImportacao');
+      if (txtColado) txtColado.value = '';
+      
+      // Preenche indústria padrão com a aba ativa atual, se houver
+      const indPadraoInp = document.getElementById('industriaPadraoImportacao');
+      if (indPadraoInp && window.appState && window.appState.industriaAtiva && window.appState.industriaAtiva !== 'todas') {
+        indPadraoInp.value = window.appState.industriaAtiva;
+      } else if (indPadraoInp && !indPadraoInp.value) {
+        indPadraoInp.value = 'Puro Tempero';
+      }
     };
 
     window.fecharModalUpload = function() {
@@ -86,6 +99,9 @@
       document.getElementById('editVenda').value = prod.venda || 0;
       document.getElementById('editEstoque').value = prod.estoque || 0;
       document.getElementById('editDde').value = prod.dde || 0;
+      if (document.getElementById('editValidade')) {
+        document.getElementById('editValidade').value = prod.validade || '';
+      }
 
       const m = document.getElementById('modalEditarProduto');
       if (m) m.classList.remove('hidden');
@@ -105,6 +121,16 @@
 
     window.fecharModalTransferenciaLote = function() {
       const m = document.getElementById('modalTransferenciaLote');
+      if (m) m.classList.add('hidden');
+    };
+
+    window.abrirModalExportarAvancado = function() {
+      const m = document.getElementById('modalExportarAvancado');
+      if (m) m.classList.remove('hidden');
+    };
+
+    window.fecharModalExportarAvancado = function() {
+      const m = document.getElementById('modalExportarAvancado');
       if (m) m.classList.add('hidden');
     };
   </script>
@@ -253,9 +279,9 @@
       <!-- Barra de Ações Rápidas -->
       <div class="flex items-center flex-wrap gap-2 no-print">
         
-        <!-- Importar via IA (PDF / Foto) -->
+        <!-- Importar / Ajustar Estoque via IA (PDF / Foto / Texto) -->
         <button id="btnAbrirModalUpload" onclick="window.abrirModalUpload()" type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg text-white bg-violet-600 hover:bg-violet-700 active:scale-95 transition shadow-xs cursor-pointer">
-          <i class="ph-bold ph-sparkle text-sm"></i> Ler PDF / Foto (IA)
+          <i class="ph-bold ph-arrows-clockwise text-sm"></i> Upload / Ajuste de Estoque (IA)
         </button>
 
         <!-- Botão Novo Produto -->
@@ -268,9 +294,14 @@
           <i class="ph-bold ph-list-checks text-sm"></i> Lista Simples
         </button>
 
+        <!-- Exportar Avançado (PDF Customizado / CSV Excel) -->
+        <button id="btnAbrirExportarAvancado" onclick="window.abrirModalExportarAvancado()" type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition shadow-xs cursor-pointer" title="Exportação avançada com filtros de validade, divergência e planilha Excel">
+          <i class="ph-bold ph-export text-sm"></i> Exportar Avançado
+        </button>
+
         <!-- Baixar PDF Completo -->
         <button id="btnBaixarPdf" onclick="window.gerarDownloadPDF()" type="button" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg text-white bg-rose-600 hover:bg-rose-700 active:scale-95 transition shadow-xs cursor-pointer">
-          <i class="ph-bold ph-file-pdf text-sm"></i> Baixar PDF
+          <i class="ph-bold ph-file-pdf text-sm"></i> PDF Rápido
         </button>
 
         <!-- Limpar Indústria Atual -->
@@ -318,7 +349,7 @@
     </div>
 
     <!-- Indicadores Rápidos (KPIs em Cards Compactos e Elegantes) -->
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
       <!-- Total Auditados -->
       <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
         <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Conferidos</span>
@@ -352,7 +383,7 @@
       <!-- Estoque Negativo no ERP -->
       <div class="bg-white p-3 rounded-xl border border-amber-200 bg-amber-50/25 shadow-xs flex flex-col justify-between">
         <span class="text-[11px] font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1">
-          <i class="ph-bold ph-warning"></i> Negativo no ERP
+          <i class="ph-bold ph-warning"></i> Negativo ERP
         </span>
         <span class="text-xl font-black text-amber-700 mt-1" id="statNegativo">0</span>
         <span class="text-[10px] text-amber-600 font-medium">Inconsistência</span>
@@ -374,6 +405,15 @@
         </span>
         <span class="text-xl font-black text-indigo-700 mt-1" id="statDivergencias">0</span>
         <span class="text-[10px] text-indigo-600 font-medium">Físico ≠ ERP</span>
+      </div>
+
+      <!-- Alerta de Validade / Vencimento -->
+      <div class="bg-white p-3 rounded-xl border border-pink-200 bg-pink-50/25 shadow-xs flex flex-col justify-between">
+        <span class="text-[11px] font-bold uppercase tracking-wider text-pink-700 flex items-center gap-1">
+          <i class="ph-bold ph-calendar-x"></i> Vencendo / Venc.
+        </span>
+        <span class="text-xl font-black text-pink-700 mt-1" id="statValidadeAlerta">0</span>
+        <span class="text-[10px] text-pink-600 font-medium">Vencidos ou &le; 30d</span>
       </div>
     </div>
 
@@ -413,6 +453,18 @@
             <option value="sem_venda">Sem Venda (Giro Zero)</option>
             <option value="excesso">Superestocagem (&gt; 250d)</option>
             <option value="divergente">Com Divergência Físico/ERP</option>
+          </select>
+
+          <!-- Novo Filtro por Validade / Vencimento -->
+          <select id="filtroValidade" onchange="aplicarFiltros()" class="text-xs font-semibold border border-pink-300 rounded-lg px-2.5 py-1.5 bg-pink-50/40 text-slate-800 focus:outline-none focus:ring-2 focus:ring-pink-500">
+            <option value="todos">Validade: Todas</option>
+            <option value="vencido">🚨 Vencidos</option>
+            <option value="vence_15">⚠️ Vence em até 15 dias</option>
+            <option value="vence_30">⏳ Vence em até 30 dias</option>
+            <option value="vence_60">📅 Vence em até 60 dias</option>
+            <option value="em_dia">✅ Em dia (&gt; 60 dias)</option>
+            <option value="com_validade">Com Validade Preenchida</option>
+            <option value="sem_validade">Sem Validade Informada</option>
           </select>
 
           <button onclick="resetarFiltros()" class="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 transition" title="Limpar Filtros">
@@ -479,6 +531,11 @@
               </th>
               <th class="py-2.5 px-3 w-28 text-center bg-slate-100">Contagem Física</th>
               <th class="py-2.5 px-3 w-24 text-center">Divergência</th>
+              <th class="py-2.5 px-3 w-36 text-center bg-pink-50/40 border-x border-slate-200 font-bold text-pink-950">
+                <div class="flex items-center justify-center gap-1">
+                  <i class="ph-bold ph-calendar-check text-pink-600"></i> Validade
+                </div>
+              </th>
               <th class="py-2.5 px-3 min-w-[140px]">Anotação / Local</th>
               <th class="py-2.5 px-2 w-20 text-center no-print">Ações</th>
             </tr>
@@ -569,7 +626,7 @@
           <input type="text" id="editDesc" required class="w-full border border-slate-300 rounded-lg px-3 py-2 uppercase font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none">
         </div>
 
-        <div class="grid grid-cols-3 gap-3">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div>
             <label class="block font-bold text-slate-700 mb-1">Venda Período</label>
             <input type="number" id="editVenda" min="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-center focus:ring-2 focus:ring-brand-500 focus:outline-none">
@@ -581,6 +638,10 @@
           <div>
             <label class="block font-bold text-slate-700 mb-1">DDE (Dias)</label>
             <input type="number" id="editDde" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-center focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-pink-700 mb-1">Validade</label>
+            <input type="date" id="editValidade" class="w-full border border-pink-300 rounded-lg px-2.5 py-2 text-center focus:ring-2 focus:ring-pink-500 focus:outline-none bg-pink-50/20">
           </div>
         </div>
 
@@ -662,7 +723,7 @@
           <input type="text" id="novoDesc" required oninput="verificarDuplicidadeCampos()" placeholder="Ex: ESP COENTRO MOIDO PURO TEMPERO 30G" class="w-full border border-slate-300 rounded-lg px-3 py-2 uppercase focus:ring-2 focus:ring-blue-500 focus:outline-none">
         </div>
 
-        <div class="grid grid-cols-3 gap-3">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div>
             <label class="block font-bold text-slate-700 mb-1">Venda Período</label>
             <input type="number" id="novoVenda" min="0" value="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-center focus:ring-2 focus:ring-blue-500 focus:outline-none">
@@ -675,83 +736,144 @@
             <label class="block font-bold text-slate-700 mb-1">DDE (Dias)</label>
             <input type="number" id="novoDde" value="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-center focus:ring-2 focus:ring-blue-500 focus:outline-none">
           </div>
+          <div>
+            <label class="block font-bold text-pink-700 mb-1">Data Validade</label>
+            <input type="date" id="novoValidade" class="w-full border border-pink-300 rounded-lg px-2.5 py-2 text-center focus:ring-2 focus:ring-pink-500 focus:outline-none bg-pink-50/20">
+          </div>
         </div>
 
         <div class="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
-          <button type="button" onclick="fecharModalNovoProduto()" class="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition">Cancelar</button>
-          <button type="submit" id="btnSalvarNovoProd" class="px-4 py-2 font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition flex items-center gap-1.5 shadow-sm">
-            <i class="ph-bold ph-floppy-disk text-base"></i> Gravar Mercadoria
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- MODAL: LEITURA DE PDF / IMAGEM COM INTELIGÊNCIA ARTIFICIAL -->
-  <div id="modalUpload" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
+  <!-- MODAL: LEITURA DE PDF / IMAGEM / AJUSTE DE ESTOQUE COM INTELIGÊNCIA ARTIFICIAL -->
+  <div id="modalUpload" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 hidden">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[94vh] flex flex-col overflow-hidden border border-slate-200">
       
-      <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+      <div class="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
         <div class="flex items-center gap-2.5">
           <div class="p-2 bg-violet-100 text-violet-700 rounded-xl">
-            <i class="ph-bold ph-sparkle text-xl"></i>
+            <i class="ph-bold ph-arrows-clockwise text-xl"></i>
           </div>
           <div>
-            <h2 class="text-sm font-bold text-slate-900">Atualizar Estoque por PDF ou Imagem (IA)</h2>
-            <p class="text-xs text-slate-500">Envie foto de relatório, planilha impressa ou PDF para atualizar estoques e importar itens.</p>
+            <h2 class="text-sm font-bold text-slate-900">Upload de Ajuste de Estoque & Importação Inteligente</h2>
+            <p class="text-xs text-slate-500">Analisa o produto pelo Código ou Descrição, compara o Estoque Atual vs. Novo Estoque e atualiza automaticamente.</p>
           </div>
         </div>
-        <button onclick="fecharModalUpload()" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg">
+        <button onclick="fecharModalUpload()" type="button" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg">
           <i class="ph-bold ph-x text-lg"></i>
         </button>
       </div>
 
-      <div class="p-5 overflow-y-auto space-y-4 text-xs">
-        <div id="dropZone" onclick="document.getElementById('inputArquivoUpload').click()" class="border-2 border-dashed border-violet-300 hover:border-violet-500 bg-violet-50/30 rounded-2xl p-6 text-center cursor-pointer transition flex flex-col items-center justify-center">
-          <input type="file" id="inputArquivoUpload" accept="image/*,application/pdf" class="hidden" onchange="processarArquivoSelecionado(event)">
-          <div class="w-12 h-12 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center mb-2">
-            <i class="ph-bold ph-cloud-arrow-up text-2xl"></i>
+      <div class="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs flex-1">
+        
+        <!-- Configuração de Modo de Ajuste de Estoque e Indústria Padrão -->
+        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label class="font-bold text-slate-800 block mb-1 flex items-center gap-1.5">
+              <i class="ph-bold ph-Sliders text-violet-600"></i> Modo de Operação do Upload:
+            </label>
+            <select id="modoOperacaoUpload" onchange="window.renderizarPreviewItensIA()" class="w-full border border-violet-300 rounded-lg px-3 py-1.5 font-bold text-violet-900 bg-white focus:ring-2 focus:ring-violet-500 focus:outline-none">
+              <option value="completo">🔄 Atualizar Estoque Existente + Cadastrar Novos Produtos</option>
+              <option value="apenas_ajuste">⚡ Somente Ajuste de Estoque (Ignorar produtos não cadastrados)</option>
+            </select>
+            <span class="text-[10px] text-slate-500 block mt-1">No ajuste, as contagens físicas, presenças e datas de validade já anotadas são preservadas!</span>
           </div>
-          <p class="text-sm font-bold text-slate-800">Clique para selecionar foto/PDF ou arraste aqui</p>
-          <p class="text-xs text-slate-500 mt-1">Formatos aceitos: JPG, PNG, WEBP ou documentos PDF (relatórios de estoque)</p>
+
+          <div class="flex flex-col justify-between">
+            <label class="font-bold text-slate-800 block mb-1">Indústria Padrão (para novos produtos sem marca na planilha):</label>
+            <div class="flex items-center gap-2">
+              <input list="listaIndustriasExistentes" type="text" id="industriaPadraoImportacao" value="Puro Tempero" placeholder="Ex: Puro Tempero" class="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 font-semibold text-slate-800 focus:ring-2 focus:ring-violet-500 focus:outline-none bg-white">
+              <button type="button" onclick="window.aplicarIndustriaPadraoNosExtraidos()" class="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition whitespace-nowrap" title="Aplicar a todos os itens da lista abaixo">
+                Aplicar a Todos
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div id="statusProcessamentoIA" class="hidden p-4 rounded-xl bg-slate-100 border border-slate-200 space-y-2">
-          <div class="flex items-center gap-2 text-violet-700 font-bold">
-            <i class="ph-bold ph-spinner animate-spin text-base"></i>
-            <span id="textoStatusIA">Processando documento com visão computacional...</span>
+        <!-- Opções de Entrada: Upload de Arquivo OU Colar Texto -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <!-- Dropzone de Imagem / PDF -->
+          <div id="dropZone" onclick="document.getElementById('inputArquivoUpload').click()" class="border-2 border-dashed border-violet-300 hover:border-violet-500 bg-violet-50/30 rounded-2xl p-4 text-center cursor-pointer transition flex flex-col items-center justify-center min-h-[120px]">
+            <input type="file" id="inputArquivoUpload" accept="image/*,application/pdf" class="hidden" onchange="processarArquivoSelecionado(event)">
+            <div class="w-10 h-10 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center mb-1.5">
+              <i class="ph-bold ph-cloud-arrow-up text-xl"></i>
+            </div>
+            <p class="text-xs font-bold text-slate-800">1. Enviar Foto de Tabela ou PDF</p>
+            <p class="text-[11px] text-slate-500 mt-0.5">Aceita tabelas parciais (ex: só Código + Descrição + Estoque)</p>
           </div>
-          <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-            <div id="barraProgressoIA" class="bg-violet-600 h-1.5 rounded-full w-1/3 animate-pulse"></div>
+
+          <!-- Entrada rápida por Texto Colado / Linhas -->
+          <div class="border border-slate-200 bg-slate-50/60 rounded-2xl p-3 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-bold text-slate-700 flex items-center gap-1">
+                <i class="ph-bold ph-clipboard-text text-violet-600"></i> 2. Ou Cole Linhas de Texto / Excel:
+              </span>
+              <button type="button" onclick="window.analisarTextoColadoManual()" class="px-2.5 py-1 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-md text-[11px] transition">
+                Analisar Texto
+              </button>
+            </div>
+            <textarea id="inputTextoColadoImportacao" rows="3" placeholder="Cole aqui linhas copiadas de planilha, PDF ou digite:&#10;458271 ESP BICARBONATO 40G 644&#10;458272 CANELA EM CASCA 15G 82" class="w-full border border-slate-300 rounded-lg p-2 text-[11px] font-mono bg-white focus:outline-none focus:ring-2 focus:ring-violet-500"></textarea>
           </div>
         </div>
 
-        <div id="containerResultadosIA" class="hidden space-y-3">
+        <!-- Barra de Progresso e Status -->
+        <div id="statusProcessamentoIA" class="hidden p-3.5 rounded-xl bg-violet-50 border border-violet-200 space-y-2">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-slate-700">Itens Reconhecidos (<span id="totalItensReconhecidos">0</span>):</span>
-            <span class="text-[11px] text-slate-500">Itens existentes terão saldo atualizado. Novos itens serão adicionados.</span>
+            <div class="flex items-center gap-2 text-violet-800 font-bold">
+              <i class="ph-bold ph-spinner animate-spin text-base"></i>
+              <span id="textoStatusIA">Analisando colunas disponíveis na imagem/documento...</span>
+            </div>
+        <!-- Tabela Interativa de Decisão e Conciliação de Estoque Pré-Importação -->
+        <div id="containerResultadosIA" class="hidden space-y-2.5">
+          <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-100 px-3 py-2 rounded-xl border border-slate-200">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="font-bold text-slate-800">Analisados (<span id="totalItensReconhecidos">0</span>)</span>
+              <span class="text-slate-300">|</span>
+              <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[11px]">Ajustes de Saldo: <span id="resumoQtdAjustes">0</span></span>
+              <span class="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-bold text-[11px]">Novos Itens: <span id="resumoQtdNovos">0</span></span>
+              <span class="text-slate-300">|</span>
+              <span class="text-violet-700 font-bold">Selecionados: <span id="contadorItensSelecionadosIA">0</span></span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="button" onclick="window.selecionarApenasExistentesPreviewIA()" class="px-2 py-1 text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300 rounded-lg hover:bg-amber-100">Só Ajustes de Estoque</button>
+              <button type="button" onclick="window.adicionarLinhaManualPreviewIA()" class="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg font-bold text-[11px] flex items-center gap-1">
+                <i class="ph-bold ph-plus"></i> + Linha
+              </button>
+              <button type="button" onclick="window.alternarTodosPreviewIA(true)" class="px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:underline">Todos</button>
+              <button type="button" onclick="window.alternarTodosPreviewIA(false)" class="px-2 py-1 text-[11px] font-semibold text-slate-600 hover:underline">Nenhum</button>
+            </div>
           </div>
-          <div class="max-h-56 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 custom-scrollbar text-xs">
-            <table class="w-full text-left">
-              <thead class="bg-slate-50 sticky top-0 font-semibold text-slate-600 text-[11px]">
+
+          <div class="max-h-72 overflow-y-auto border border-slate-300 rounded-xl custom-scrollbar bg-white shadow-inner">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead class="bg-slate-100 sticky top-0 z-10 font-bold text-slate-700 text-[11px] border-b border-slate-300">
                 <tr>
-                  <th class="py-2 px-3">Código</th>
-                  <th class="py-2 px-3">Descrição</th>
-                  <th class="py-2 px-2 text-center">Indústria</th>
-                  <th class="py-2 px-2 text-center">Estoque</th>
-                  <th class="py-2 px-2 text-center">Status</th>
+                  <th class="py-2 px-2.5 text-center w-10">
+                    <input type="checkbox" id="checkAllPreviewIA" checked onchange="window.alternarTodosPreviewIA(this.checked)" class="w-4 h-4 rounded text-violet-600 cursor-pointer" title="Selecionar/Desmarcar todos">
+                  </th>
+                  <th class="py-2 px-2 w-24">Código</th>
+                  <th class="py-2 px-2 min-w-[170px]">Descrição do Produto</th>
+                  <th class="py-2 px-2 w-28">Indústria</th>
+                  <th class="py-2 px-2 w-20 text-center bg-slate-200/70">Estoque Atual</th>
+                  <th class="py-2 px-2 w-24 text-center bg-violet-100/70 text-violet-900">Novo Estoque</th>
+                  <th class="py-2 px-2 w-20 text-center">Variação</th>
+                  <th class="py-2 px-2 w-16 text-center">Venda</th>
+                  <th class="py-2 px-2 w-16 text-center">DDE</th>
+                  <th class="py-2 px-2 w-32 text-center">Status / Ação</th>
+                  <th class="py-2 px-2 w-8 text-center"></th>
                 </tr>
               </thead>
-              <tbody id="tabelaPreviewIA"></tbody>
+              <tbody id="tabelaPreviewIA" class="divide-y divide-slate-200"></tbody>
             </table>
           </div>
+          <p class="text-[11px] text-slate-500 italic">
+            * O sistema identifica automaticamente produtos já cadastrados pelo Código ou Descrição, mostra o saldo anterior na coluna "Estoque Atual" e aplica o "Novo Estoque" enviado.
+          </p>
         </div>
       </div>
 
       <div class="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-        <button type="button" onclick="fecharModalUpload()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-lg transition">Fechar</button>
-        <button type="button" id="btnConfirmarImportacaoIA" disabled onclick="aplicarDadosImportadosIA()" class="px-4 py-2 text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition flex items-center gap-1.5 shadow-sm">
-          <i class="ph-bold ph-cloud-arrow-up text-base"></i> Confirmar & Atualizar Estoque
+        <button type="button" onclick="fecharModalUpload()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-lg transition">Cancelar</button>
+        <button type="button" id="btnConfirmarImportacaoIA" disabled onclick="aplicarDadosImportadosIA()" class="px-5 py-2.5 text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition flex items-center gap-1.5 shadow-sm cursor-pointer">
+          <i class="ph-bold ph-cloud-arrow-up text-base"></i> Confirmar & Subir Selecionados
         </button>
       </div>
 
@@ -808,8 +930,9 @@
               <tr class="bg-indigo-900 text-white text-xs uppercase tracking-wider">
                 <th class="py-2.5 px-3 rounded-l font-bold w-24">Código</th>
                 <th class="py-2.5 px-3 font-bold">Descrição do Produto</th>
-                <th class="py-2.5 px-3 text-center font-bold w-24">Estoque</th>
-                <th class="py-2.5 px-3 text-center rounded-r font-bold w-28">Presença</th>
+                <th class="py-2.5 px-3 text-center font-bold w-20">Estoque</th>
+                <th class="py-2.5 px-3 text-center font-bold w-28">Validade</th>
+                <th class="py-2.5 px-3 text-center rounded-r font-bold w-24">Presença</th>
               </tr>
             </thead>
             <tbody id="tabelaListaSimplesCorpo">
@@ -832,6 +955,125 @@
       </div>
 
     </div>
+  </div>
+
+  <!-- MODAL: EXPORTAÇÃO AVANÇADA (RELATÓRIO CUSTOMIZADO PDF & EXCEL/CSV) -->
+  <div id="modalExportarAvancado" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+      
+      <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
+            <i class="ph-bold ph-export text-xl"></i>
+          </div>
+          <div>
+            <h2 class="text-sm font-bold text-slate-900">Exportação Avançada de Auditoria & Validades</h2>
+            <p class="text-xs text-slate-500">Configure filtros personalizados, escolha as colunas e baixe em PDF ou Planilha Excel (CSV).</p>
+          </div>
+        </div>
+        <button onclick="fecharModalExportarAvancado()" type="button" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg">
+          <i class="ph-bold ph-x text-lg"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Indústria / Pasta</label>
+            <select id="expFiltroIndustria" class="w-full border border-slate-300 rounded-lg px-3 py-2 font-semibold bg-white">
+              <option value="ativa">Aba Atual Aberta</option>
+              <option value="todas">Todas as Indústrias</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Status de Presença</label>
+            <select id="expFiltroPresenca" class="w-full border border-slate-300 rounded-lg px-3 py-2 font-semibold bg-white">
+              <option value="todos">Todos os Status</option>
+              <option value="sim">Somente Presentes (Sim)</option>
+              <option value="nao">Somente Rupturas (Não)</option>
+              <option value="parcial">Somente Parcial</option>
+              <option value="pendente">Somente Pendentes</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-pink-700 mb-1">Filtro de Validade</label>
+            <select id="expFiltroValidade" class="w-full border border-pink-300 rounded-lg px-3 py-2 font-semibold bg-pink-50/30">
+              <option value="todos">Todas as Validades</option>
+              <option value="alerta_30">🚨 Vencidos ou Vencendo (&le; 30d)</option>
+              <option value="vencido">Somente Vencidos</option>
+              <option value="vence_60">Vencendo em até 60 dias</option>
+              <option value="com_validade">Apenas com Validade Informada</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Ordenar Relatório Por</label>
+            <select id="expOrdenacao" class="w-full border border-slate-300 rounded-lg px-3 py-2 font-semibold bg-white">
+              <option value="padrao">Ordem Padrão do Catálogo</option>
+              <option value="validade_asc">Data de Validade (Mais Próximos Primeiro)</option>
+              <option value="estoque_asc">Menor Estoque Primeiro</option>
+              <option value="estoque_desc">Maior Estoque Primeiro</option>
+              <option value="desc_asc">Ordem Alfabética (A-Z)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Filtrar Divergências / Riscos</label>
+            <select id="expFiltroRisco" class="w-full border border-slate-300 rounded-lg px-3 py-2 font-semibold bg-white">
+              <option value="todos">Todos os Produtos</option>
+              <option value="divergente">Apenas com Divergência (Físico ≠ ERP)</option>
+              <option value="negativo">Apenas Estoque Negativo / Crítico</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Seleção de Colunas para Exportar -->
+        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+          <label class="block font-bold text-slate-800 mb-2">Colunas Incluídas na Exportação:</label>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <label class="inline-flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" id="colExpIndustria" checked class="rounded text-emerald-600"> <span>Indústria</span>
+            </label>
+            <label class="inline-flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" id="colExpVenda" checked class="rounded text-emerald-600"> <span>Venda & DDE</span>
+            </label>
+            <label class="inline-flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" id="colExpEstoque" checked class="rounded text-emerald-600"> <span>Saldo ERP</span>
+            </label>
+            <label class="inline-flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" id="colExpPresenca" checked class="rounded text-emerald-600"> <span>Presença (Sim/Não)</span>
+            </label>
+            <label class="inline-flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" id="colExpContagem" checked class="rounded text-emerald-600"> <span>Contagem & Diverg.</span>
+            </label>
+            <label class="inline-flex items-center gap-1.5 cursor-pointer font-bold text-pink-700">
+              <input type="checkbox" id="colExpValidade" checked class="rounded text-pink-600"> <span>Data de Validade</span>
+            </label>
+            <label class="inline-flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" id="colExpObs" checked class="rounded text-emerald-600"> <span>Observações</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-5 py-4 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2">
+        <button type="button" onclick="fecharModalExportarAvancado()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-lg transition">Fechar</button>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="window.exportarPlanilhaCSVAvancado()" class="px-4 py-2 text-xs font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-lg transition flex items-center gap-1.5 cursor-pointer">
+            <i class="ph-bold ph-file-csv text-base"></i> Baixar Planilha (CSV / Excel)
+          </button>
+          <button type="button" id="btnGerarPdfAvancado" onclick="window.exportarPDFAvancado()" class="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition flex items-center gap-1.5 shadow-sm cursor-pointer">
+            <i class="ph-bold ph-file-pdf text-base"></i> Gerar Relatório PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ÁREA OCULTA PARA RENDERIZAÇÃO DE PDF AVANÇADO -->
+  <div id="wrapperPdfAvancado" class="hidden">
+    <div id="conteudoPdfAvancado" class="bg-white p-6 text-slate-900 text-xs"></div>
   </div>
 
   <!-- TOAST / CAIXA DE MENSAGEM CUSTOMIZADA -->
@@ -958,6 +1200,7 @@
         ...p,
         presenca: 'pendente',
         contagemFisica: '',
+        validade: '',
         obs: ''
       }));
     }
@@ -1062,6 +1305,7 @@
             dde: Number(p.dde) || 0,
             presenca: 'pendente',
             contagemFisica: '',
+            validade: '',
             obs: '',
             atualizadoEm: new Date().toISOString()
           };
@@ -1257,6 +1501,79 @@
       return (txt || '').toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     };
 
+    // Calcula dias restantes para o vencimento e retorna metadados visuais
+    window.calcularStatusValidade = function(dataStr) {
+      if (!dataStr || typeof dataStr !== 'string' || !dataStr.trim()) {
+        return { status: 'sem_validade', dias: null, label: 'Sem data', badgeClass: 'bg-slate-100 text-slate-500 border-slate-200', formatada: '-' };
+      }
+      const partes = dataStr.trim().split('-');
+      if (partes.length !== 3) {
+        return { status: 'sem_validade', dias: null, label: dataStr, badgeClass: 'bg-slate-100 text-slate-500', formatada: dataStr };
+      }
+      const ano = parseInt(partes[0], 10);
+      const mes = parseInt(partes[1], 10) - 1;
+      const dia = parseInt(partes[2], 10);
+      const dataVal = new Date(ano, mes, dia);
+      dataVal.setHours(0, 0, 0, 0);
+
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+
+      const diffMs = dataVal.getTime() - hoje.getTime();
+      const diffDias = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      const formatada = `${String(dia).padStart(2, '0')}/${String(mes + 1).padStart(2, '0')}/${ano}`;
+
+      if (diffDias < 0) {
+        return {
+          status: 'vencido',
+          dias: diffDias,
+          label: `VENCIDO (${Math.abs(diffDias)}d)`,
+          badgeClass: 'bg-rose-600 text-white border-rose-700 font-black animate-pulse',
+          formatada
+        };
+      } else if (diffDias === 0) {
+        return {
+          status: 'vence_hoje',
+          dias: 0,
+          label: 'VENCE HOJE!',
+          badgeClass: 'bg-rose-500 text-white border-rose-600 font-black',
+          formatada
+        };
+      } else if (diffDias <= 15) {
+        return {
+          status: 'vence_15',
+          dias: diffDias,
+          label: `Vence em ${diffDias}d`,
+          badgeClass: 'bg-red-100 text-red-800 border-red-300 font-extrabold',
+          formatada
+        };
+      } else if (diffDias <= 30) {
+        return {
+          status: 'vence_30',
+          dias: diffDias,
+          label: `Vence em ${diffDias}d`,
+          badgeClass: 'bg-amber-100 text-amber-800 border-amber-300 font-bold',
+          formatada
+        };
+      } else if (diffDias <= 60) {
+        return {
+          status: 'vence_60',
+          dias: diffDias,
+          label: `Em ${diffDias} dias`,
+          badgeClass: 'bg-yellow-50 text-yellow-800 border-yellow-300 font-semibold',
+          formatada
+        };
+      } else {
+        return {
+          status: 'em_dia',
+          dias: diffDias,
+          label: `OK (${diffDias}d)`,
+          badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold',
+          formatada
+        };
+      }
+    };
+
     // Modal de confirmação customizado garantido no escopo global
     window.confirmDialog = function(titulo, msg, onConfirm) {
       const modal = document.createElement('div');
@@ -1389,6 +1706,9 @@
       document.getElementById('editVenda').value = prod.venda || 0;
       document.getElementById('editEstoque').value = prod.estoque || 0;
       document.getElementById('editDde').value = prod.dde || 0;
+      if (document.getElementById('editValidade')) {
+        document.getElementById('editValidade').value = prod.validade || '';
+      }
 
       const m = document.getElementById('modalEditarProduto');
       if (m) m.classList.remove('hidden');
@@ -1498,6 +1818,7 @@
       const termo = termoEl ? window.normalizarTexto(termoEl.value) : '';
       const filtroPresenca = document.getElementById('filtroPresenca') ? document.getElementById('filtroPresenca').value : 'todos';
       const filtroCategoria = document.getElementById('filtroCategoria') ? document.getElementById('filtroCategoria').value : 'todos';
+      const filtroValidade = document.getElementById('filtroValidade') ? document.getElementById('filtroValidade').value : 'todos';
       const indAtiva = (window.appState && window.appState.industriaAtiva) ? window.appState.industriaAtiva : 'todas';
 
       const produtos = (window.appState && window.appState.produtos) ? window.appState.produtos : [];
@@ -1520,16 +1841,28 @@
         }
 
         if (filtroCategoria === 'critico') {
-          return p.dde > 0 && p.dde <= 9;
+          if (!(p.dde > 0 && p.dde <= 9)) return false;
         } else if (filtroCategoria === 'negativo') {
-          return p.estoque < 0 || (p.venda > 0 && p.estoque === 0);
+          if (!(p.estoque < 0 || (p.venda > 0 && p.estoque === 0))) return false;
         } else if (filtroCategoria === 'sem_venda') {
-          return p.venda === 0;
+          if (p.venda !== 0) return false;
         } else if (filtroCategoria === 'excesso') {
-          return p.dde >= 250;
+          if (p.dde < 250) return false;
         } else if (filtroCategoria === 'divergente') {
           if (p.contagemFisica === '' || p.contagemFisica === undefined) return false;
-          return parseInt(p.contagemFisica) !== p.estoque;
+          if (parseInt(p.contagemFisica) === p.estoque) return false;
+        }
+
+        // Filtro por Validade / Vencimento
+        if (filtroValidade !== 'todos') {
+          const infoVal = window.calcularStatusValidade(p.validade);
+          if (filtroValidade === 'vencido' && infoVal.status !== 'vencido' && infoVal.status !== 'vence_hoje') return false;
+          if (filtroValidade === 'vence_15' && (infoVal.dias === null || infoVal.dias < 0 || infoVal.dias > 15)) return false;
+          if (filtroValidade === 'vence_30' && (infoVal.dias === null || infoVal.dias < 0 || infoVal.dias > 30)) return false;
+          if (filtroValidade === 'vence_60' && (infoVal.dias === null || infoVal.dias < 0 || infoVal.dias > 60)) return false;
+          if (filtroValidade === 'em_dia' && (infoVal.dias === null || infoVal.dias <= 60)) return false;
+          if (filtroValidade === 'com_validade' && infoVal.status === 'sem_validade') return false;
+          if (filtroValidade === 'sem_validade' && infoVal.status !== 'sem_validade') return false;
         }
 
         return true;
@@ -1542,6 +1875,7 @@
       if (document.getElementById('searchInput')) document.getElementById('searchInput').value = '';
       if (document.getElementById('filtroPresenca')) document.getElementById('filtroPresenca').value = 'todos';
       if (document.getElementById('filtroCategoria')) document.getElementById('filtroCategoria').value = 'todos';
+      if (document.getElementById('filtroValidade')) document.getElementById('filtroValidade').value = 'todos';
       window.aplicarFiltros();
     };
 
@@ -1557,7 +1891,7 @@
       if (!itens || itens.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="13" class="text-center py-12 text-slate-400">
+            <td colspan="14" class="text-center py-12 text-slate-400">
               <i class="ph-bold ph-folder-dashed text-4xl block mb-2 text-slate-300"></i>
               Nenhuma mercadoria encontrada nesta aba ou com os filtros aplicados.
             </td>
@@ -1571,6 +1905,8 @@
       itens.forEach((p, idx) => {
         const pres = p.presenca || 'pendente';
         const contagem = p.contagemFisica !== undefined ? p.contagemFisica : '';
+        const validade = p.validade || '';
+        const infoVal = window.calcularStatusValidade(validade);
         const obs = p.obs || '';
         const isChecked = window.appState.selecionados.has(p.cod);
 
@@ -1657,6 +1993,16 @@
             ${diverText}
           </td>
 
+          <td class="py-2 px-2.5 text-center bg-pink-50/20 border-x border-slate-100">
+            <div class="flex flex-col items-center gap-1">
+              <input type="date" 
+                     value="${validade}" 
+                     onchange="window.atualizarValidade('${p.cod}', this.value)"
+                     class="w-32 text-[11px] font-semibold text-slate-800 border border-slate-300 rounded-lg py-1 px-1.5 focus:ring-2 focus:ring-pink-500 focus:outline-none bg-white">
+              ${validade ? `<span class="inline-block px-1.5 py-0.5 rounded border text-[9px] leading-tight ${infoVal.badgeClass}">${infoVal.label}</span>` : ''}
+            </div>
+          </td>
+
           <td class="py-2 px-3">
             <input type="text" 
                    value="${obs}" 
@@ -1736,6 +2082,19 @@
       });
     };
 
+    window.atualizarValidade = function(codigo, novaData) {
+      const prod = (window.appState && window.appState.produtos) ? window.appState.produtos.find(p => p.cod === codigo) : null;
+      if (!prod) return;
+      window.salvarProdutoNoBanco({
+        ...prod,
+        validade: novaData
+      });
+      const info = window.calcularStatusValidade(novaData);
+      if (novaData) {
+        window.mostrarToast("Validade Registrada", `${prod.desc}: ${info.formatada} (${info.label})`, info.dias < 0 ? 'error' : 'success');
+      }
+    };
+
     window.marcarTodosPresentes = function() {
       const indAtiva = (window.appState && window.appState.industriaAtiva) ? window.appState.industriaAtiva : 'todas';
       const lista = (window.appState && window.appState.produtos) ? window.appState.produtos.filter(p => {
@@ -1762,6 +2121,7 @@
       let divergencias = 0;
       let negativos = 0;
       let ddeCriticos = 0;
+      let validadeAlertas = 0;
 
       lista.forEach(p => {
         const pres = p.presenca || 'pendente';
@@ -1779,6 +2139,13 @@
         if (contagem !== '' && contagem !== undefined && !isNaN(parseInt(contagem))) {
           if (parseInt(contagem) !== p.estoque) {
             divergencias++;
+          }
+        }
+
+        if (p.validade) {
+          const infoVal = window.calcularStatusValidade(p.validade);
+          if (infoVal.dias !== null && infoVal.dias <= 30) {
+            validadeAlertas++;
           }
         }
       });
@@ -1801,6 +2168,7 @@
       setVal('statDivergencias', divergencias);
       setVal('statNegativo', negativos);
       setVal('statDdeCritico', ddeCriticos);
+      setVal('statValidadeAlerta', validadeAlertas);
     };
 
     window.alternarSelecaoItem = function(codigo, selecionado) {
@@ -1892,6 +2260,7 @@
       const venda = parseInt(document.getElementById('editVenda').value) || 0;
       const estoque = parseInt(document.getElementById('editEstoque').value) || 0;
       const dde = parseInt(document.getElementById('editDde').value) || 0;
+      const validade = document.getElementById('editValidade') ? document.getElementById('editValidade').value : '';
 
       const prodExistente = window.appState.produtos.find(p => p.cod === cod);
       if (!prodExistente) return;
@@ -1902,7 +2271,8 @@
         industria,
         venda,
         estoque,
-        dde
+        dde,
+        validade
       };
 
       await window.salvarProdutoNoBanco(atualizado);
@@ -1963,6 +2333,7 @@
       const venda = parseInt(document.getElementById('novoVenda').value) || 0;
       const estoque = parseInt(document.getElementById('novoEstoque').value) || 0;
       const dde = parseInt(document.getElementById('novoDde').value) || 0;
+      const validade = document.getElementById('novoValidade') ? document.getElementById('novoValidade').value : '';
 
       const dup = window.verificarDuplicidade(cod, desc);
       if (dup.duplicado) {
@@ -1977,6 +2348,7 @@
         venda,
         estoque,
         dde,
+        validade,
         presenca: 'pendente',
         contagemFisica: '',
         obs: ''
@@ -1994,6 +2366,105 @@
       }
     };
 
+    // Função auxiliar para redimensionar e comprimir imagens grandes de câmera antes do envio
+    window.otimizarImagemParaBase64 = function(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const img = new Image();
+          img.onload = () => {
+            const maxDim = 1800;
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+              if (w > h) {
+                h = Math.round((h * maxDim) / w);
+                w = maxDim;
+              } else {
+                w = Math.round((w * maxDim) / h);
+                h = maxDim;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+            resolve({ base64: dataUrl.split(',')[1], mimeType: 'image/jpeg' });
+          };
+          img.onerror = () => {
+            // Fallback para base64 original
+            resolve({ base64: ev.target.result.split(',')[1], mimeType: file.type || 'image/jpeg' });
+          };
+          img.src = ev.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    };
+
+    // Normaliza qualquer objeto vindo da IA ou do parser de texto, preenchendo colunas ausentes
+    window.normalizarItensExtraidos = function(listaBruta) {
+      const indPadraoEl = document.getElementById('industriaPadraoImportacao');
+      const indPadrao = (indPadraoEl && indPadraoEl.value.trim()) ? indPadraoEl.value.trim() : 'Puro Tempero';
+
+      const parseNumFlex = (val, defaultVal = 0) => {
+        if (val === undefined || val === null || val === '') return defaultVal;
+        if (typeof val === 'number') return isNaN(val) ? defaultVal : Math.round(val);
+        // Trata números no formato "1.359" (milhar no Brasil) ou "-19"
+        let str = String(val).trim().replace(/\s+/g, '');
+        if (/^-?\d+\.\d{3}$/.test(str)) {
+          str = str.replace(/\./g, '');
+        } else {
+          str = str.replace(',', '.');
+        }
+        const parsed = parseFloat(str);
+        return isNaN(parsed) ? defaultVal : Math.round(parsed);
+      };
+
+      return (listaBruta || []).map((raw, idx) => {
+        // Suporta múltiplos nomes de chave caso a IA ou planilha use variações
+        let cod = raw.cod || raw.codigo || raw.code || raw.id || raw.ean || '';
+        let desc = raw.desc || raw.descricao || raw.produto || raw.mercadoria || raw.nome || '';
+        let estBruto = raw.estoque !== undefined ? raw.estoque : (raw.saldo !== undefined ? raw.saldo : (raw.qtd !== undefined ? raw.qtd : raw.quantidade));
+        let vendaBruta = raw.venda !== undefined ? raw.venda : (raw.qtdVendida !== undefined ? raw.qtdVendida : raw.vendas);
+        let ddeBruto = raw.dde !== undefined ? raw.dde : raw.cobertura;
+        let ind = raw.industria || raw.marca || raw.fornecedor || '';
+
+        cod = String(cod).trim();
+        desc = String(desc).trim().toUpperCase();
+
+        // Se o código veio grudado no início da descrição (ex: "458271 - ESP BICARBONATO 40G")
+        if (!cod && desc) {
+          const matchCodInicio = desc.match(/^(\d{3,14})\s*[-–:]?\s*(.+)$/);
+          if (matchCodInicio) {
+            cod = matchCodInicio[1];
+            desc = matchCodInicio[2].trim();
+          }
+        }
+
+        // Se ainda não tiver código na imagem, gera um código provisório editável
+        if (!cod) {
+          cod = `S/COD-${idx + 1}`;
+        }
+
+        if (!desc) {
+          desc = `PRODUTO IMPORTADO #${idx + 1}`;
+        }
+
+        return {
+          selecionado: true,
+          cod: cod,
+          desc: desc,
+          industria: ind.trim() || indPadrao,
+          estoque: parseNumFlex(estBruto, 0),
+          venda: parseNumFlex(vendaBruta, 0),
+          dde: parseNumFlex(ddeBruto, 0)
+        };
+      }).filter(item => item.desc && item.desc !== '');
+    };
+
     window.processarArquivo = async function(file) {
       const statusBox = document.getElementById('statusProcessamentoIA');
       const textoStatus = document.getElementById('textoStatusIA');
@@ -2005,45 +2476,69 @@
 
       try {
         let base64Data = '';
-        let mimeType = file.type || 'application/octet-stream';
+        let mimeType = file.type || 'image/jpeg';
+        let textoNativoPDF = '';
 
         if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-          if (textoStatus) textoStatus.innerText = 'Renderizando página do relatório PDF...';
-          base64Data = await window.converterPdfParaImagemBase64(file);
-          mimeType = 'image/png';
-        } else if (file.type.startsWith('image/')) {
-          if (textoStatus) textoStatus.innerText = 'Preparando imagem para o leitor óptico Gemini...';
-          base64Data = await window.arquivoParaBase64Puro(file);
+          if (textoStatus) textoStatus.innerText = 'Lendo páginas e texto do arquivo PDF...';
+          const pdfResult = await window.converterPdfParaImagemETexto(file);
+          base64Data = pdfResult.base64;
+          mimeType = 'image/jpeg';
+          textoNativoPDF = pdfResult.textoExtraido || '';
+        } else if (file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|bmp)$/i.test(file.name)) {
+          if (textoStatus) textoStatus.innerText = 'Otimizando imagem para leitura inteligente de colunas...';
+          const otimizada = await window.otimizarImagemParaBase64(file);
+          base64Data = otimizada.base64;
+          mimeType = otimizada.mimeType;
         } else {
-          throw new Error('Tipo não suportado. Envie foto ou PDF.');
+          throw new Error('Formato não reconhecido. Envie uma imagem (JPG, PNG) ou arquivo PDF.');
         }
 
-        if (textoStatus) textoStatus.innerText = 'Lendo tabela: extraindo códigos, estoques, descrições e marcas...';
-        const itensExtraidos = await window.enviarParaLeitorGemini(base64Data, mimeType);
+        if (textoStatus) textoStatus.innerText = 'Analisando tabela (aceitando qualquer combinação de colunas)...';
+        let itensExtraidos = [];
 
-        if (!itensExtraidos || itensExtraidos.length === 0) {
-          throw new Error('Nenhuma tabela ou mercadoria identificável foi detectada.');
+        try {
+          itensExtraidos = await window.enviarParaLeitorGemini(base64Data, mimeType);
+        } catch (iaError) {
+          console.warn("Aviso na chamada IA, verificando extração alternativa:", iaError);
+          if (textoNativoPDF) {
+            itensExtraidos = window.extrairItensDeTextoBruto(textoNativoPDF);
+          } else {
+            throw iaError;
+          }
         }
 
-        window.appState.itensIAExtraidos = itensExtraidos;
-        window.renderizarPreviewItensIA(itensExtraidos);
+        // Se a IA retornou vazio mas o PDF tinha texto selecionável, usa o parser local
+        if ((!itensExtraidos || itensExtraidos.length === 0) && textoNativoPDF) {
+          itensExtraidos = window.extrairItensDeTextoBruto(textoNativoPDF);
+        }
+
+        const itensNormalizados = window.normalizarItensExtraidos(itensExtraidos);
+
+        if (!itensNormalizados || itensNormalizados.length === 0) {
+          throw new Error('Não conseguimos identificar linhas de produtos. Você também pode colar os dados na caixa de texto ao lado.');
+        }
+
+        window.appState.itensIAExtraidos = itensNormalizados;
+        window.renderizarPreviewItensIA();
         if (statusBox) statusBox.classList.add('hidden');
+        window.mostrarToast("Análise Concluída!", `${itensNormalizados.length} itens identificados. Revise e escolha quais vão subir.`);
 
       } catch (err) {
         console.error("Erro no processamento:", err);
         if (statusBox) statusBox.classList.add('hidden');
-        window.mostrarToast("Erro na Leitura", err.message || "Não foi possível analisar o arquivo.", "error");
+        window.mostrarToast("Atenção na Leitura", err.message || "Não foi possível ler automaticamente. Tente colar o texto ou adicionar linha manual.", "error");
       }
     };
 
-    window.converterPdfParaImagemBase64 = async function(file) {
+    window.converterPdfParaImagemETexto = async function(file) {
       if (!window.pdfjsLib) {
-        throw new Error("Biblioteca PDF.js não carregada. Verifique sua conexão com a internet.");
+        throw new Error("Biblioteca PDF.js não carregada.");
       }
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       const page = await pdf.getPage(1);
-      const viewport = page.getViewport({ scale: 2.0 });
+      const viewport = page.getViewport({ scale: 1.8 });
 
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d');
@@ -2051,28 +2546,155 @@
       canvas.width = viewport.width;
 
       await page.render({ canvasContext: context, viewport: viewport }).promise;
-      const dataUrl = canvas.toDataURL('image/png');
-      return dataUrl.split(',')[1];
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+
+      // Tenta extrair também o texto nativo do PDF como segurança
+      let textoExtraido = '';
+      try {
+        const textContent = await page.getTextContent();
+        textoExtraido = textContent.items.map(i => i.str).join(' ');
+      } catch (e) {}
+
+      return {
+        base64: dataUrl.split(',')[1],
+        textoExtraido
+      };
     };
 
-    window.arquivoParaBase64Puro = function(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
+    // Analisador de texto colado ou extraído de PDF (aceita Código + Descrição + Estoque em qualquer formato)
+    window.analisarTextoColadoManual = function() {
+      const txtEl = document.getElementById('inputTextoColadoImportacao');
+      const texto = txtEl ? txtEl.value.trim() : '';
+      if (!texto) {
+        window.mostrarToast("Campo Vazio", "Cole pelo menos uma linha de produto para analisar.", "error");
+        return;
+      }
+
+      const extraidos = window.extrairItensDeTextoBruto(texto);
+      const normalizados = window.normalizarItensExtraidos(extraidos);
+
+      if (!normalizados.length) {
+        window.mostrarToast("Formato não identificado", "Tente colocar um produto por linha (Ex: Código Descrição Estoque).", "error");
+        return;
+      }
+
+      window.appState.itensIAExtraidos = normalizados;
+      window.renderizarPreviewItensIA();
+      window.mostrarToast("Texto Analisado!", `${normalizados.length} itens prontos para revisão.`);
+    };
+
+    window.extrairItensDeTextoBruto = function(texto) {
+      const linhas = texto.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 2);
+      const resultado = [];
+
+      linhas.forEach((linha, index) => {
+        // Ignora cabeçalhos óbvios
+        if (/^(filial|cod|código|produto|descrição|qtd|estoque)/i.test(linha) && !/\d{3,}/.test(linha)) {
+          return;
+        }
+
+        // Caso 1: Separado por TAB (copiado do Excel) ou Ponto-e-vírgula
+        if (linha.includes('\t') || linha.split(';').length >= 2) {
+          const partes = (linha.includes('\t') ? linha.split('\t') : linha.split(';')).map(s => s.trim()).filter(Boolean);
+          if (partes.length >= 2) {
+            // Procura se alguma coluna tem formato "458271 - DESCRICAO"
+            let cod = '';
+            let desc = '';
+            let numerosFinais = [];
+
+            partes.forEach(p => {
+              const m = p.match(/^(\d{3,14})\s*[-–]\s*(.+)$/);
+              if (m && !cod) {
+                cod = m[1];
+                desc = m[2];
+              } else if (/^\d{3,14}$/.test(p) && !cod && !desc) {
+                cod = p;
+              } else if (/^-?\d+([.,]\d+)?$/.test(p)) {
+                numerosFinais.push(p);
+              } else if (!desc || p.length > desc.length) {
+                if (!/^\d+\s*-\s*POSTERUS/i.test(p)) {
+                  desc = p;
+                }
+              }
+            });
+
+            resultado.push({
+              cod: cod || `ITEM-${index + 1}`,
+              desc: desc || partes.join(' '),
+              estoque: numerosFinais.length === 1 ? numerosFinais[0] : (numerosFinais.length >= 2 ? numerosFinais[1] : 0),
+              venda: numerosFinais.length >= 2 ? numerosFinais[0] : 0,
+              dde: numerosFinais.length >= 3 ? numerosFinais[2] : 0
+            });
+            return;
+          }
+        }
+
+        // Caso 2: Linha livre (Ex: "458271 ESP BICARBONATO 40G 644" ou "ESP BICARBONATO 644")
+        let resto = linha;
+        let cod = '';
+        let estoque = 0;
+
+        // Extrai código no começo se houver
+        const matchCod = resto.match(/^(\d{2,14})\s*[-–:]?\s+(.+)$/);
+        if (matchCod) {
+          cod = matchCod[1];
+          resto = matchCod[2].trim();
+        }
+
+        // Extrai estoque no final da linha se houver número no fim
+        const matchEstFim = resto.match(/^(.+?)\s+(-?\d+(?:[.,]\d{3})?)$/);
+        if (matchEstFim) {
+          resto = matchEstFim[1].trim();
+          estoque = matchEstFim[2];
+        }
+
+        resultado.push({
+          cod: cod,
+          desc: resto,
+          estoque: estoque
+        });
       });
+
+      return resultado;
+    };
+
+    // Localiza inteligente se o produto enviado no upload já existe no sistema (por código exato ou descrição)
+    window.buscarProdutoCorrespondente = function(codExtraido, descExtraida) {
+      const lista = (window.appState && window.appState.produtos) ? window.appState.produtos : [];
+      const codLimpo = String(codExtraido || '').trim();
+      const descNorm = window.normalizarTexto(descExtraida);
+
+      // 1. Busca por Código exato (ignorando zeros à esquerda se numérico)
+      if (codLimpo && !codLimpo.startsWith('S/COD-') && !codLimpo.startsWith('ITEM-')) {
+        const porCod = lista.find(p => {
+          const pCod = String(p.cod || '').trim();
+          return pCod === codLimpo || (pCod.replace(/^0+/, '') === codLimpo.replace(/^0+/, '') && codLimpo.length >= 3);
+        });
+        if (porCod) return porCod;
+      }
+
+      // 2. Busca por Descrição Normalizada Exata
+      if (descNorm && descNorm.length >= 4) {
+        const porDescExata = lista.find(p => window.normalizarTexto(p.desc) === descNorm);
+        if (porDescExata) return porDescExata;
+      }
+
+      return null;
     };
 
     window.enviarParaLeitorGemini = async function(base64Data, mimeType) {
       const apiKey = "";
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
 
-      const systemPrompt = `Você é um analista especialista em auditoria de supermercados. 
-Extraia cada linha de produto presente na imagem/relatório em formato JSON estruturado.
-Identifique: código (EAN ou numérico), descrição exata, indústria/fornecedor (ex: Puro Tempero, Alho Achei), saldo de estoque (preservando negativo), venda e DDE.`;
+      const systemPrompt = `Você é um extrator flexível de tabelas e listas de produtos/estoque de supermercado.
+A imagem enviada pode conter TODAS as colunas do sistema OU APENAS ALGUMAS COLUNAS (por exemplo: apenas Código e Descrição, ou apenas Código, Descrição e Estoque, ou ter células em branco/faltando).
+REGRAS OBRIGATÓRIAS:
+1. Extraia TODAS as linhas de mercadorias visíveis, mesmo que faltem colunas!
+2. Se o código e a descrição estiverem juntos na mesma coluna (ex: "458271 - ESP BICARBONATO"), separe o código em "cod" e o nome em "desc".
+3. Se alguma coluna como "venda", "dde", "estoque" ou "industria" NÃO existir na imagem ou estiver vazia na linha, retorne 0 para números e "" para texto. NUNCA rejeite a tabela por falta de colunas.
+4. Números com ponto de milhar como "1.359" ou "1.876" devem ser convertidos para inteiros puros (1359, 1876). Preserve sinais negativos como "-19".`;
 
-      const userPrompt = `Extraia todos os itens da tabela de estoque fornecida com precisão cirúrgica. Responda apenas com o JSON.`;
+      const userPrompt = `Extraia todas as mercadorias visíveis nesta imagem com as colunas que estiverem disponíveis. Retorne um array JSON onde cada item pode conter: cod (string), desc (string), industria (string), estoque (number), venda (number), dde (number).`;
 
       const payload = {
         contents: [
@@ -2091,22 +2713,7 @@ Identifique: código (EAN ou numérico), descrição exata, indústria/fornecedo
         ],
         systemInstruction: { parts: [{ text: systemPrompt }] },
         generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "ARRAY",
-            items: {
-              type: "OBJECT",
-              properties: {
-                cod: { type: "STRING" },
-                desc: { type: "STRING" },
-                industria: { type: "STRING" },
-                estoque: { type: "INTEGER" },
-                venda: { type: "INTEGER" },
-                dde: { type: "INTEGER" }
-              },
-              required: ["cod", "desc", "estoque"]
-            }
-          }
+          responseMimeType: "application/json"
         }
       };
 
@@ -2118,10 +2725,15 @@ Identifique: código (EAN ou numérico), descrição exata, indústria/fornecedo
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
-          if (!resp.ok) throw new Error(`Status ${resp.status}`);
+          if (!resp.ok) throw new Error(`Status HTTP ${resp.status}`);
           const result = await resp.json();
-          const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (jsonText) return JSON.parse(jsonText);
+          let jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (jsonText) {
+            // Limpa eventuais blocos markdown ```json ... ```
+            jsonText = jsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+            const parsed = JSON.parse(jsonText);
+            return Array.isArray(parsed) ? parsed : (parsed.itens || parsed.items || parsed.produtos || []);
+          }
         } catch (e) {
           if (i === 2) throw e;
           await new Promise(r => setTimeout(r, delay));
@@ -2131,77 +2743,276 @@ Identifique: código (EAN ou numérico), descrição exata, indústria/fornecedo
       return [];
     };
 
-    window.renderizarPreviewItensIA = function(itens) {
+    window.renderizarPreviewItensIA = function() {
+      const itens = (window.appState && window.appState.itensIAExtraidos) ? window.appState.itensIAExtraidos : [];
       const container = document.getElementById('containerResultadosIA');
       const tbody = document.getElementById('tabelaPreviewIA');
       const totalSpan = document.getElementById('totalItensReconhecidos');
-      const btnConfirmar = document.getElementById('btnConfirmarImportacaoIA');
+      const modoUpload = document.getElementById('modoOperacaoUpload') ? document.getElementById('modoOperacaoUpload').value : 'completo';
 
       if (!container || !tbody) return;
       tbody.innerHTML = '';
       if (totalSpan) totalSpan.innerText = itens.length;
       container.classList.remove('hidden');
-      if (btnConfirmar) btnConfirmar.disabled = false;
 
-      itens.forEach(item => {
-        const existe = (window.appState && window.appState.produtos) ? window.appState.produtos.find(p => p.cod === item.cod || window.normalizarTexto(p.desc) === window.normalizarTexto(item.desc)) : null;
+      let qtdAjustes = 0;
+      let qtdNovos = 0;
+
+      itens.forEach((item, idx) => {
+        const existe = window.buscarProdutoCorrespondente(item.cod, item.desc);
+
+        // Se o produto já existe e veio sem código na planilha nova, adota o código oficial do sistema
+        if (existe && (!item.cod || String(item.cod).startsWith('S/COD-') || String(item.cod).startsWith('ITEM-'))) {
+          item.cod = existe.cod;
+        }
+        // Se estiver no modo "apenas_ajuste" e o item não existir no banco, desmarca automaticamente
+        if (modoUpload === 'apenas_ajuste' && !existe && item._autoUnchecked !== true) {
+          item.selecionado = false;
+          item._autoUnchecked = true;
+        }
+
+        if (existe) qtdAjustes++;
+        else qtdNovos++;
 
         const tr = document.createElement('tr');
-        tr.className = "border-b border-slate-100 hover:bg-slate-50";
+        tr.className = `transition ${item.selecionado ? 'bg-white hover:bg-violet-50/30' : 'bg-slate-100/80 opacity-60'}`;
 
-        let statusBadge = '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700">Novo Item</span>';
+        const estAnterior = existe ? Number(existe.estoque || 0) : null;
+        const estNovo = Number(item.estoque || 0);
+        const diffEstoque = estAnterior !== null ? (estNovo - estAnterior) : null;
+
+        let variacaoHtml = '<span class="text-slate-400">-</span>';
+        if (diffEstoque !== null) {
+          if (diffEstoque === 0) {
+            variacaoHtml = '<span class="text-slate-500 font-semibold">Igual (0)</span>';
+          } else if (diffEstoque > 0) {
+            variacaoHtml = `<span class="text-emerald-700 font-black bg-emerald-50 px-1.5 py-0.5 rounded">+${diffEstoque}</span>`;
+          } else {
+            variacaoHtml = `<span class="text-rose-600 font-black bg-rose-50 px-1.5 py-0.5 rounded">${diffEstoque}</span>`;
+          }
+        }
+
+        let statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">Novo Produto</span>';
         if (existe) {
-          statusBadge = '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700">Atualizar Saldo</span>';
+          statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300" title="Encontrado: ${existe.cod} - ${existe.desc}">🔄 Atualizar Estoque</span>`;
         }
 
         tr.innerHTML = `
-          <td class="py-1.5 px-3 font-mono font-bold">${item.cod || 'S/N'}</td>
-          <td class="py-1.5 px-3 font-medium">${item.desc}</td>
-          <td class="py-1.5 px-2 text-center text-slate-500">${item.industria || 'Puro Tempero'}</td>
-          <td class="py-1.5 px-2 text-center font-bold ${item.estoque < 0 ? 'text-rose-600' : 'text-slate-800'}">${item.estoque}</td>
-          <td class="py-1.5 px-2 text-center">${statusBadge}</td>
+          <td class="py-1.5 px-2.5 text-center">
+            <input type="checkbox" ${item.selecionado ? 'checked' : ''} onchange="window.alternarItemPreviewIA(${idx}, this.checked)" class="w-4 h-4 rounded text-violet-600 cursor-pointer">
+          </td>
+          <td class="py-1.5 px-1.5">
+            <input type="text" value="${item.cod || ''}" oninput="window.editarCampoPreviewIA(${idx}, 'cod', this.value)" class="w-full font-mono font-bold text-xs border border-slate-200 rounded px-1.5 py-1 focus:ring-1 focus:ring-violet-500 bg-white">
+          </td>
+          <td class="py-1.5 px-1.5">
+            <input type="text" value="${item.desc || ''}" oninput="window.editarCampoPreviewIA(${idx}, 'desc', this.value)" class="w-full font-medium text-xs uppercase border border-slate-200 rounded px-1.5 py-1 focus:ring-1 focus:ring-violet-500 bg-white">
+          </td>
+          <td class="py-1.5 px-1.5">
+            <input list="listaIndustriasExistentes" type="text" value="${existe ? (existe.industria || item.industria) : (item.industria || '')}" oninput="window.editarCampoPreviewIA(${idx}, 'industria', this.value)" class="w-full text-xs border border-slate-200 rounded px-1.5 py-1 focus:ring-1 focus:ring-violet-500 bg-white">
+          </td>
+          <td class="py-1.5 px-1.5 text-center font-mono font-bold bg-slate-50 text-slate-600" id="estAntPreviewRow_${idx}">
+            ${estAnterior !== null ? estAnterior : '<span class="text-[10px] text-slate-400">Novo</span>'}
+          </td>
+          <td class="py-1.5 px-1.5 bg-violet-50/30">
+            <input type="number" value="${item.estoque !== undefined ? item.estoque : 0}" oninput="window.editarCampoPreviewIA(${idx}, 'estoque', this.value)" class="w-full text-center font-black text-xs border border-violet-300 rounded px-1 py-1 focus:ring-2 focus:ring-violet-500 bg-white ${item.estoque < 0 ? 'text-rose-600' : 'text-violet-950'}">
+          </td>
+          <td class="py-1.5 px-1.5 text-center text-xs" id="varPreviewRow_${idx}">
+            ${variacaoHtml}
+          </td>
+          <td class="py-1.5 px-1.5">
+            <input type="number" value="${item.venda !== undefined ? item.venda : (existe ? existe.venda : 0)}" oninput="window.editarCampoPreviewIA(${idx}, 'venda', this.value)" class="w-full text-center text-xs border border-slate-200 rounded px-1 py-1 focus:ring-1 focus:ring-violet-500 bg-white text-slate-600">
+          </td>
+          <td class="py-1.5 px-1.5">
+            <input type="number" value="${item.dde !== undefined ? item.dde : (existe ? existe.dde : 0)}" oninput="window.editarCampoPreviewIA(${idx}, 'dde', this.value)" class="w-full text-center text-xs border border-slate-200 rounded px-1 py-1 focus:ring-1 focus:ring-violet-500 bg-white text-slate-600">
+          </td>
+          <td class="py-1.5 px-2 text-center whitespace-nowrap" id="statusPreviewRow_${idx}">
+            ${statusBadge}
+          </td>
+          <td class="py-1.5 px-1.5 text-center">
+            <button type="button" onclick="window.removerLinhaPreviewIA(${idx})" class="p-1 text-slate-400 hover:text-rose-600 rounded" title="Remover desta importação">
+              <i class="ph-bold ph-trash"></i>
+            </button>
+          </td>
         `;
         tbody.appendChild(tr);
       });
+
+      const elAjustes = document.getElementById('resumoQtdAjustes');
+      if (elAjustes) elAjustes.innerText = qtdAjustes;
+      const elNovos = document.getElementById('resumoQtdNovos');
+      if (elNovos) elNovos.innerText = qtdNovos;
+
+      window.atualizarContadorPreviewIA();
+    };
+
+    window.selecionarApenasExistentesPreviewIA = function() {
+      const itens = (window.appState && window.appState.itensIAExtraidos) ? window.appState.itensIAExtraidos : [];
+      itens.forEach(item => {
+        const existe = window.buscarProdutoCorrespondente(item.cod, item.desc);
+        item.selecionado = Boolean(existe);
+      });
+      window.renderizarPreviewItensIA();
+      window.mostrarToast("Filtro de Ajuste Aplicado", "Apenas mercadorias já existentes no estoque foram marcadas para atualização.");
+    };
+
+    window.atualizarContadorPreviewIA = function() {
+      const itens = (window.appState && window.appState.itensIAExtraidos) ? window.appState.itensIAExtraidos : [];
+      const selecionados = itens.filter(i => i.selecionado);
+      const spanSel = document.getElementById('contadorItensSelecionadosIA');
+      const spanTotal = document.getElementById('totalItensReconhecidos');
+      const btnConfirmar = document.getElementById('btnConfirmarImportacaoIA');
+
+      if (spanSel) spanSel.innerText = selecionados.length;
+      if (spanTotal) spanTotal.innerText = itens.length;
+
+      if (btnConfirmar) {
+        btnConfirmar.disabled = selecionados.length === 0;
+        btnConfirmar.innerHTML = `<i class="ph-bold ph-cloud-arrow-up text-base"></i> Confirmar & Subir Selecionados (${selecionados.length})`;
+      }
+    };
+
+    window.alternarItemPreviewIA = function(idx, checked) {
+      if (!window.appState.itensIAExtraidos[idx]) return;
+      window.appState.itensIAExtraidos[idx].selecionado = checked;
+      window.renderizarPreviewItensIA();
+    };
+
+    window.alternarTodosPreviewIA = function(marcar) {
+      if (!window.appState.itensIAExtraidos) return;
+      window.appState.itensIAExtraidos.forEach(item => {
+        item.selecionado = marcar;
+      });
+      const checkAll = document.getElementById('checkAllPreviewIA');
+      if (checkAll) checkAll.checked = marcar;
+      window.renderizarPreviewItensIA();
+    };
+
+    window.editarCampoPreviewIA = function(idx, campo, valor) {
+      const item = window.appState.itensIAExtraidos[idx];
+      if (!item) return;
+
+      if (campo === 'estoque' || campo === 'venda' || campo === 'dde') {
+        item[campo] = valor === '' ? 0 : parseInt(valor, 10) || 0;
+      } else if (campo === 'desc') {
+        item[campo] = valor.toUpperCase();
+      } else {
+        item[campo] = valor;
+      }
+
+      // Atualiza os indicadores de conciliação (Estoque Atual, Variação e Status) em tempo real
+      const existe = window.buscarProdutoCorrespondente(item.cod, item.desc);
+      const badgeCell = document.getElementById(`statusPreviewRow_${idx}`);
+      const estAntCell = document.getElementById(`estAntPreviewRow_${idx}`);
+      const varCell = document.getElementById(`varPreviewRow_${idx}`);
+
+      if (badgeCell) {
+        badgeCell.innerHTML = existe
+          ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">🔄 Atualizar Estoque</span>`
+          : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">Novo Produto</span>`;
+      }
+      if (estAntCell) {
+        estAntCell.innerHTML = existe ? Number(existe.estoque || 0) : '<span class="text-[10px] text-slate-400">Novo</span>';
+      }
+      if (varCell) {
+        if (existe) {
+          const diff = Number(item.estoque || 0) - Number(existe.estoque || 0);
+          if (diff === 0) varCell.innerHTML = '<span class="text-slate-500 font-semibold">Igual (0)</span>';
+          else if (diff > 0) varCell.innerHTML = `<span class="text-emerald-700 font-black bg-emerald-50 px-1.5 py-0.5 rounded">+${diff}</span>`;
+          else varCell.innerHTML = `<span class="text-rose-600 font-black bg-rose-50 px-1.5 py-0.5 rounded">${diff}</span>`;
+        } else {
+          varCell.innerHTML = '<span class="text-slate-400">-</span>';
+        }
+      }
+    };
+
+    window.removerLinhaPreviewIA = function(idx) {
+      window.appState.itensIAExtraidos.splice(idx, 1);
+      window.renderizarPreviewItensIA();
+    };
+
+    window.adicionarLinhaManualPreviewIA = function() {
+      const indPadraoEl = document.getElementById('industriaPadraoImportacao');
+      const indPadrao = (indPadraoEl && indPadraoEl.value.trim()) ? indPadraoEl.value.trim() : 'Puro Tempero';
+
+      if (!window.appState.itensIAExtraidos) window.appState.itensIAExtraidos = [];
+      window.appState.itensIAExtraidos.unshift({
+        selecionado: true,
+        cod: `${Math.floor(100000 + Math.random() * 900000)}`,
+        desc: 'NOVA MERCADORIA',
+        industria: indPadrao,
+        estoque: 0,
+        venda: 0,
+        dde: 0
+      });
+      window.renderizarPreviewItensIA();
+    };
+
+    window.aplicarIndustriaPadraoNosExtraidos = function() {
+      const indPadraoEl = document.getElementById('industriaPadraoImportacao');
+      const indPadrao = (indPadraoEl && indPadraoEl.value.trim()) ? indPadraoEl.value.trim() : '';
+      if (!indPadrao) {
+        window.mostrarToast("Informe a Indústria", "Digite o nome da indústria no campo antes de aplicar.", "error");
+        return;
+      }
+      if (!window.appState.itensIAExtraidos || !window.appState.itensIAExtraidos.length) {
+        window.mostrarToast("Aviso", "Indústria padrão definida. Envie a imagem ou texto para aplicar aos itens.", "info");
+        return;
+      }
+      window.appState.itensIAExtraidos.forEach(item => {
+        item.industria = indPadrao;
+      });
+      window.renderizarPreviewItensIA();
+      window.mostrarToast("Indústria Aplicada", `Todos os itens da pré-visualização foram definidos como "${indPadrao}".`);
     };
 
     window.aplicarDadosImportadosIA = async function() {
-      const itens = (window.appState && window.appState.itensIAExtraidos) ? window.appState.itensIAExtraidos : [];
-      if (!itens.length) return;
+      const todosItens = (window.appState && window.appState.itensIAExtraidos) ? window.appState.itensIAExtraidos : [];
+      const modoUpload = document.getElementById('modoOperacaoUpload') ? document.getElementById('modoOperacaoUpload').value : 'completo';
+      const itensSelecionados = todosItens.filter(i => i.selecionado);
+
+      if (!itensSelecionados.length) {
+        window.mostrarToast("Nenhum item marcado", "Selecione pelo menos um produto na lista para subir.", "error");
+        return;
+      }
 
       const btn = document.getElementById('btnConfirmarImportacaoIA');
       if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Gravando...';
+        btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Atualizando saldos de estoque...';
       }
 
       let atualizados = 0;
       let adicionados = 0;
 
-      for (const item of itens) {
-        if (!item.cod) continue;
+      for (const item of itensSelecionados) {
+        const codLimpo = String(item.cod || '').trim() || `COD-${Date.now()}`;
+        const descLimpa = String(item.desc || 'PRODUTO SEM DESCRIÇÃO').trim().toUpperCase();
 
-        const existente = (window.appState && window.appState.produtos) ? window.appState.produtos.find(p => p.cod === item.cod) : null;
+        // Procura se já existe por Código ou por Descrição usando o conciliador inteligente
+        const existente = window.buscarProdutoCorrespondente(codLimpo, descLimpa);
+
         if (existente) {
           await window.salvarProdutoNoBanco({
             ...existente,
-            estoque: item.estoque,
-            venda: item.venda !== undefined ? item.venda : existente.venda,
-            dde: item.dde !== undefined ? item.dde : existente.dde,
-            industria: item.industria || existente.industria
+            desc: descLimpa || existente.desc,
+            estoque: item.estoque !== undefined ? Number(item.estoque) : existente.estoque,
+            venda: (item.venda !== undefined && item.venda !== 0) ? Number(item.venda) : existente.venda,
+            dde: (item.dde !== undefined && item.dde !== 0) ? Number(item.dde) : existente.dde,
+            industria: item.industria ? item.industria.trim() : existente.industria
           });
           atualizados++;
-        } else {
+        } else if (modoUpload !== 'apenas_ajuste') {
           await window.salvarProdutoNoBanco({
-            cod: item.cod,
-            desc: item.desc.toUpperCase(),
-            industria: item.industria || 'Puro Tempero',
-            venda: item.venda || 0,
-            estoque: item.estoque || 0,
-            dde: item.dde || 0,
+            cod: codLimpo,
+            desc: descLimpa,
+            industria: (item.industria || 'Puro Tempero').trim(),
+            venda: Number(item.venda) || 0,
+            estoque: Number(item.estoque) || 0,
+            dde: Number(item.dde) || 0,
+            validade: '',
             presenca: 'pendente',
             contagemFisica: '',
-            obs: 'Importado por IA'
+            obs: ''
           });
           adicionados++;
         }
@@ -2209,7 +3020,8 @@ Identifique: código (EAN ou numérico), descrição exata, indústria/fornecedo
 
       window.fecharModalUpload();
       window.renderizarAbasIndustrias();
-      window.mostrarToast("Catálogo Atualizado", `${atualizados} produtos atualizados e ${adicionados} adicionados.`);
+      window.aplicarFiltros();
+      window.mostrarToast("Estoque Sincronizado!", `${atualizados} saldos de estoque atualizados e ${adicionados} novos produtos incluídos.`);
     };
 
     window.atualizarConteudoListaSimples = function() {
@@ -2233,6 +3045,7 @@ Identifique: código (EAN ou numérico), descrição exata, indústria/fornecedo
 
       itens.forEach((p, idx) => {
         const status = p.presenca || 'pendente';
+        const infoVal = window.calcularStatusValidade(p.validade);
 
         let badgeSimNao = '';
         if (status === 'sim') {
@@ -2251,11 +3064,234 @@ Identifique: código (EAN ou numérico), descrição exata, indústria/fornecedo
           <td class="py-2 px-3 font-mono font-bold text-slate-900 border-b border-slate-200 text-xs">${p.cod}</td>
           <td class="py-2 px-3 font-medium text-slate-800 border-b border-slate-200 text-xs">${p.desc}</td>
           <td class="py-2 px-3 text-center font-bold ${p.estoque < 0 ? 'text-rose-600 bg-rose-50' : 'text-slate-800'} border-b border-slate-200 text-xs">${p.estoque}</td>
+          <td class="py-2 px-3 text-center border-b border-slate-200 text-xs font-semibold ${infoVal.dias !== null && infoVal.dias <= 30 ? 'text-rose-600 font-bold' : 'text-slate-600'}">
+            ${infoVal.formatada}
+          </td>
           <td class="py-2 px-3 text-center border-b border-slate-200">
             ${badgeSimNao}
           </td>
         `;
         tbody.appendChild(tr);
+      });
+    };
+
+    // Obter lista filtrada e ordenada conforme configurações do Modal de Exportação Avançada
+    window.obterItensParaExportacaoAvancada = function() {
+      const escopoInd = document.getElementById('expFiltroIndustria') ? document.getElementById('expFiltroIndustria').value : 'ativa';
+      const fPres = document.getElementById('expFiltroPresenca') ? document.getElementById('expFiltroPresenca').value : 'todos';
+      const fVal = document.getElementById('expFiltroValidade') ? document.getElementById('expFiltroValidade').value : 'todos';
+      const fRisco = document.getElementById('expFiltroRisco') ? document.getElementById('expFiltroRisco').value : 'todos';
+      const ordem = document.getElementById('expOrdenacao') ? document.getElementById('expOrdenacao').value : 'padrao';
+      const indAtiva = (window.appState && window.appState.industriaAtiva) ? window.appState.industriaAtiva : 'todas';
+
+      let lista = [...((window.appState && window.appState.produtos) ? window.appState.produtos : [])];
+
+      lista = lista.filter(p => {
+        if (escopoInd === 'ativa' && indAtiva !== 'todas') {
+          if ((p.industria || '').trim().toLowerCase() !== indAtiva.trim().toLowerCase()) return false;
+        }
+        const pres = p.presenca || 'pendente';
+        if (fPres !== 'todos' && pres !== fPres) return false;
+
+        const infoVal = window.calcularStatusValidade(p.validade);
+        if (fVal === 'alerta_30' && (infoVal.dias === null || infoVal.dias > 30)) return false;
+        if (fVal === 'vencido' && (infoVal.dias === null || infoVal.dias > 0)) return false;
+        if (fVal === 'vence_60' && (infoVal.dias === null || infoVal.dias < 0 || infoVal.dias > 60)) return false;
+        if (fVal === 'com_validade' && infoVal.status === 'sem_validade') return false;
+
+        if (fRisco === 'divergente') {
+          if (p.contagemFisica === '' || p.contagemFisica === undefined) return false;
+          if (parseInt(p.contagemFisica) === p.estoque) return false;
+        } else if (fRisco === 'negativo') {
+          if (!(p.estoque < 0 || (p.dde > 0 && p.dde <= 9))) return false;
+        }
+
+        return true;
+      });
+
+      if (ordem === 'validade_asc') {
+        lista.sort((a, b) => {
+          if (!a.validade && !b.validade) return 0;
+          if (!a.validade) return 1;
+          if (!b.validade) return -1;
+          return a.validade.localeCompare(b.validade);
+        });
+      } else if (ordem === 'estoque_asc') {
+        lista.sort((a, b) => (a.estoque || 0) - (b.estoque || 0));
+      } else if (ordem === 'estoque_desc') {
+        lista.sort((a, b) => (b.estoque || 0) - (a.estoque || 0));
+      } else if (ordem === 'desc_asc') {
+        lista.sort((a, b) => (a.desc || '').localeCompare(b.desc || ''));
+      }
+
+      return lista;
+    };
+
+    // Exportar Planilha CSV (compatível com Excel em Português com separador ';')
+    window.exportarPlanilhaCSVAvancado = function() {
+      const itens = window.obterItensParaExportacaoAvancada();
+      if (!itens.length) {
+        window.mostrarToast("Nenhum Item", "Não há mercadorias que correspondam aos filtros selecionados.", "error");
+        return;
+      }
+
+      const incInd = document.getElementById('colExpIndustria')?.checked;
+      const incVenda = document.getElementById('colExpVenda')?.checked;
+      const incEst = document.getElementById('colExpEstoque')?.checked;
+      const incPres = document.getElementById('colExpPresenca')?.checked;
+      const incCont = document.getElementById('colExpContagem')?.checked;
+      const incVal = document.getElementById('colExpValidade')?.checked;
+      const incObs = document.getElementById('colExpObs')?.checked;
+
+      const cabecalho = ['Codigo', 'Descricao'];
+      if (incInd) cabecalho.push('Industria');
+      if (incVenda) cabecalho.push('Venda', 'DDE');
+      if (incEst) cabecalho.push('Estoque ERP');
+      if (incPres) cabecalho.push('Presenca');
+      if (incCont) cabecalho.push('Contagem Fisica', 'Divergencia');
+      if (incVal) cabecalho.push('Data Validade', 'Status Validade');
+      if (incObs) cabecalho.push('Observacoes');
+
+      const linhas = [cabecalho.join(';')];
+
+      itens.forEach(p => {
+        const infoVal = window.calcularStatusValidade(p.validade);
+        const cont = p.contagemFisica !== undefined && p.contagemFisica !== '' ? p.contagemFisica : '';
+        const diff = cont !== '' ? (parseInt(cont) - p.estoque) : '';
+
+        const row = [
+          `"${p.cod}"`,
+          `"${(p.desc || '').replace(/"/g, '""')}"`
+        ];
+        if (incInd) row.push(`"${(p.industria || '').replace(/"/g, '""')}"`);
+        if (incVenda) row.push(p.venda || 0, p.dde || 0);
+        if (incEst) row.push(p.estoque || 0);
+        if (incPres) row.push(`"${(p.presenca || 'pendente').toUpperCase()}"`);
+        if (incCont) row.push(cont, diff);
+        if (incVal) row.push(`"${infoVal.formatada}"`, `"${infoVal.label}"`);
+        if (incObs) row.push(`"${(p.obs || '').replace(/"/g, '""')}"`);
+
+        linhas.push(row.join(';'));
+      });
+
+      const csvContent = "\uFEFF" + linhas.join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const dataHoje = new Date().toISOString().split('T')[0];
+      a.href = url;
+      a.download = `Relatorio_Auditoria_Validades_${dataHoje}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      window.mostrarToast("Planilha Gerada!", `${itens.length} itens exportados para Excel/CSV.`);
+    };
+
+    // Exportar Relatório PDF Avançado Personalizado
+    window.exportarPDFAvancado = function() {
+      const itens = window.obterItensParaExportacaoAvancada();
+      if (!itens.length) {
+        window.mostrarToast("Nenhum Item", "Não há mercadorias com os filtros escolhidos.", "error");
+        return;
+      }
+
+      const incInd = document.getElementById('colExpIndustria')?.checked;
+      const incVenda = document.getElementById('colExpVenda')?.checked;
+      const incEst = document.getElementById('colExpEstoque')?.checked;
+      const incPres = document.getElementById('colExpPresenca')?.checked;
+      const incCont = document.getElementById('colExpContagem')?.checked;
+      const incVal = document.getElementById('colExpValidade')?.checked;
+      const incObs = document.getElementById('colExpObs')?.checked;
+
+      const auditor = document.getElementById('auditorNome')?.value || 'Não informado';
+      const dataAud = document.getElementById('auditorData')?.value || new Date().toLocaleDateString('pt-BR');
+
+      let thHtml = `
+        <th class="py-2 px-2 border border-slate-300">Código</th>
+        <th class="py-2 px-2 border border-slate-300">Descrição</th>
+      `;
+      if (incInd) thHtml += `<th class="py-2 px-2 border border-slate-300">Indústria</th>`;
+      if (incVenda) thHtml += `<th class="py-2 px-2 border border-slate-300 text-center">Venda / DDE</th>`;
+      if (incEst) thHtml += `<th class="py-2 px-2 border border-slate-300 text-center">Saldo ERP</th>`;
+      if (incPres) thHtml += `<th class="py-2 px-2 border border-slate-300 text-center">Presença</th>`;
+      if (incCont) thHtml += `<th class="py-2 px-2 border border-slate-300 text-center">Físico (Dif)</th>`;
+      if (incVal) thHtml += `<th class="py-2 px-2 border border-slate-300 text-center">Validade</th>`;
+      if (incObs) thHtml += `<th class="py-2 px-2 border border-slate-300">Observações</th>`;
+
+      let trsHtml = '';
+      itens.forEach((p, i) => {
+        const infoVal = window.calcularStatusValidade(p.validade);
+        const cont = p.contagemFisica !== undefined && p.contagemFisica !== '' ? p.contagemFisica : '-';
+        const diff = cont !== '-' ? (parseInt(cont) - p.estoque) : '';
+        const diffStr = diff !== '' ? ` (${diff > 0 ? '+' + diff : diff})` : '';
+
+        trsHtml += `<tr class="${i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}">
+          <td class="py-1.5 px-2 border border-slate-300 font-mono font-bold">${p.cod}</td>
+          <td class="py-1.5 px-2 border border-slate-300 font-medium">${p.desc}</td>`;
+        if (incInd) trsHtml += `<td class="py-1.5 px-2 border border-slate-300">${p.industria || '-'}</td>`;
+        if (incVenda) trsHtml += `<td class="py-1.5 px-2 border border-slate-300 text-center">${p.venda || 0} (${p.dde || 0}d)</td>`;
+        if (incEst) trsHtml += `<td class="py-1.5 px-2 border border-slate-300 text-center font-bold ${p.estoque < 0 ? 'text-rose-600' : ''}">${p.estoque}</td>`;
+        if (incPres) trsHtml += `<td class="py-1.5 px-2 border border-slate-300 text-center font-bold uppercase">${p.presenca || 'pendente'}</td>`;
+        if (incCont) trsHtml += `<td class="py-1.5 px-2 border border-slate-300 text-center">${cont}${diffStr}</td>`;
+        if (incVal) trsHtml += `<td class="py-1.5 px-2 border border-slate-300 text-center ${infoVal.dias !== null && infoVal.dias <= 30 ? 'text-rose-600 font-bold' : ''}">${infoVal.formatada} ${p.validade ? `(${infoVal.label})` : ''}</td>`;
+        if (incObs) trsHtml += `<td class="py-1.5 px-2 border border-slate-300">${p.obs || ''}</td>`;
+        trsHtml += `</tr>`;
+      });
+
+      const containerPdf = document.getElementById('conteudoPdfAvancado');
+      const wrapperPdf = document.getElementById('wrapperPdfAvancado');
+      if (!containerPdf || !wrapperPdf) return;
+
+      containerPdf.innerHTML = `
+        <div class="border-b-2 border-slate-800 pb-3 mb-4 flex justify-between items-end">
+          <div>
+            <h1 class="text-base font-black uppercase text-slate-900">Relatório Avançado de Auditoria, Estoque & Controle de Validades</h1>
+            <p class="text-xs font-bold text-emerald-700">438 - POSTERUS SUPERMERCADOS GRAJAÚ | Auditor: ${auditor} | Data: ${dataAud}</p>
+          </div>
+          <div class="text-right text-xs font-bold text-slate-600">Total Filtrado: ${itens.length} itens</div>
+        </div>
+        <table class="w-full border-collapse text-[10px]">
+          <thead>
+            <tr class="bg-slate-800 text-white uppercase">${thHtml}</tr>
+          </thead>
+          <tbody>${trsHtml}</tbody>
+        </table>
+      `;
+
+      wrapperPdf.classList.remove('hidden');
+      const btn = document.getElementById('btnGerarPdfAvancado');
+      const originalTxt = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Gerando PDF...';
+      }
+
+      const opcoes = {
+        margin: [8, 8, 8, 8],
+        filename: `Auditoria_Avancada_Posterus_${dataAud}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      };
+
+      html2pdf().set(opcoes).from(containerPdf).save().then(() => {
+        wrapperPdf.classList.add('hidden');
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = originalTxt;
+        }
+        window.fecharModalExportarAvancado();
+        window.mostrarToast("PDF Avançado Concluído!", "Relatório baixado com sucesso.");
+      }).catch(err => {
+        console.error(err);
+        wrapperPdf.classList.add('hidden');
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = originalTxt;
+        }
       });
     };
 
