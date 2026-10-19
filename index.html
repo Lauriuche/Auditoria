@@ -866,7 +866,10 @@
               <span class="text-slate-300">|</span>
               <span class="text-violet-700 font-bold">Selecionados: <span id="contadorItensSelecionadosIA">0</span></span>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center flex-wrap gap-1.5">
+              <button type="button" onclick="window.inverterColunasVendaEstoquePreviewIA()" class="px-2 py-1 text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 flex items-center gap-1" title="Se os valores de Venda e Estoque vieram invertidos, clique para trocar">
+                <i class="ph-bold ph-arrows-left-right"></i> Inverter Venda ↔ Estoque
+              </button>
               <button type="button" onclick="window.selecionarApenasExistentesPreviewIA()" class="px-2 py-1 text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300 rounded-lg hover:bg-amber-100">Só Ajustes de Estoque</button>
               <button type="button" onclick="window.adicionarLinhaManualPreviewIA()" class="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg font-bold text-[11px] flex items-center gap-1">
                 <i class="ph-bold ph-plus"></i> + Linha
@@ -2322,7 +2325,7 @@
         reader.onload = (ev) => {
           const img = new Image();
           img.onload = () => {
-            const maxDim = 1800;
+            const maxDim = 2200;
             let w = img.width;
             let h = img.height;
             if (w > maxDim || h > maxDim) {
@@ -2338,12 +2341,13 @@
             canvas.width = w;
             canvas.height = h;
             const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, w, h);
             ctx.drawImage(img, 0, 0, w, h);
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
             resolve({ base64: dataUrl.split(',')[1], mimeType: 'image/jpeg' });
           };
           img.onerror = () => {
-            // Fallback para base64 original
             resolve({ base64: ev.target.result.split(',')[1], mimeType: file.type || 'image/jpeg' });
           };
           img.src = ev.target.result;
@@ -2353,7 +2357,7 @@
       });
     };
 
-    // Normaliza qualquer objeto vindo da IA ou do parser de texto, preenchendo colunas ausentes
+    // Normaliza qualquer objeto vindo da IA ou do parser de colunas, limpando sujeiras e cruzando com o catálogo
     window.normalizarItensExtraidos = function(listaBruta) {
       const indPadraoEl = document.getElementById('industriaPadraoImportacao');
       const indPadrao = (indPadraoEl && indPadraoEl.value.trim()) ? indPadraoEl.value.trim() : 'Puro Tempero';
@@ -2361,64 +2365,97 @@
       const parseNumFlex = (val, defaultVal = 0) => {
         if (val === undefined || val === null || val === '') return defaultVal;
         if (typeof val === 'number') return isNaN(val) ? defaultVal : Math.round(val);
-        // Trata números no formato "1.359" (milhar no Brasil) ou "-19"
         let str = String(val).trim().replace(/\s+/g, '');
-        if (/^-?\d+\.\d{3}$/.test(str)) {
+        // Ignora caso seja uma medida tipo "30G" ou "250ML"
+        if (/^\d+\s*(G|GR|KG|ML|L|UN|PCT|CX)$/i.test(str)) return defaultVal;
+        // Trata ponto de milhar brasileiro: ex "1.359" -> 1359, "-19" -> -19
+        if (/^-?\d{1,3}(\.\d{3})+$/.test(str)) {
           str = str.replace(/\./g, '');
-        } else {
+        } else if (str.includes(',') && !str.includes('.')) {
+          // Caso seja decimal com vírgula (ex: "90,43"), arredonda
           str = str.replace(',', '.');
         }
         const parsed = parseFloat(str);
         return isNaN(parsed) ? defaultVal : Math.round(parsed);
       };
 
-      return (listaBruta || []).map((raw, idx) => {
-        // Suporta múltiplos nomes de chave caso a IA ou planilha use variações
-        let cod = raw.cod || raw.codigo || raw.code || raw.id || raw.ean || '';
-        let desc = raw.desc || raw.descricao || raw.produto || raw.mercadoria || raw.nome || '';
-        let estBruto = raw.estoque !== undefined ? raw.estoque : (raw.saldo !== undefined ? raw.saldo : (raw.qtd !== undefined ? raw.qtd : raw.quantidade));
+      const itensLimpos = [];
+
+      (listaBruta || []).forEach((raw, idx) => {
+        if (!raw) return;
+        let cod = raw.cod ?? raw.codigo ?? raw.code ?? raw.id ?? raw.ean ?? '';
+        let desc = raw.desc ?? raw.descricao ?? raw.produto ?? raw.mercadoria ?? raw.nome ?? '';
+        let estBruto = raw.estoque !== undefined ? raw.estoque : (raw.saldo !== undefined ? raw.saldo : (raw.estoqueAtual !== undefined ? raw.estoqueAtual : raw.qtd));
         let vendaBruta = raw.venda !== undefined ? raw.venda : (raw.qtdVendida !== undefined ? raw.qtdVendida : raw.vendas);
         let ddeBruto = raw.dde !== undefined ? raw.dde : raw.cobertura;
         let ind = raw.industria || raw.marca || raw.fornecedor || '';
 
-        cod = String(cod).trim();
+        cod = String(cod).trim().replace(/^[-–:\s]+|[-–:\s]+$/g, '');
         desc = String(desc).trim().toUpperCase();
 
+        // Remove eventual prefixo de filial que tenha vazado para a descrição
+        desc = desc.replace(/^\d{2,4}\s*[-–]\s*POSTERUS\s+SUPERMERCADOS[A-Z\s.]*/i, '').trim();
+
         // Se o código veio grudado no início da descrição (ex: "458271 - ESP BICARBONATO 40G")
-        if (!cod && desc) {
-          const matchCodInicio = desc.match(/^(\d{3,14})\s*[-–:]?\s*(.+)$/);
-          if (matchCodInicio) {
+        const matchCodInicio = desc.match(/^(\d{4,14})\s*[-–:]?\s*(.+)$/);
+        if (matchCodInicio) {
+          if (!cod || cod.startsWith('S/COD') || cod.startsWith('ITEM')) {
             cod = matchCodInicio[1];
-            desc = matchCodInicio[2].trim();
           }
+          desc = matchCodInicio[2].trim();
         }
 
-        // Se ainda não tiver código na imagem, gera um código provisório editável
-        if (!cod) {
-          cod = `S/COD-${idx + 1}`;
+        // Ignora linhas que sejam cabeçalho da tabela ou linha de totalizador geral
+        if (/^(FILIAL|PRODUTO|DESCRI|QTD\s*VEND|ESTOQUE\s*ATU|TOTAL\s*GERAL)/i.test(desc)) return;
+        if (!desc && (!cod || cod === '438')) return;
+        if (cod === '438' && /POSTERUS/i.test(desc)) return;
+
+        // Verifica se esse código ou descrição já existe no nosso banco para recuperar dados limpos
+        const existente = window.buscarProdutoCorrespondente(cod, desc);
+        if (existente) {
+          cod = existente.cod;
+          // Se a descrição vinda do OCR estiver truncada ou com ruído, preserva a descrição limpa do catálogo
+          if (!desc || desc.length < 5 || /[|¦_]{2,}/.test(desc)) {
+            desc = existente.desc;
+          }
+          if (!ind) ind = existente.industria;
         }
 
-        if (!desc) {
-          desc = `PRODUTO IMPORTADO #${idx + 1}`;
-        }
+        if (!cod) cod = `S/COD-${idx + 1}`;
+        if (!desc) return;
 
-        return {
+        itensLimpos.push({
           selecionado: true,
           cod: cod,
           desc: desc,
-          industria: ind.trim() || indPadrao,
+          industria: (ind || indPadrao).trim(),
           estoque: parseNumFlex(estBruto, 0),
           venda: parseNumFlex(vendaBruta, 0),
           dde: parseNumFlex(ddeBruto, 0)
-        };
-      }).filter(item => item.desc && item.desc !== '');
+        });
+      });
+
+      return itensLimpos;
     };
 
     window.salvarChaveGeminiLocal = function(val) {
       window.safeStorageSet('gemini_custom_api_key', (val || '').trim());
     };
 
-    // Leitura direta de arquivos Excel (.xlsx, .xls, .csv) sem usar API externa
+    // Permite inverter rapidamente as colunas Venda <->Novo Estoque caso a planilha tivesse ordem diferente
+    window.inverterColunasVendaEstoquePreviewIA = function() {
+      const itens = (window.appState && window.appState.itensIAExtraidos) ? window.appState.itensIAExtraidos : [];
+      if (!itens.length) return;
+      itens.forEach(item => {
+        const temp = item.estoque;
+        item.estoque = item.venda;
+        item.venda = temp;
+      });
+      window.renderizarPreviewItensIA();
+      window.mostrarToast("Colunas Invertidas", "Os valores entre Novo Estoque e Venda foram trocados.");
+    };
+
+    // Leitura direta de arquivos Excel (.xlsx, .xls, .csv) mapeando exatamente os cabeçalhos
     window.extrairDadosDePlanilhaExcel = async function(file) {
       if (!window.XLSX) throw new Error("Biblioteca Excel não carregada.");
       const data = await file.arrayBuffer();
@@ -2428,30 +2465,32 @@
       const rows = window.XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
 
       const resultado = [];
-      let colMap = { cod: -1, desc: -1, estoque: -1, venda: -1, dde: -1, industria: -1 };
+      let colMap = { filial: -1, cod: -1, desc: -1, venda: -1, estoque: -1, dde: -1, industria: -1 };
+      let achouCabecalho = false;
 
-      rows.forEach((row, rIdx) => {
+      rows.forEach((row) => {
         if (!Array.isArray(row) || row.length === 0) return;
         const cells = row.map(c => String(c ?? '').trim());
-        const joined = cells.join(' ').toLowerCase();
-        if (!joined.trim()) return;
+        const joined = window.normalizarTexto(cells.join(' '));
+        if (!joined) return;
 
-        // Detecta linha de cabeçalho se existir
-        if (rIdx <= 5 && (joined.includes('produto') || joined.includes('descri') || joined.includes('estoque') || joined.includes('cod'))) {
+        // Detecta linha de cabeçalho da planilha
+        if (!achouCabecalho && (joined.includes('produto') || joined.includes('descri') || joined.includes('estoque') || joined.includes('qtd vend'))) {
           cells.forEach((c, cIdx) => {
             const cl = window.normalizarTexto(c);
-            if (cl.includes('cod') || cl === 'id' || cl === 'ean') colMap.cod = cIdx;
+            if (cl.includes('filial') || cl.includes('loja')) colMap.filial = cIdx;
+            else if (cl === 'cod' || cl === 'codigo' || cl === 'ean' || cl === 'item') colMap.cod = cIdx;
             else if (cl.includes('prod') || cl.includes('desc') || cl.includes('mercadoria')) colMap.desc = cIdx;
             else if (cl.includes('est') || cl.includes('saldo') || cl.includes('atu')) colMap.estoque = cIdx;
-            else if (cl.includes('vend')) colMap.venda = cIdx;
+            else if (cl.includes('vend') || cl.includes('saida') || cl.includes('giro')) colMap.venda = cIdx;
             else if (cl.includes('dde') || cl.includes('cobert')) colMap.dde = cIdx;
             else if (cl.includes('ind') || cl.includes('marca') || cl.includes('fornec')) colMap.industria = cIdx;
           });
+          achouCabecalho = true;
           return;
         }
 
-        // Se mapeou colunas pelo cabeçalho
-        if (colMap.desc !== -1 || colMap.cod !== -1) {
+        if (achouCabecalho && (colMap.desc !== -1 || colMap.cod !== -1)) {
           let codVal = colMap.cod !== -1 ? cells[colMap.cod] : '';
           let descVal = colMap.desc !== -1 ? cells[colMap.desc] : '';
           let estVal = colMap.estoque !== -1 ? cells[colMap.estoque] : '0';
@@ -2459,8 +2498,7 @@
           let ddeVal = colMap.dde !== -1 ? cells[colMap.dde] : '0';
           let indVal = colMap.industria !== -1 ? cells[colMap.industria] : '';
 
-          // Se código e descrição estão juntos na coluna Produto (ex: "458271 - ESP BICARBONATO")
-          const matchJunto = descVal.match(/^(\d{3,14})\s*[-–:]\s*(.+)$/);
+          const matchJunto = descVal.match(/^(\d{4,14})\s*[-–:]\s*(.+)$/);
           if (matchJunto && !codVal) {
             codVal = matchJunto[1];
             descVal = matchJunto[2];
@@ -2469,7 +2507,6 @@
             resultado.push({ cod: codVal, desc: descVal, estoque: estVal, venda: venVal, dde: ddeVal, industria: indVal });
           }
         } else {
-          // Sem cabeçalho padrão: usa o extrator inteligente por linha
           const extraidoLinha = window.extrairItensDeTextoBruto(cells.join('\t'));
           if (extraidoLinha.length) resultado.push(...extraidoLinha);
         }
@@ -2478,23 +2515,63 @@
       return resultado;
     };
 
-    // OCR Local usando Tesseract.js para ler fotos de tabelas quando a API Gemini der 403
+    // OCR Local Inteligente: Reconstrói linhas e colunas pela posição geométrica (X, Y) na imagem
     window.executarOCRLocalImagem = async function(base64Data, mimeType, textoStatusEl) {
       if (!window.Tesseract) {
         throw new Error("Leitor OCR Local indisponível.");
       }
       if (textoStatusEl) {
-        textoStatusEl.innerText = 'Lendo imagem pelo OCR Local Integrado (aguarde alguns segundos)...';
+        textoStatusEl.innerText = 'Analisando colunas da tabela via OCR Local...';
       }
       const dataUrl = `data:${mimeType};base64,${base64Data}`;
       const result = await window.Tesseract.recognize(dataUrl, 'por+eng', {
         logger: m => {
           if (m.status === 'recognizing text' && textoStatusEl) {
             const pct = Math.round((m.progress || 0) * 100);
-            textoStatusEl.innerText = `Extraindo texto da imagem localmente (${pct}%)...`;
+            textoStatusEl.innerText = `Lendo colunas da imagem (${pct}%)...`;
           }
         }
       });
+
+      // Agrupa palavras pela coordenada vertical (Y) para formar linhas exatas da tabela
+      const words = result?.data?.words || [];
+      if (words.length > 0) {
+        const linhasGeom = [];
+        words.forEach(w => {
+          const textoPalavra = (w.text || '').trim();
+          if (!textoPalavra || textoPalavra === '|' || textoPalavra === '¦') return;
+          const cy = (w.bbox.y0 + w.bbox.y1) / 2;
+          const alt = Math.max(8, w.bbox.y1 - w.bbox.y0);
+          let linhaExistente = linhasGeom.find(l => Math.abs(l.cy - cy) < alt * 0.65);
+          if (!linhaExistente) {
+            linhaExistente = { cy, words: [] };
+            linhasGeom.push(linhaExistente);
+          }
+          linhaExistente.words.push({ text: textoPalavra, x0: w.bbox.x0, x1: w.bbox.x1 });
+        });
+
+        linhasGeom.sort((a, b) => a.cy - b.cy);
+
+        const linhasFormatadas = linhasGeom.map(l => {
+          l.words.sort((a, b) => a.x0 - b.x0);
+          // Insere TAB quando houver distância de coluna entre duas palavras
+          let str = '';
+          for (let i = 0; i < l.words.length; i++) {
+            if (i > 0) {
+              const gap = l.words[i].x0 - l.words[i - 1].x1;
+              str += gap > 22 ? '\t' : ' ';
+            }
+            str += l.words[i].text;
+          }
+          return str;
+        }).join('\n');
+
+        const extraidosGeom = window.extrairItensDeTextoBruto(linhasFormatadas);
+        if (extraidosGeom && extraidosGeom.length > 0) {
+          return extraidosGeom;
+        }
+      }
+
       const textoExtraido = result?.data?.text || '';
       return window.extrairItensDeTextoBruto(textoExtraido);
     };
@@ -2511,31 +2588,32 @@
       try {
         const nomeArq = (file.name || '').toLowerCase();
 
-        // 1. Se for planilha Excel ou CSV (.xlsx, .xls, .csv) -> leitura direta instantânea sem erro 403
+        // 1. Planilha Excel ou CSV (.xlsx, .xls, .csv)
         if (nomeArq.endsWith('.xlsx') || nomeArq.endsWith('.xls') || nomeArq.endsWith('.csv') || file.type.includes('spreadsheet') || file.type.includes('csv')) {
-          if (textoStatus) textoStatus.innerText = 'Lendo planilha Excel/CSV diretamente...';
+          if (textoStatus) textoStatus.innerText = 'Lendo colunas da planilha Excel/CSV...';
           const itensPlanilha = await window.extrairDadosDePlanilhaExcel(file);
           const normalizados = window.normalizarItensExtraidos(itensPlanilha);
           if (!normalizados.length) throw new Error('Nenhuma linha de produto encontrada na planilha.');
           window.appState.itensIAExtraidos = normalizados;
           window.renderizarPreviewItensIA();
           if (statusBox) statusBox.classList.add('hidden');
-          window.mostrarToast("Planilha Carregada!", `${normalizados.length} produtos identificados.`);
+          window.mostrarToast("Planilha Carregada!", `${normalizados.length} produtos mapeados com sucesso.`);
           return;
         }
 
         let base64Data = '';
         let mimeType = file.type || 'image/jpeg';
-        let textoNativoPDF = '';
+        let textoTabuladoPDF = '';
 
+        // 2. Arquivo PDF ou Imagem
         if (file.type === 'application/pdf' || nomeArq.endsWith('.pdf')) {
-          if (textoStatus) textoStatus.innerText = 'Extraindo dados do arquivo PDF...';
+          if (textoStatus) textoStatus.innerText = 'Renderizando tabela do PDF em alta definição...';
           const pdfResult = await window.converterPdfParaImagemETexto(file);
           base64Data = pdfResult.base64;
           mimeType = 'image/jpeg';
-          textoNativoPDF = pdfResult.textoExtraido || '';
+          textoTabuladoPDF = pdfResult.textoExtraido || '';
         } else if (file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|bmp)$/i.test(nomeArq)) {
-          if (textoStatus) textoStatus.innerText = 'Otimizando imagem para leitura de colunas...';
+          if (textoStatus) textoStatus.innerText = 'Preparando imagem para leitura de colunas...';
           const otimizada = await window.otimizarImagemParaBase64(file);
           base64Data = otimizada.base64;
           mimeType = otimizada.mimeType;
@@ -2545,23 +2623,20 @@
 
         let itensExtraidos = [];
 
-        // Se for PDF e já possuir texto nativo estruturado, extrai imediatamente
-        if (textoNativoPDF && textoNativoPDF.trim().length > 15) {
-          itensExtraidos = window.extrairItensDeTextoBruto(textoNativoPDF);
+        // PRIORIDADE #1: Leitura Visual de Colunas via Gemini IA (como funcionava perfeitamente antes)
+        if (textoStatus) textoStatus.innerText = 'Analisando colunas da tabela com IA (Código, Produto, Venda, Estoque, DDE)...';
+        try {
+          itensExtraidos = await window.enviarParaLeitorGemini(base64Data, mimeType);
+        } catch (iaError) {
+          console.warn("IA Gemini indisponível no momento, acionando extrator geométrico de colunas:", iaError);
         }
 
-        // Tenta via IA Gemini se ainda não tiver extraído tudo, e se der HTTP 403 cai automaticamente para o OCR Local!
-        if (!itensExtraidos || itensExtraidos.length === 0) {
-          if (textoStatus) textoStatus.innerText = 'Analisando tabela da imagem...';
-          try {
-            itensExtraidos = await window.enviarParaLeitorGemini(base64Data, mimeType);
-          } catch (iaError) {
-            console.warn("API Gemini indisponível ou Status 403, acionando OCR Local automático:", iaError);
-            itensExtraidos = await window.executarOCRLocalImagem(base64Data, mimeType, textoStatus);
-          }
+        // PRIORIDADE #2: Se for PDF e a IA não respondeu (ex: sem chave no domínio externo), usa o extrator geométrico X/Y do PDF
+        if ((!itensExtraidos || itensExtraidos.length === 0) && textoTabuladoPDF.trim().length > 10) {
+          itensExtraidos = window.extrairItensDeTextoBruto(textoTabuladoPDF);
         }
 
-        // Caso mesmo assim precise do OCR local
+        // PRIORIDADE #3: Se for Imagem e a IA não respondeu, usa o OCR Local com separação geométrica de colunas
         if (!itensExtraidos || itensExtraidos.length === 0) {
           itensExtraidos = await window.executarOCRLocalImagem(base64Data, mimeType, textoStatus);
         }
@@ -2569,13 +2644,13 @@
         const itensNormalizados = window.normalizarItensExtraidos(itensExtraidos);
 
         if (!itensNormalizados || itensNormalizados.length === 0) {
-          throw new Error('Não conseguimos ler as linhas automaticamente. Cole os dados na caixa de texto ao lado ou adicione manualmente.');
+          throw new Error('Não foi possível identificar as linhas. Tente colar os dados na caixa de texto ao lado.');
         }
 
         window.appState.itensIAExtraidos = itensNormalizados;
         window.renderizarPreviewItensIA();
         if (statusBox) statusBox.classList.add('hidden');
-        window.mostrarToast("Leitura Concluída!", `${itensNormalizados.length} itens identificados. Revise os saldos antes de confirmar.`);
+        window.mostrarToast("Colunas Mapeadas!", `${itensNormalizados.length} itens reconhecidos com sucesso.`);
 
       } catch (err) {
         console.error("Erro no processamento:", err);
@@ -2591,7 +2666,7 @@
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       const page = await pdf.getPage(1);
-      const viewport = page.getViewport({ scale: 1.8 });
+      const viewport = page.getViewport({ scale: 2.0 });
 
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d');
@@ -2599,25 +2674,31 @@
       canvas.width = viewport.width;
 
       await page.render({ canvasContext: context, viewport: viewport }).promise;
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
 
-      // Extrai o texto nativo do PDF preservando quebras de linha por coordenada Y
+      // Ordena os itens do PDF por Linha (Y) e depois por Coluna (X) para nunca embaralhar colunas
       let textoExtraido = '';
       try {
         const textContent = await page.getTextContent();
-        let lastY = null;
-        const linhasMap = [];
+        const linhasPDF = [];
         textContent.items.forEach(item => {
+          const str = (item.str || '').trim();
+          if (!str) return;
+          const x = Math.round(item.transform[4]);
           const y = Math.round(item.transform[5]);
-          if (lastY !== null && Math.abs(y - lastY) > 4) {
-            linhasMap.push('\n');
-          } else if (lastY !== null) {
-            linhasMap.push('\t');
+          let linha = linhasPDF.find(l => Math.abs(l.y - y) <= 5);
+          if (!linha) {
+            linha = { y, cells: [] };
+            linhasPDF.push(linha);
           }
-          linhasMap.push(item.str);
-          lastY = y;
+          linha.cells.push({ x, str });
         });
-        textoExtraido = linhasMap.join('');
+        // No PDF, Y cresce de baixo para cima, então ordenamos Y decrescente e X crescente
+        linhasPDF.sort((a, b) => b.y - a.y);
+        textoExtraido = linhasPDF.map(l => {
+          l.cells.sort((a, b) => a.x - b.x);
+          return l.cells.map(c => c.str).join('\t');
+        }).join('\n');
       } catch (e) {}
 
       return {
@@ -2626,7 +2707,7 @@
       };
     };
 
-    // Analisador de texto colado ou extraído de PDF/OCR (aceita Código + Descrição + Estoque em qualquer formato)
+    // Analisador de texto colado ou extraído de PDF/OCR (separa com precisão Código, Descrição e Colunas Numéricas)
     window.analisarTextoColadoManual = function() {
       const txtEl = document.getElementById('inputTextoColadoImportacao');
       const texto = txtEl ? txtEl.value.trim() : '';
@@ -2652,95 +2733,82 @@
       const linhas = (texto || '').split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 2);
       const resultado = [];
 
-      linhas.forEach((linhaLimpa, index) => {
-        // Remove pipes "|" comuns em leituras de OCR de tabelas com bordas
-        const linha = linhaLimpa.replace(/[|¦]/g, '\t').replace(/\s{3,}/g, '\t').trim();
+      // Detecta na linha de cabeçalho (se houver) se a tabela tem apenas Estoque ou se tem Venda + Estoque + DDE
+      let temColunaVenda = false;
+      let temColunaDDE = false;
+      for (let i = 0; i < Math.min(linhas.length, 6); i++) {
+        const cab = window.normalizarTexto(linhas[i]);
+        if (cab.includes('qtd vend') || cab.includes('venda')) temColunaVenda = true;
+        if (cab.includes('dde') || cab.includes('cobert')) temColunaDDE = true;
+      }
 
-        // Ignora cabeçalhos óbvios
-        if (/^(filial|cod|código|produto|descrição|qtd|estoque|total)/i.test(linha) && !/\d{4,}/.test(linha)) {
+      linhas.forEach((linhaBruta) => {
+        // Limpa caracteres de grade de OCR
+        let linha = linhaBruta.replace(/[|¦]/g, ' ').trim();
+
+        // Ignora cabeçalhos ou linhas só de totais no topo
+        if (/^(filial|cod|código|produto|descrição|qtd\s*vend|estoque\s*atu|total)/i.test(linha) && !/\d{5,}/.test(linha)) {
           return;
         }
 
-        // Remove prefixo de filial caso a linha comece com "438 - POSTERUS SUPERMERCADOS LTDA. GRAJAU"
-        let linhaSemFilial = linha.replace(/^\d{2,4}\s*[-–]\s*POSTERUS\s+SUPERMERCADOS[A-Z\s.]*\t?/i, '').trim();
-        if (!linhaSemFilial) return;
+        // Remove coluna de Filial no início da linha: ex "438 - POSTERUS SUPERMERCADOS LTDA. GRAJAU"
+        linha = linha.replace(/^\d{2,4}\s*[-–]?\s*POSTERUS\s+SUPERMERCADOS[A-Z\s.]*/i, '').trim();
+        if (!linha) return;
 
-        // Caso 1: Separado por TAB ou Ponto-e-vírgula
-        if (linhaSemFilial.includes('\t') || linhaSemFilial.split(';').length >= 2) {
-          const partes = (linhaSemFilial.includes('\t') ? linhaSemFilial.split('\t') : linhaSemFilial.split(';')).map(s => s.trim()).filter(Boolean);
-          if (partes.length >= 2) {
-            let cod = '';
-            let desc = '';
-            let numerosFinais = [];
+        // Procura o padrão clássico de produto: CÓDIGO (4 a 14 dígitos) + hífen/espaço + DESCRIÇÃO + NÚMEROS NO FINAL
+        // Ex: "458271 - ESP BICARBONATO PURO TEMPERO 40G   71   644   272"
+        const matchProduto = linha.match(/^(\d{4,14})\s*[-–:]?\s*(.+)$/);
+        let cod = '';
+        let corpo = linha;
 
-            partes.forEach(p => {
-              const m = p.match(/^(\d{3,14})\s*[-–:]?\s*(.+)$/);
-              if (m && !cod && /[A-Z]{2,}/i.test(m[2])) {
-                cod = m[1];
-                desc = m[2];
-              } else if (/^\d{3,14}$/.test(p) && !cod && !desc) {
-                cod = p;
-              } else if (/^-?\d+([.,]\d+)?$/.test(p)) {
-                numerosFinais.push(p);
-              } else if (!desc || p.length > desc.length) {
-                if (!/POSTERUS/i.test(p)) {
-                  desc = p;
-                }
-              }
-            });
+        if (matchProduto) {
+          cod = matchProduto[1];
+          corpo = matchProduto[2].trim();
+        }
 
-            if (desc || cod) {
-              resultado.push({
-                cod: cod || `ITEM-${index + 1}`,
-                desc: desc || partes.join(' '),
-                estoque: numerosFinais.length === 1 ? numerosFinais[0] : (numerosFinais.length >= 2 ? numerosFinais[1] : 0),
-                venda: numerosFinais.length >= 2 ? numerosFinais[0] : 0,
-                dde: numerosFinais.length >= 3 ? numerosFinais[2] : 0
-              });
-              return;
-            }
+        // Separa os tokens do final da linha que são puramente números de colunas (e NÃO pesos como "40G", "150ML", "500G")
+        const tokens = corpo.split(/\s+/);
+        const numerosColunas = [];
+
+        while (tokens.length > 0) {
+          const ultimo = tokens[tokens.length - 1];
+          // Verifica se é um número puro (ex: "71", "644", "1.359", "-19") e NÃO medida (não tem letras)
+          if (/^-?\d{1,4}(?:\.\d{3})*$/.test(ultimo)) {
+            numerosColunas.unshift(ultimo);
+            tokens.pop();
+            if (numerosColunas.length >= 3) break;
+          } else {
+            break;
           }
         }
 
-        // Caso 2: Linha livre de OCR ou texto corrido (Ex: "458271 - ESP BICARBONATO 40G 71 644 272" ou "458271 ESP BICARBONATO 644")
-        let resto = linhaSemFilial;
-        let cod = '';
-
-        // Procura código de 3 a 14 dígitos no início da linha
-        const matchCod = resto.match(/^(\d{3,14})\s*[-–:]?\s+(.+)$/);
-        if (matchCod) {
-          cod = matchCod[1];
-          resto = matchCod[2].trim();
-        }
-
-        // Extrai até 3 números soltos no final da linha (Ex: Venda Estoque DDE ou apenas Estoque)
-        const tokens = resto.split(/\s+/);
-        const numsFinais = [];
-        while (tokens.length > 1 && /^-?\d+(?:[.,]\d{3})?$/.test(tokens[tokens.length - 1])) {
-          numsFinais.unshift(tokens.pop());
-          if (numsFinais.length === 3) break;
-        }
-
-        const descFinal = tokens.join(' ').trim();
+        const descFinal = tokens.join(' ').replace(/[-–:\s]+$/, '').trim();
         if (!descFinal && !cod) return;
+        // Se a linha só tinha números (ex: linha de somatório "3797 10606 90,43"), ignora
+        if (!descFinal || !/[A-Z]{2,}/i.test(descFinal)) return;
 
         let venda = 0, estoque = 0, dde = 0;
-        if (numsFinais.length === 1) {
-          estoque = numsFinais[0];
-        } else if (numsFinais.length === 2) {
-          venda = numsFinais[0];
-          estoque = numsFinais[1];
-        } else if (numsFinais.length >= 3) {
-          venda = numsFinais[0];
-          estoque = numsFinais[1];
-          dde = numsFinais[2];
+        if (numerosColunas.length === 1) {
+          estoque = numerosColunas[0];
+        } else if (numerosColunas.length === 2) {
+          if (temColunaVenda) {
+            venda = numerosColunas[0];
+            estoque = numerosColunas[1];
+          } else {
+            estoque = numerosColunas[0];
+            dde = numerosColunas[1];
+          }
+        } else if (numerosColunas.length >= 3) {
+          venda = numerosColunas[0];
+          estoque = numerosColunas[1];
+          dde = numerosColunas[2];
         }
 
         resultado.push({
           cod: cod,
-          desc: descFinal || resto,
-          estoque: estoque,
+          desc: descFinal,
           venda: venda,
+          estoque: estoque,
           dde: dde
         });
       });
@@ -2777,15 +2845,16 @@
       const apiKey = customKey || "";
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
 
-      const systemPrompt = `Você é um extrator flexível de tabelas e listas de produtos/estoque de supermercado.
-A imagem enviada pode conter TODAS as colunas do sistema OU APENAS ALGUMAS COLUNAS (por exemplo: apenas Código e Descrição, ou apenas Código, Descrição e Estoque, ou ter células em branco/faltando).
-REGRAS OBRIGATÓRIAS:
-1. Extraia TODAS as linhas de mercadorias visíveis, mesmo que faltem colunas!
-2. Se o código e a descrição estiverem juntos na mesma coluna (ex: "458271 - ESP BICARBONATO"), separe o código em "cod" e o nome em "desc".
-3. Se alguma coluna como "venda", "dde", "estoque" ou "industria" NÃO existir na imagem ou estiver vazia na linha, retorne 0 para números e "" para texto. NUNCA rejeite a tabela por falta de colunas.
-4. Números com ponto de milhar como "1.359" ou "1.876" devem ser convertidos para inteiros puros (1359, 1876). Preserve sinais negativos como "-19".`;
+      const systemPrompt = `Você é um especialista em leitura de relatórios e planilhas de estoque de supermercados (como o relatório da filial 438 - POSTERUS SUPERMERCADOS).
+Analise cuidadosamente os cabeçalhos das colunas na imagem:
+- Ignore a coluna "Filial" (ex: "438 - POSTERUS SUPERMERCADOS LTDA. GRAJAU") e ignore a linha de totais gerais no topo (ex: 3797 | 10606).
+- Na coluna "Produto" (ou Código + Descrição), separe o código numérico inicial (ex: "458271") no campo "cod" e o nome completo do produto (ex: "ESP BICARBONATO PURO TEMPERO 40G") no campo "desc".
+- Atenção aos números nas colunas à direita:
+  * Se a tabela tiver as 3 colunas ("Qtd Vendida", "Estoque Atual", "DDE"), coloque cada número na propriedade exata: "venda", "estoque" e "dde".
+  * Se a tabela tiver apenas "Código", "Descrição" e "Estoque", coloque o saldo em "estoque" e 0 em "venda" e "dde".
+- Números com ponto de milhar como "1.359" ou "1.876" significam 1359 e 1876 (inteiros). Preserve sinais negativos como "-19".`;
 
-      const userPrompt = `Extraia todas as mercadorias visíveis nesta imagem com as colunas que estiverem disponíveis. Retorne um array JSON onde cada item pode conter: cod (string), desc (string), industria (string), estoque (number), venda (number), dde (number).`;
+      const userPrompt = `Extraia todas as linhas de produtos desta tabela respeitando rigorosamente o alinhamento de cada coluna.`;
 
       const payload = {
         contents: [
@@ -2804,7 +2873,22 @@ REGRAS OBRIGATÓRIAS:
         ],
         systemInstruction: { parts: [{ text: systemPrompt }] },
         generationConfig: {
-          responseMimeType: "application/json"
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                cod: { type: "STRING", description: "Código numérico do produto (ex: 458271)" },
+                desc: { type: "STRING", description: "Descrição limpa da mercadoria sem o código inicial" },
+                industria: { type: "STRING", description: "Marca ou indústria identificada (ex: Puro Tempero, Alho Achei)" },
+                venda: { type: "INTEGER", description: "Valor da coluna Qtd Vendida (ou 0 se não houver)" },
+                estoque: { type: "INTEGER", description: "Valor da coluna Estoque Atual / Saldo" },
+                dde: { type: "INTEGER", description: "Valor da coluna DDE (ou 0 se não houver)" }
+              },
+              required: ["cod", "desc", "estoque"]
+            }
+          }
         }
       };
 
