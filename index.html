@@ -82,6 +82,9 @@
     #tabelaCorpo tr,#tabelaCorpo td{white-space:nowrap;vertical-align:middle}
     #tabelaCorpo td .desc-cell{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle}
     .val-dot{display:inline-block;min-width:4.5rem;text-align:center;font-weight:700;font-size:11px;padding:3px 6px;border-radius:6px;font-variant-numeric:tabular-nums}
+    .val-date{font-variant-numeric:tabular-nums;max-width:7.5rem;cursor:pointer}
+    .val-date::-webkit-calendar-picker-indicator{opacity:0.7;cursor:pointer;filter:none}
+    .val-date.bg-rose-600::-webkit-calendar-picker-indicator{filter:invert(1)}
     .kpi-compact{padding:0.5rem 0.6rem!important;min-height:0}
     .kpi-compact .kpi-label{font-size:10px;line-height:1.1}
     .kpi-compact .kpi-val{font-size:1.05rem;line-height:1.15;margin-top:2px}
@@ -101,7 +104,7 @@
       <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-700 to-emerald-500 text-white flex items-center justify-center shadow-md"><i class="ph-bold ph-clipboard-text text-2xl"></i></div>
       <div>
         <div class="flex items-center gap-2">
-          <h1 class="text-base font-extrabold text-slate-900">Auditoria & Presença</h1>
+          <h1 class="text-base font-extrabold text-slate-900">Validade, Auditoria & Presença</h1>
           <span id="badgeConexao" onclick="window.reconectarFirebase?.()" title="Clique para reconectar" class="cursor-pointer inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> Conectando...</span>
         </div>
         <p class="text-xs text-slate-500">Filial: <span class="text-slate-800 font-bold">438 - POSTERUS SUPERMERCADOS GRAJAÚ</span></p>
@@ -213,7 +216,7 @@
             <th class="py-2 px-1.5">Indústria</th>
             <th class="py-2 px-1.5 text-center">Estoque</th>
             <th class="py-2 px-1.5 text-center bg-pink-50/50">Validade</th>
-            <th class="py-2 px-1.5 text-center bg-slate-200/70 border-x border-slate-300">Presença</th>
+            <th class="py-2 px-1.5 text-center bg-slate-200/70 border-x border-slate-300">Presença na venda</th>
             <th class="py-2 px-1.5 text-center">Contagem</th>
             <th class="py-2 px-1.5 text-center">Diverg.</th>
             <th class="py-2 px-1.5 w-10 text-center no-print">⚙️</th>
@@ -250,7 +253,7 @@
       <div class="flex items-center gap-2.5"><div class="p-2 bg-amber-100 text-amber-700 rounded-xl"><i class="ph-bold ph-pencil-simple text-xl"></i></div><div><h2 class="text-sm font-bold text-slate-900">Editar Mercadoria</h2><p class="text-xs text-slate-500">Atualize dados cadastrais ou estoque.</p></div></div>
       <button onclick="fecharModalEditarProduto()" class="p-1.5 text-slate-400 hover:text-slate-600"><i class="ph-bold ph-x text-lg"></i></button>
     </div>
-    <form id="formEditarProduto" onsubmit="salvarEdicaoProduto(event)" class="p-5 space-y-3.5 text-xs">
+    <form id="formEditarProduto" onsubmit="event.preventDefault(); window.salvarEdicaoProduto(event); return false;" class="p-5 space-y-3.5 text-xs">
       <input type="hidden" id="editCodOriginal">
       <div class="grid grid-cols-2 gap-3">
         <div><label class="block font-bold text-slate-700 mb-1">Cód. Reduzido *</label><input type="text" id="editCod" required readonly class="w-full border border-slate-300 rounded-lg px-3 py-2 font-mono font-bold bg-slate-100 cursor-not-allowed"></div>
@@ -417,11 +420,11 @@
     </div>
     <div class="flex-1 overflow-y-auto p-4 bg-slate-100">
       <div id="areaParaImpressaoSimples" class="bg-white p-6 rounded-xl max-w-3xl mx-auto">
-        <h2 class="text-base font-black uppercase">Auditoria de Presença</h2>
+        <h2 class="text-base font-black uppercase">Auditoria de Presença E Validade</h2>
         <p class="text-xs font-semibold text-indigo-700">POSTERUS - FILIAL 438 GRAJAÚ</p>
         <p id="lsInfoAuditor" class="text-xs text-slate-600 mb-4"></p>
         <table class="w-full text-left border-collapse">
-          <thead><tr class="bg-indigo-900 text-white text-xs"><th class="py-2 px-3">Código</th><th class="py-2 px-3">Descrição</th><th class="py-2 px-3 text-center">Estoque</th><th class="py-2 px-3 text-center">Validade</th><th class="py-2 px-3 text-center">Presença</th></tr></thead>
+          <thead><tr class="bg-indigo-900 text-black text-xs"><th class="py-2 px-3">Código</th><th class="py-2 px-3">Descrição</th><th class="py-2 px-3 text-center">Estoque</th><th class="py-2 px-3 text-center">Validade</th><th class="py-2 px-3 text-center">Presença na venda</th></tr></thead>
           <tbody id="tabelaListaSimplesCorpo"></tbody>
         </table>
       </div>
@@ -450,7 +453,7 @@
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label class="block font-bold text-slate-700 mb-1">Presença</label>
+          <label class="block font-bold text-slate-700 mb-1">Presença na venda</label>
           <select id="expPresenca" class="w-full border border-slate-300 rounded-lg px-3 py-2" onchange="atualizarResumoExportacao()">
             <option value="todos">Todas</option><option value="pendente">Pendente</option><option value="sim">Presente (Sim)</option><option value="nao">Ruptura (Não)</option><option value="parcial">Parcial</option>
           </select>
@@ -613,14 +616,26 @@
     listaRemota.forEach(remoto => {
       const local = mapaLocal.get(String(remoto.cod));
       if (local) {
-        const recent = local._lastLocalEdit && (Date.now() - local._lastLocalEdit < 4000);
-        mergeado.push({
-          ...remoto,
-          contagemFisica: recent ? local.contagemFisica : (remoto.contagemFisica ?? local.contagemFisica ?? ''),
-          presenca: recent ? local.presenca : (remoto.presenca ?? local.presenca ?? 'pendente'),
-          obs: remoto.obs ?? local.obs ?? '',
-          validade: remoto.validade ?? local.validade ?? ''
-        });
+        const recent = local._lastLocalEdit && (Date.now() - local._lastLocalEdit < 15000);
+        // Edição local recente: prioriza TODOS os campos locais (evita sobrescrita do remoto antigo)
+        if (recent) {
+          mergeado.push({
+            ...remoto,
+            ...local,
+            cod: String(local.cod || remoto.cod),
+            _lastLocalEdit: local._lastLocalEdit
+          });
+        } else {
+          mergeado.push({
+            ...local,
+            ...remoto,
+            contagemFisica: remoto.contagemFisica ?? local.contagemFisica ?? '',
+            presenca: remoto.presenca ?? local.presenca ?? 'pendente',
+            obs: remoto.obs ?? local.obs ?? '',
+            validade: remoto.validade ?? local.validade ?? '',
+            ean: remoto.ean ?? local.ean ?? ''
+          });
+        }
       } else mergeado.push(remoto);
     });
     window.appState.produtos.forEach(local => { if (!mapaRemoto.has(String(local.cod))) mergeado.push(local); });
@@ -669,7 +684,7 @@
   }
 
   async function escreverProdutoREST(produto) {
-    const safeKey = String(produto.cod).replace(/[.#$\[\]]/g, '_');
+    const safeKey = String(produto.cod).replace(/\.|#|\$|\[|\]/g, '_');
     const { _lastLocalEdit, ...paraSalvar } = produto;
     const body = JSON.stringify({ ...paraSalvar, cod: String(produto.cod), atualizadoEm: new Date().toISOString() });
     const res = await fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${safeKey}.json`, {
@@ -808,31 +823,60 @@
   };
 
   window.salvarProdutoNoBanco = async function(produto) {
-    if (!produto?.cod) return;
-    const safeKey = String(produto.cod).replace(/[.#$\[\]]/g, '_');
-    produto._lastLocalEdit = Date.now();
-    const idx = window.appState.produtos.findIndex(p => p.cod === produto.cod);
+    if (!produto?.cod) return false;
+    const safeKey = String(produto.cod).replace(/\.|#|\$|\[|\]/g, '_');
+    produto = { ...produto, cod: String(produto.cod), _lastLocalEdit: Date.now() };
+    const idx = window.appState.produtos.findIndex(p => String(p.cod) === String(produto.cod));
     if (idx >= 0) window.appState.produtos[idx] = { ...window.appState.produtos[idx], ...produto };
     else window.appState.produtos.push(produto);
-    persistirLocalmente(); dispararAtualizacaoUI();
+    persistirLocalmente();
+    dispararAtualizacaoUI();
+
+    const { _lastLocalEdit, ...paraSalvar } = produto;
+    const payload = {
+      ...paraSalvar,
+      cod: String(produto.cod),
+      ean: produto.ean || '',
+      desc: produto.desc || '',
+      industria: produto.industria || '',
+      venda: Number(produto.venda) || 0,
+      estoque: Number(produto.estoque) || 0,
+      dde: Number(produto.dde) || 0,
+      validade: produto.validade || '',
+      presenca: produto.presenca || 'pendente',
+      contagemFisica: produto.contagemFisica ?? '',
+      obs: produto.obs || '',
+      atualizadoEm: new Date().toISOString()
+    };
+
+    let ok = false;
+    isApplyingRemote = true;
     try {
-      isApplyingRemote = true;
-      if (db && produtosRef) {
-        const { _lastLocalEdit, ...paraSalvar } = produto;
-        await set(ref(db, `auditoria_estoque/produtos/${safeKey}`), { ...paraSalvar, cod: String(produto.cod), atualizadoEm: new Date().toISOString() });
-      } else {
-        await escreverProdutoREST(produto);
-      }
+      // 1) REST primeiro (mais confiável no celular / file:// / redes restritas)
+      const res = await fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${safeKey}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('REST HTTP ' + res.status);
+      ok = true;
+      console.log('[SAVE] REST OK', safeKey);
     } catch (err) {
-      console.warn('Escrita SDK falhou, tentando REST...', err.code || err.message);
-      try { await escreverProdutoREST(produto); }
-      catch (e2) {
-        console.warn('REST write fail', e2);
-        if (String(err.code) === 'PERMISSION_DENIED') window.mostrarToast?.('Sem permissão', 'Libere regras do Realtime Database.', 'error');
+      console.warn('[SAVE] REST falhou:', err.message || err);
+      try {
+        if (db) {
+          await set(ref(db, `auditoria_estoque/produtos/${safeKey}`), payload);
+          ok = true;
+          console.log('[SAVE] SDK OK', safeKey);
+        }
+      } catch (err2) {
+        console.error('[SAVE] SDK também falhou:', err2.code || err2.message);
+        window.mostrarToast?.('Falha ao salvar online', (err2.code || err2.message || 'Verifique a conexão'), 'error');
       }
     } finally {
-      setTimeout(() => { isApplyingRemote = false; }, 500);
+      setTimeout(() => { isApplyingRemote = false; }, 800);
     }
+    return ok;
   };
 
   window.excluirProduto = async function(codigo) {
@@ -1081,16 +1125,18 @@ window.renderizarTabela = function(itens) {
         else if (d > 0) { divT = '+' + d; divC = 'text-blue-600 font-bold'; }
         else { divT = String(d); divC = 'text-rose-600 font-bold'; }
       }
-      let valHtml = '<span class="text-slate-300">—</span>';
-      if (val && iv.formatada && iv.formatada !== '-') {
-        let cls = 'bg-slate-100 text-slate-600';
-        if (iv.status === 'vencido' || iv.status === 'vence_hoje') cls = 'bg-rose-600 text-white';
-        else if (iv.status === 'vence_15') cls = 'bg-red-100 text-red-800';
-        else if (iv.status === 'vence_30') cls = 'bg-amber-100 text-amber-800';
-        else if (iv.status === 'vence_60') cls = 'bg-yellow-50 text-yellow-800';
-        else if (iv.status === 'em_dia') cls = 'bg-emerald-50 text-emerald-700';
-        valHtml = '<span class="val-dot ' + cls + '" title="' + window.escHtml(iv.label) + '">' + window.escHtml(iv.formatada) + '</span>';
-      }
+      // Validade editável direto na linha (input date + cor do status)
+      let valCls = 'border-slate-300 bg-white text-slate-700';
+      if (iv.status === 'vencido' || iv.status === 'vence_hoje') valCls = 'border-rose-500 bg-rose-600 text-white font-bold';
+      else if (iv.status === 'vence_15') valCls = 'border-red-400 bg-red-100 text-red-800 font-bold';
+      else if (iv.status === 'vence_30') valCls = 'border-amber-400 bg-amber-100 text-amber-800 font-bold';
+      else if (iv.status === 'vence_60') valCls = 'border-yellow-300 bg-yellow-50 text-yellow-800';
+      else if (iv.status === 'em_dia') valCls = 'border-emerald-300 bg-emerald-50 text-emerald-700';
+      else if (!val) valCls = 'border-slate-200 bg-slate-50 text-slate-400';
+      const valTitle = window.escHtml(iv.label || 'Definir validade');
+      const valHtml = '<input type="date" value="' + window.escHtml(val) + '" title="' + valTitle + '" ' +
+        'onchange="window.atualizarValidade(\'' + window.escHtml(cod) + '\', this.value)" ' +
+        'class="val-date w-[7.2rem] text-center text-[11px] rounded border px-0.5 py-0.5 ' + valCls + '">';
       const eanShow = String(p.ean || '').trim() || '—';
       const desc = window.escHtml(p.desc || '');
       const ind = window.escHtml(p.industria || '-');
@@ -1147,11 +1193,18 @@ window.atualizarContagem = function(cod, v) {
   window.salvarProdutoNoBanco({...p, contagemFisica:v, presenca:pr});
 };
 window.atualizarObs = (cod, t) => { const p = window.appState?.produtos?.find(x => x.cod===cod); if (p) window.salvarProdutoNoBanco({...p, obs:t}); };
-window.atualizarValidade = function(cod, d) {
-  const p = window.appState?.produtos?.find(x => x.cod===cod); if (!p) return;
-  window.salvarProdutoNoBanco({...p, validade:d});
+window.atualizarValidade = async function(cod, d) {
+  const p = (window.appState?.produtos || []).find(x => String(x.cod) === String(cod));
+  if (!p) { window.mostrarToast?.('Erro', 'Produto não encontrado.', 'error'); return; }
+  const ok = await window.salvarProdutoNoBanco({ ...p, validade: d || '' });
   const i = window.calcularStatusValidade(d);
-  if (d) window.mostrarToast('Validade', `${p.desc}: ${i.formatada} (${i.label})`, i.dias<0?'error':'success');
+  if (ok) {
+    window.mostrarToast?.('Validade salva', d ? (p.desc + ': ' + i.formatada + ' (' + i.label + ')') : 'Data removida', i.dias != null && i.dias < 0 ? 'error' : 'success');
+  } else {
+    window.mostrarToast?.('Validade local', 'Não confirmou no Firebase. Toque no badge para reconectar.', 'error');
+  }
+  // Re-pinta a linha com a nova cor
+  window.aplicarFiltros?.();
 };
 window.marcarTodosPresentes = function() {
   const ind = window.appState?.industriaAtiva||'todas';
@@ -1220,21 +1273,51 @@ window.solicitarExclusaoEmLote = function() {
 
 window.salvarEdicaoProduto = async function(e) {
   e?.preventDefault();
-  const cod = document.getElementById('editCodOriginal').value;
-  const ean = (document.getElementById('editEan')?.value || '').replace(/\D/g,'').trim();
-  const desc = document.getElementById('editDesc').value.trim().toUpperCase();
-  const industria = document.getElementById('editIndustria').value.trim() || 'Puro Tempero';
-  const venda = parseInt(document.getElementById('editVenda').value) || 0;
-  const estoque = parseInt(document.getElementById('editEstoque').value) || 0;
-  const dde = parseInt(document.getElementById('editDde').value) || 0;
+  e?.stopPropagation?.();
+  const cod = document.getElementById('editCodOriginal')?.value;
+  const ean = (document.getElementById('editEan')?.value || '').replace(/\D/g, '').trim();
+  const desc = (document.getElementById('editDesc')?.value || '').trim().toUpperCase();
+  const industria = (document.getElementById('editIndustria')?.value || '').trim() || 'Puro Tempero';
+  const venda = parseInt(document.getElementById('editVenda')?.value, 10) || 0;
+  const estoque = parseInt(document.getElementById('editEstoque')?.value, 10) || 0;
+  const dde = parseInt(document.getElementById('editDde')?.value, 10) || 0;
   const validade = document.getElementById('editValidade')?.value || '';
-  if (!cod || !desc) { window.mostrarToast('Erro', 'Código e descrição são obrigatórios.', 'error'); return; }
-  const prod = window.appState.produtos.find(p => p.cod === cod);
-  if (!prod) { window.mostrarToast('Erro', 'Produto não encontrado.', 'error'); return; }
-  await window.salvarProdutoNoBanco({ ...prod, ean, desc, industria, venda, estoque, dde, validade });
-  window.fecharModalEditarProduto();
-  window.renderizarAbasIndustrias();
-  window.mostrarToast('Atualizado', `"${desc}" alterado com sucesso.`);
+  if (!cod || !desc) { window.mostrarToast('Erro', 'Código e descrição são obrigatórios.', 'error'); return false; }
+  const prod = (window.appState?.produtos || []).find(p => String(p.cod) === String(cod));
+  if (!prod) { window.mostrarToast('Erro', 'Produto não encontrado na lista local.', 'error'); return false; }
+
+  const btn = e?.submitter || document.querySelector('#formEditarProduto button[type="submit"]');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Salvando...'; }
+
+  const atualizado = {
+    ...prod,
+    cod: String(cod),
+    ean,
+    desc,
+    industria,
+    venda,
+    estoque,
+    dde,
+    validade,
+    presenca: prod.presenca || 'pendente',
+    contagemFisica: prod.contagemFisica ?? '',
+    obs: prod.obs || ''
+  };
+
+  try {
+    const ok = await window.salvarProdutoNoBanco(atualizado);
+    window.fecharModalEditarProduto();
+    window.renderizarAbasIndustrias?.();
+    window.aplicarFiltros?.();
+    if (ok) window.mostrarToast('Salvo online', '"' + desc + '" atualizado no Firebase.');
+    else window.mostrarToast('Salvo só no aparelho', 'Não confirmamos gravação no Firebase. Toque no badge para reconectar.', 'error');
+  } catch (err) {
+    console.error(err);
+    window.mostrarToast('Erro ao salvar', err.message || 'Tente de novo', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph-bold ph-check"></i> Gravar Alterações'; }
+  }
+  return false;
 };
 
 window.verificarDuplicidade = function(cod, desc, excluir=null) {
