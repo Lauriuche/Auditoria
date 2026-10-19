@@ -390,7 +390,7 @@
             <thead class="bg-slate-100 sticky top-0 font-bold">
               <tr>
                 <th class="py-2 px-2 w-10"><input type="checkbox" id="checkAllPreviewIA" checked onchange="window.alternarTodosPreviewIA?.(this.checked)"></th>
-                <th class="py-2 px-2">Código</th><th class="py-2 px-2">Descrição</th><th class="py-2 px-2">Indústria</th>
+                <th class="py-2 px-2">Cód.</th><th class="py-2 px-2">EAN</th><th class="py-2 px-2">Descrição</th><th class="py-2 px-2">Indústria</th>
                 <th class="py-2 px-2 text-center">Estoque Atual</th><th class="py-2 px-2 text-center">Novo Estoque</th>
                 <th class="py-2 px-2 text-center">Var.</th><th class="py-2 px-2 text-center">Status</th>
               </tr>
@@ -1617,18 +1617,34 @@ window.limparNumeroOCR = function(val, defaultVal = 0) {
   if (!str) return defaultVal;
   if (/^\d+\s*(G|GR|KG|ML|L|UN|PCT|CX)$/i.test(str)) return defaultVal;
   str = str.replace(/[|¦!\[\]]/g, '').replace(/[oO]/g, '0').replace(/[lI]/g, '1').replace(/\s+/g, '');
-  if (/^-?\d{1,3}(\.\d{3})+$/.test(str)) str = str.replace(/\./g, '');
+  // BR: 1.234,56 ou 73,00  |  US: 1,234.56
+  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(str)) str = str.replace(/\./g, '').replace(',', '.');
   else if (str.includes(',') && !str.includes('.')) str = str.replace(',', '.');
+  else if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(str)) str = str.replace(/,/g, '');
   const m = str.match(/-?\d+(\.\d+)?/);
   if (!m) return defaultVal;
   const n = parseFloat(m[0]);
   return isNaN(n) ? defaultVal : Math.round(n);
 };
 
-window.buscarProdutoCorrespondente = function(codExtraido, descExtraida) {
+/** Detecta se um token é EAN/código de barras (8–14 dígitos, tipicamente 13 e começa com 789 no BR) */
+window.ehEAN = function(s) {
+  const d = String(s || '').replace(/\D/g, '');
+  if (d.length < 8 || d.length > 14) return false;
+  // Código reduzido da loja costuma ter 4–6 dígitos; EAN tem 8+
+  if (d.length >= 8) return true;
+  return false;
+};
+
+window.buscarProdutoCorrespondente = function(codExtraido, descExtraida, eanExtraido) {
   const lista = window.appState?.produtos || [];
   const codLimpo = String(codExtraido || '').replace(/[^\d]/g, '').trim();
+  const eanLimpo = String(eanExtraido || '').replace(/[^\d]/g, '').trim();
   const descNorm = window.normalizarTexto(descExtraida);
+  if (eanLimpo && eanLimpo.length >= 8) {
+    const porEan = lista.find(p => String(p.ean || '').replace(/\D/g, '') === eanLimpo);
+    if (porEan) return porEan;
+  }
   if (codLimpo && codLimpo.length >= 4) {
     const porCod = lista.find(p => {
       const pCod = String(p.cod || '').replace(/[^\d]/g, '').trim();
@@ -1648,64 +1664,148 @@ window.normalizarItensExtraidos = function(listaBruta) {
   const itens = []; const vistos = new Set();
   (listaBruta || []).forEach((raw, idx) => {
     if (!raw) return;
-    let cod = raw.cod ?? raw.codigo ?? raw.code ?? raw.id ?? raw.ean ?? '';
+    let cod = raw.cod ?? raw.codigo ?? raw.codigoReduzido ?? raw.code ?? raw.id ?? '';
+    let ean = raw.ean ?? raw.codigoBarra ?? raw.codigoBarras ?? raw.barras ?? raw.gtin ?? raw.upc ?? '';
     let desc = raw.desc ?? raw.descricao ?? raw.produto ?? raw.mercadoria ?? raw.nome ?? '';
-    let est = raw.estoque ?? raw.saldo ?? raw.estoqueAtual ?? raw.qtd;
+    let est = raw.estoque ?? raw.saldo ?? raw.estoqueAtual ?? raw.qtd ?? raw.psm;
     let ven = raw.venda ?? raw.qtdVendida ?? raw.vendas;
     let dde = raw.dde ?? raw.cobertura;
     let ind = raw.industria || raw.marca || raw.fornecedor || '';
+
     cod = String(cod).trim().replace(/^[-–:\s|¦]+|[-–:\s|¦]+$/g, '');
+    ean = String(ean).replace(/\D/g, '').trim();
     desc = String(desc).trim().toUpperCase().replace(/[|¦_~^]/g, ' ').replace(/\s+/g, ' ');
-    const ancora = desc.match(/(?:^|\s)(\d{5,14})\s*[-–:]?\s*([A-Z].+)$/);
-    if (ancora) { if (!cod || cod === '438' || cod.startsWith('S/COD')) cod = ancora[1]; desc = ancora[2].trim(); }
-    if (/^(FILIAL|PRODUTO|DESCRI|QTD\s*VEND|ESTOQUE|TOTAL)/i.test(desc)) return;
-    const existente = window.buscarProdutoCorrespondente(cod, desc);
-    if (existente) { cod = existente.cod; desc = existente.desc; if (!ind) ind = existente.industria; }
-    else { const soDig = cod.replace(/[^\d]/g, ''); if (soDig.length >= 4) cod = soDig; }
+
+    // Se "cod" veio com EAN (13 dígitos) e não há ean separado, separar
+    const codDig = cod.replace(/\D/g, '');
+    if (!ean && codDig.length >= 8 && codDig.length <= 14) {
+      ean = codDig;
+      cod = '';
+    }
+    // Se ean veio no campo errado
+    if (ean && ean.length < 8) ean = '';
+    if (codDig.length >= 4 && codDig.length <= 7) cod = codDig;
+
+    if (/^(FILIAL|PRODUTO|DESCRI|QTD\s*VEND|ESTOQUE|TOTAL|CODIGO|CÓDIGO)/i.test(desc)) return;
+    const existente = window.buscarProdutoCorrespondente(cod, desc, ean);
+    if (existente) {
+      cod = existente.cod;
+      if (!desc) desc = existente.desc;
+      if (!ind) ind = existente.industria;
+      if (!ean && existente.ean) ean = existente.ean;
+    } else {
+      if (codDig.length >= 4 && codDig.length <= 7) cod = codDig;
+      else if (!cod && ean) cod = ean.slice(-6); // fallback temporário
+    }
     if (!cod) cod = `S/COD-${idx + 1}`;
     if (!desc || desc.length < 2) return;
-    const chave = cod.startsWith('S/COD') ? desc : cod;
+    const chave = cod.startsWith('S/COD') ? (ean || desc) : cod;
     if (vistos.has(chave)) return;
     vistos.add(chave);
     itens.push({
-      selecionado: true, cod, desc, industria: (ind || indPadrao).trim(),
-      estoque: window.limparNumeroOCR(est, 0), venda: window.limparNumeroOCR(ven, 0), dde: window.limparNumeroOCR(dde, 0)
+      selecionado: true,
+      cod: String(cod),
+      ean: ean || '',
+      desc,
+      industria: (ind || indPadrao).trim(),
+      estoque: window.limparNumeroOCR(est, 0),
+      venda: window.limparNumeroOCR(ven, 0),
+      dde: window.limparNumeroOCR(dde, 0)
     });
   });
   return itens;
 };
 
+/**
+ * Layout principal Posterus (mais usado):
+ *   CÓD REDUZIDO | EAN (código de barras) | DESCRIÇÃO | ESTOQUE
+ * Ex.: 636401  7898174850322  AZEITONA VDE TIO PACO INT C/CAR VD 100G  73,00
+ */
 window.extrairItensDeTextoBruto = function(texto) {
   const linhas = (texto || '').split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 2);
   const resultado = [];
+
   linhas.forEach(linhaBruta => {
-    let linha = linhaBruta.replace(/[|¦_~]/g, ' ').trim();
-    if (/^(filial|cod|código|produto|descrição|qtd\s*vend|estoque|total)/i.test(linha) && !/\d{5,}/.test(linha)) return;
-    const ancora = linha.match(/(?:^|\s)(\d{5,14})\s*[-–:]?\s*([A-Za-z].*)$/);
+    let linha = linhaBruta.replace(/[|¦_~]/g, ' ').replace(/\t+/g, ' ').replace(/\s+/g, ' ').trim();
+    // Pula cabeçalho
+    if (/^(c[oó]digo|cod\.?|ean|descri|produto|estoque|psm|filial|total|qtd)/i.test(linha) && !/\d{5,}\s+\d{8,}/.test(linha)) return;
+
+    // --- Padrão A (principal): COD(4-7) + EAN(8-14) + DESC + ESTOQUE(opcional)
+    // Ex: 636401 7898174850322 AZEITONA VDE TIO PACO ... 73,00
+    let m = linha.match(/^(\d{4,7})\s+(\d{8,14})\s+(.+?)(?:\s+(-?\d{1,5}(?:[.,]\d{1,3})?)\s*)?$/);
+    if (m) {
+      const cod = m[1];
+      const ean = m[2];
+      let resto = m[3].trim();
+      let estoque = m[4] !== undefined ? window.limparNumeroOCR(m[4], 0) : null;
+      // Se o estoque ficou grudado no final da descrição
+      if (estoque === null) {
+        const me = resto.match(/^(.*?)\s+(-?\d{1,5}(?:[.,]\d{1,3})?)\s*$/);
+        if (me && /[A-Za-z]/.test(me[1])) {
+          resto = me[1].trim();
+          estoque = window.limparNumeroOCR(me[2], 0);
+        } else {
+          estoque = 0;
+        }
+      }
+      if (/[A-Za-z]{2,}/.test(resto)) {
+        resultado.push({ cod, ean, desc: resto, estoque, venda: 0, dde: 0 });
+        return;
+      }
+    }
+
+    // --- Padrão B: só EAN + DESC + ESTOQUE (sem cód reduzido)
+    m = linha.match(/^(\d{8,14})\s+([A-Za-z].+?)(?:\s+(-?\d{1,5}(?:[.,]\d{1,3})?)\s*)?$/);
+    if (m && /[A-Za-z]{2,}/.test(m[2])) {
+      resultado.push({
+        cod: '',
+        ean: m[1],
+        desc: m[2].replace(/\s+(-?\d{1,5}(?:[.,]\d{1,3})?)\s*$/, '').trim(),
+        estoque: window.limparNumeroOCR(m[3] || m[2].match(/(-?\d{1,5}(?:[.,]\d{1,3})?)\s*$/)?.[1], 0),
+        venda: 0, dde: 0
+      });
+      return;
+    }
+
+    // --- Padrão C (legado): COD + DESC + números (venda/estoque/dde)
+    const ancora = linha.match(/(?:^|\s)(\d{4,14})\s*[-–:]?\s*([A-Za-z].*)$/);
     let cod = '', corpo = linha;
     if (ancora) { cod = ancora[1]; corpo = ancora[2].trim(); }
     else {
       const s = linha.match(/^(\d{4,14})\s*[-–:]?\s*(.+)$/);
-      if (s) { cod = s[1]; corpo = s[2].trim(); } else corpo = linha;
+      if (s) { cod = s[1]; corpo = s[2].trim(); }
     }
+    let ean = '';
+    // Se o "cod" for EAN longo, move para ean
+    if (cod && cod.length >= 8) { ean = cod; cod = ''; }
+
+    // EAN no início do corpo
+    const eanNoCorpo = corpo.match(/^(\d{8,14})\s+(.+)$/);
+    if (eanNoCorpo) {
+      ean = ean || eanNoCorpo[1];
+      corpo = eanNoCorpo[2].trim();
+    }
+
     const tokens = corpo.split(/\s+/);
     const nums = [];
     while (tokens.length) {
       let u = tokens[tokens.length - 1];
       if (/^\d+(G|GR|KG|ML|L|UN|PCT)$/i.test(u)) break;
       const limpo = u.replace(/[oO]/g, '0').replace(/[lI]/g, '1');
-      if (/^-?\d{1,4}(?:\.\d{3})*$/.test(limpo)) {
-        nums.unshift(window.limparNumeroOCR(limpo, 0)); tokens.pop();
+      // aceita 73,00 e 1.234
+      if (/^-?\d{1,5}(?:[.,]\d{1,3})?$/.test(limpo) || /^-?\d{1,4}(?:\.\d{3})+$/.test(limpo)) {
+        nums.unshift(window.limparNumeroOCR(limpo, 0));
+        tokens.pop();
         if (nums.length >= 3) break;
       } else break;
     }
     const desc = tokens.join(' ').replace(/[-–:\s]+$/, '').trim();
-    if (!desc || !/[A-Z]{2,}/i.test(desc)) return;
+    if (!desc || !/[A-Za-z]{2,}/.test(desc)) return;
     let venda = 0, estoque = 0, dde = 0;
     if (nums.length === 1) estoque = nums[0];
     else if (nums.length === 2) { venda = nums[0]; estoque = nums[1]; }
     else if (nums.length >= 3) { venda = nums[0]; estoque = nums[1]; dde = nums[2]; }
-    resultado.push({ cod, desc, venda, estoque, dde });
+    resultado.push({ cod, ean, desc, venda, estoque, dde });
   });
   return resultado;
 };
@@ -1717,42 +1817,96 @@ window.extrairDadosDePlanilhaExcel = async function(file) {
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
   const resultado = [];
-  let col = { cod: -1, desc: -1, venda: -1, estoque: -1, dde: -1, industria: -1 };
+  let col = { cod: -1, ean: -1, desc: -1, venda: -1, estoque: -1, dde: -1, industria: -1 };
   let cab = false;
   rows.forEach(row => {
     if (!Array.isArray(row) || !row.length) return;
     const cells = row.map(c => String(c ?? '').trim());
     const joined = window.normalizarTexto(cells.join(' '));
     if (!joined) return;
-    if (!cab && (joined.includes('produto') || joined.includes('descri') || joined.includes('estoque') || joined.includes('qtd vend'))) {
+
+    // Cabeçalho Posterus: CÓDIGO | CÓDIGO BARRA | DESCRICAO | PSM-438 / ESTOQUE
+    if (!cab && (
+      joined.includes('descri') || joined.includes('produto') || joined.includes('estoque') ||
+      joined.includes('codigo barra') || joined.includes('ean') || joined.includes('qtd vend') ||
+      joined.includes('psm')
+    )) {
       cells.forEach((c, i) => {
         const cl = window.normalizarTexto(c);
-        if (cl === 'cod' || cl === 'codigo' || cl === 'ean' || cl === 'item') col.cod = i;
+        // Cód. reduzido (interno)
+        if (
+          cl === 'cod' || cl === 'codigo' || cl === 'codigo reduzido' || cl === 'cod reduzido' ||
+          cl === 'item' || cl === 'sku' || (cl.includes('codigo') && !cl.includes('barra') && !cl.includes('ean'))
+        ) col.cod = i;
+        // EAN / código de barras
+        else if (
+          cl === 'ean' || cl === 'gtin' || cl === 'upc' || cl.includes('barra') ||
+          cl.includes('ean') || cl === 'codigo de barras' || cl === 'cod barras'
+        ) col.ean = i;
         else if (cl.includes('prod') || cl.includes('desc') || cl.includes('mercadoria')) col.desc = i;
-        else if (cl.includes('est') || cl.includes('saldo') || cl.includes('atu')) col.estoque = i;
+        else if (
+          cl.includes('est') || cl.includes('saldo') || cl.includes('atu') ||
+          cl.includes('psm') || cl.startsWith('psm') || /^psm[-\s]?\d+/.test(cl)
+        ) col.estoque = i;
         else if (cl.includes('vend') || cl.includes('saida') || cl.includes('giro')) col.venda = i;
         else if (cl.includes('dde') || cl.includes('cobert')) col.dde = i;
         else if (cl.includes('ind') || cl.includes('marca') || cl.includes('fornec')) col.industria = i;
       });
-      cab = true; return;
+      // Se detectou pelo menos descrição ou código, considera cabeçalho
+      if (col.desc !== -1 || col.cod !== -1 || col.ean !== -1) {
+        cab = true;
+        return;
+      }
     }
-    if (cab && (col.desc !== -1 || col.cod !== -1)) {
+
+    if (cab && (col.desc !== -1 || col.cod !== -1 || col.ean !== -1)) {
       let codVal = col.cod !== -1 ? cells[col.cod] : '';
+      let eanVal = col.ean !== -1 ? cells[col.ean] : '';
       let descVal = col.desc !== -1 ? cells[col.desc] : '';
-      const mj = descVal.match(/^(\d{4,14})\s*[-–:]\s*(.+)$/);
+      // Heurística sem cabeçalho perfeito: 4 colunas COD | EAN | DESC | ESTOQUE
+      if (!cab && cells.length >= 3) {
+        // handled below in fallback
+      }
+      const mj = String(descVal).match(/^(\d{4,14})\s*[-–:]\s*(.+)$/);
       if (mj && !codVal) { codVal = mj[1]; descVal = mj[2]; }
-      if (descVal || codVal) {
+      // Se col.cod pegou um EAN por engano
+      const codDig = String(codVal).replace(/\D/g, '');
+      const eanDig = String(eanVal).replace(/\D/g, '');
+      if (!eanDig && codDig.length >= 8) { eanVal = codDig; codVal = ''; }
+      if (descVal || codVal || eanVal) {
         resultado.push({
-          cod: codVal, desc: descVal,
+          cod: codVal,
+          ean: eanVal,
+          desc: descVal,
           estoque: col.estoque !== -1 ? cells[col.estoque] : '0',
           venda: col.venda !== -1 ? cells[col.venda] : '0',
           dde: col.dde !== -1 ? cells[col.dde] : '0',
           industria: col.industria !== -1 ? cells[col.industria] : ''
         });
       }
-    } else {
+      return;
+    }
+
+    // Fallback: linha no layout Posterus sem mapear cabeçalho
+    // COD | EAN | DESC | ESTOQUE
+    if (cells.length >= 3) {
       const extra = window.extrairItensDeTextoBruto(cells.join('\t'));
-      if (extra.length) resultado.push(...extra);
+      if (extra.length) {
+        extra.forEach(e => resultado.push(e));
+        return;
+      }
+      // 4 colunas numéricas típicas
+      const c0 = String(cells[0] || '').replace(/\D/g, '');
+      const c1 = String(cells[1] || '').replace(/\D/g, '');
+      if (c0.length >= 4 && c0.length <= 7 && c1.length >= 8) {
+        resultado.push({
+          cod: c0,
+          ean: c1,
+          desc: cells[2] || '',
+          estoque: cells[3] !== undefined ? cells[3] : '0',
+          venda: '0', dde: '0', industria: ''
+        });
+      }
     }
   });
   return resultado;
@@ -1828,7 +1982,7 @@ window.enviarParaLeitorGemini = async function(base64, mime) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
   const payload = {
     contents: [{ role: 'user', parts: [
-      { text: 'Extraia produtos de estoque desta tabela em JSON array com campos: cod, desc, industria, venda, estoque, dde. Ignore totais e coluna filial.' },
+      { text: 'Extraia produtos de estoque desta tabela em JSON array. Layout comum: codigo_reduzido, ean (codigo de barras), descricao, estoque. Campos: cod (codigo interno/reduzido 4-7 digitos), ean (codigo de barras 8-14 digitos), desc, industria, venda, estoque, dde. Numeros no formato brasileiro (73,00 = 73). Ignore totais e cabecalhos.' },
       { inlineData: { mimeType: mime, data: base64 } }
     ]}],
     generationConfig: { responseMimeType: 'application/json' }
@@ -1931,7 +2085,8 @@ window.renderizarPreviewItensIA = function() {
     tr.className = item.selecionado ? 'bg-white' : 'bg-slate-100 opacity-60';
     tr.innerHTML = `
       <td class="py-1.5 px-2 text-center"><input type="checkbox" ${item.selecionado ? 'checked' : ''} onchange="window.alternarItemPreviewIA(${idx}, this.checked)" class="w-4 h-4 rounded text-violet-600"></td>
-      <td class="py-1.5 px-1"><input type="text" value="${item.cod || ''}" oninput="window.editarCampoPreviewIA(${idx},'cod',this.value)" class="w-full font-mono font-bold text-xs border rounded px-1 py-1"></td>
+      <td class="py-1.5 px-1"><input type="text" value="${item.cod || ''}" oninput="window.editarCampoPreviewIA(${idx},'cod',this.value)" class="w-full font-mono font-bold text-xs border rounded px-1 py-1" title="Cód. reduzido"></td>
+      <td class="py-1.5 px-1"><input type="text" value="${item.ean || ''}" oninput="window.editarCampoPreviewIA(${idx},'ean',this.value)" class="w-full font-mono text-[10px] border rounded px-1 py-1 text-slate-600" title="EAN" placeholder="EAN"></td>
       <td class="py-1.5 px-1"><input type="text" value="${item.desc || ''}" oninput="window.editarCampoPreviewIA(${idx},'desc',this.value)" class="w-full text-xs uppercase border rounded px-1 py-1"></td>
       <td class="py-1.5 px-1"><input list="listaIndustriasExistentes" type="text" value="${item.industria || ''}" oninput="window.editarCampoPreviewIA(${idx},'industria',this.value)" class="w-full text-xs border rounded px-1 py-1"></td>
       <td class="py-1.5 px-1 text-center font-mono bg-slate-50">${estAnt !== null ? estAnt : '<span class="text-slate-400 text-[10px]">Novo</span>'}</td>
@@ -1993,7 +2148,9 @@ window.aplicarDadosImportadosIA = async function() {
     const existente = window.buscarProdutoCorrespondente(cod, desc);
     if (existente) {
       await window.salvarProdutoNoBanco({
-        ...existente, desc: desc || existente.desc,
+        ...existente,
+        desc: desc || existente.desc,
+        ean: (item.ean && String(item.ean).replace(/\D/g,'').length >= 8) ? String(item.ean).replace(/\D/g,'') : (existente.ean || ''),
         estoque: item.estoque !== undefined ? Number(item.estoque) : existente.estoque,
         venda: (item.venda !== undefined && item.venda !== 0) ? Number(item.venda) : existente.venda,
         dde: (item.dde !== undefined && item.dde !== 0) ? Number(item.dde) : existente.dde,
@@ -2002,7 +2159,8 @@ window.aplicarDadosImportadosIA = async function() {
       atualizados++;
     } else if (modo !== 'apenas_ajuste') {
       await window.salvarProdutoNoBanco({
-        cod, desc, industria: (item.industria || 'Puro Tempero').trim(),
+        cod, ean: String(item.ean || '').replace(/\D/g,''), desc,
+        industria: (item.industria || 'Puro Tempero').trim(),
         venda: Number(item.venda) || 0, estoque: Number(item.estoque) || 0, dde: Number(item.dde) || 0,
         validade: '', presenca: 'pendente', contagemFisica: '', obs: ''
       });
