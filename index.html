@@ -12,6 +12,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <!-- PDF.js para renderizar e extrair páginas de arquivos PDF importados -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <!-- SheetJS (xlsx) para leitura direta de arquivos Excel (.xlsx, .xls, .csv) sem depender de API -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- Tesseract.js para OCR Local de imagens (Fallback automático contra erro HTTP 403) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   
   <script>
     // Inicialização segura do worker do PDF.js
@@ -48,6 +52,12 @@
         indPadraoInp.value = window.appState.industriaAtiva;
       } else if (indPadraoInp && !indPadraoInp.value) {
         indPadraoInp.value = 'Puro Tempero';
+      }
+
+      // Carrega chave Gemini salva localmente, se o usuário tiver configurado
+      const inpKey = document.getElementById('inputChaveGeminiOpcional');
+      if (inpKey && typeof window.safeStorageGet === 'function') {
+        inpKey.value = window.safeStorageGet('gemini_custom_api_key') || '';
       }
     };
 
@@ -799,14 +809,14 @@
 
         <!-- Opções de Entrada: Upload de Arquivo OU Colar Texto -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <!-- Dropzone de Imagem / PDF -->
+          <!-- Dropzone de Imagem / PDF / Excel -->
           <div id="dropZone" onclick="document.getElementById('inputArquivoUpload').click()" class="border-2 border-dashed border-violet-300 hover:border-violet-500 bg-violet-50/30 rounded-2xl p-4 text-center cursor-pointer transition flex flex-col items-center justify-center min-h-[120px]">
-            <input type="file" id="inputArquivoUpload" accept="image/*,application/pdf" class="hidden" onchange="processarArquivoSelecionado(event)">
+            <input type="file" id="inputArquivoUpload" accept="image/*,application/pdf,.xlsx,.xls,.csv" class="hidden" onchange="processarArquivoSelecionado(event)">
             <div class="w-10 h-10 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center mb-1.5">
               <i class="ph-bold ph-cloud-arrow-up text-xl"></i>
             </div>
-            <p class="text-xs font-bold text-slate-800">1. Enviar Foto de Tabela ou PDF</p>
-            <p class="text-[11px] text-slate-500 mt-0.5">Aceita tabelas parciais (ex: só Código + Descrição + Estoque)</p>
+            <p class="text-xs font-bold text-slate-800">1. Enviar Foto, PDF ou Planilha Excel (.xlsx/.csv)</p>
+            <p class="text-[11px] text-slate-500 mt-0.5">Leitura Híbrida (IA + OCR Local anti-erro 403). Aceita qualquer coluna!</p>
           </div>
 
           <!-- Entrada rápida por Texto Colado / Linhas -->
@@ -822,6 +832,18 @@
             <textarea id="inputTextoColadoImportacao" rows="3" placeholder="Cole aqui linhas copiadas de planilha, PDF ou digite:&#10;458271 ESP BICARBONATO 40G 644&#10;458272 CANELA EM CASCA 15G 82" class="w-full border border-slate-300 rounded-lg p-2 text-[11px] font-mono bg-white focus:outline-none focus:ring-2 focus:ring-violet-500"></textarea>
           </div>
         </div>
+
+        <!-- Configuração opcional de Chave API Gemini para sites publicados externamente -->
+        <details class="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-[11px] text-slate-600">
+          <summary class="cursor-pointer font-bold text-slate-700 flex items-center justify-between">
+            <span class="flex items-center gap-1.5"><i class="ph-bold ph-key text-violet-600"></i> Opcional: Configurar Chave Gemini API Própria (Evita erro 403 em hospedagem externa)</span>
+            <span class="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">OCR Local Ativo Automaticamente</span>
+          </summary>
+          <div class="mt-2 pt-2 border-t border-slate-200 flex flex-col sm:flex-row items-center gap-2">
+            <input type="password" id="inputChaveGeminiOpcional" oninput="window.salvarChaveGeminiLocal(this.value)" placeholder="Cole sua API Key do Google AI Studio (AIzaSy...) se desejar usar IA na nuvem" class="flex-1 w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono bg-white focus:outline-none focus:ring-2 focus:ring-violet-500">
+            <span class="text-[10px] text-slate-500">Se deixado em branco, o sistema usa o leitor OCR Local integrado automaticamente quando publicado.</span>
+          </div>
+        </details>
 
         <!-- Barra de Progresso e Status -->
         <div id="statusProcessamentoIA" class="hidden p-3.5 rounded-xl bg-violet-50 border border-violet-200 space-y-2">
@@ -2392,6 +2414,91 @@
       }).filter(item => item.desc && item.desc !== '');
     };
 
+    window.salvarChaveGeminiLocal = function(val) {
+      window.safeStorageSet('gemini_custom_api_key', (val || '').trim());
+    };
+
+    // Leitura direta de arquivos Excel (.xlsx, .xls, .csv) sem usar API externa
+    window.extrairDadosDePlanilhaExcel = async function(file) {
+      if (!window.XLSX) throw new Error("Biblioteca Excel não carregada.");
+      const data = await file.arrayBuffer();
+      const workbook = window.XLSX.read(data, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rows = window.XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+      const resultado = [];
+      let colMap = { cod: -1, desc: -1, estoque: -1, venda: -1, dde: -1, industria: -1 };
+
+      rows.forEach((row, rIdx) => {
+        if (!Array.isArray(row) || row.length === 0) return;
+        const cells = row.map(c => String(c ?? '').trim());
+        const joined = cells.join(' ').toLowerCase();
+        if (!joined.trim()) return;
+
+        // Detecta linha de cabeçalho se existir
+        if (rIdx <= 5 && (joined.includes('produto') || joined.includes('descri') || joined.includes('estoque') || joined.includes('cod'))) {
+          cells.forEach((c, cIdx) => {
+            const cl = window.normalizarTexto(c);
+            if (cl.includes('cod') || cl === 'id' || cl === 'ean') colMap.cod = cIdx;
+            else if (cl.includes('prod') || cl.includes('desc') || cl.includes('mercadoria')) colMap.desc = cIdx;
+            else if (cl.includes('est') || cl.includes('saldo') || cl.includes('atu')) colMap.estoque = cIdx;
+            else if (cl.includes('vend')) colMap.venda = cIdx;
+            else if (cl.includes('dde') || cl.includes('cobert')) colMap.dde = cIdx;
+            else if (cl.includes('ind') || cl.includes('marca') || cl.includes('fornec')) colMap.industria = cIdx;
+          });
+          return;
+        }
+
+        // Se mapeou colunas pelo cabeçalho
+        if (colMap.desc !== -1 || colMap.cod !== -1) {
+          let codVal = colMap.cod !== -1 ? cells[colMap.cod] : '';
+          let descVal = colMap.desc !== -1 ? cells[colMap.desc] : '';
+          let estVal = colMap.estoque !== -1 ? cells[colMap.estoque] : '0';
+          let venVal = colMap.venda !== -1 ? cells[colMap.venda] : '0';
+          let ddeVal = colMap.dde !== -1 ? cells[colMap.dde] : '0';
+          let indVal = colMap.industria !== -1 ? cells[colMap.industria] : '';
+
+          // Se código e descrição estão juntos na coluna Produto (ex: "458271 - ESP BICARBONATO")
+          const matchJunto = descVal.match(/^(\d{3,14})\s*[-–:]\s*(.+)$/);
+          if (matchJunto && !codVal) {
+            codVal = matchJunto[1];
+            descVal = matchJunto[2];
+          }
+          if (descVal || codVal) {
+            resultado.push({ cod: codVal, desc: descVal, estoque: estVal, venda: venVal, dde: ddeVal, industria: indVal });
+          }
+        } else {
+          // Sem cabeçalho padrão: usa o extrator inteligente por linha
+          const extraidoLinha = window.extrairItensDeTextoBruto(cells.join('\t'));
+          if (extraidoLinha.length) resultado.push(...extraidoLinha);
+        }
+      });
+
+      return resultado;
+    };
+
+    // OCR Local usando Tesseract.js para ler fotos de tabelas quando a API Gemini der 403
+    window.executarOCRLocalImagem = async function(base64Data, mimeType, textoStatusEl) {
+      if (!window.Tesseract) {
+        throw new Error("Leitor OCR Local indisponível.");
+      }
+      if (textoStatusEl) {
+        textoStatusEl.innerText = 'Lendo imagem pelo OCR Local Integrado (aguarde alguns segundos)...';
+      }
+      const dataUrl = `data:${mimeType};base64,${base64Data}`;
+      const result = await window.Tesseract.recognize(dataUrl, 'por+eng', {
+        logger: m => {
+          if (m.status === 'recognizing text' && textoStatusEl) {
+            const pct = Math.round((m.progress || 0) * 100);
+            textoStatusEl.innerText = `Extraindo texto da imagem localmente (${pct}%)...`;
+          }
+        }
+      });
+      const textoExtraido = result?.data?.text || '';
+      return window.extrairItensDeTextoBruto(textoExtraido);
+    };
+
     window.processarArquivo = async function(file) {
       const statusBox = document.getElementById('statusProcessamentoIA');
       const textoStatus = document.getElementById('textoStatusIA');
@@ -2402,59 +2509,78 @@
       if (btnConf) btnConf.disabled = true;
 
       try {
+        const nomeArq = (file.name || '').toLowerCase();
+
+        // 1. Se for planilha Excel ou CSV (.xlsx, .xls, .csv) -> leitura direta instantânea sem erro 403
+        if (nomeArq.endsWith('.xlsx') || nomeArq.endsWith('.xls') || nomeArq.endsWith('.csv') || file.type.includes('spreadsheet') || file.type.includes('csv')) {
+          if (textoStatus) textoStatus.innerText = 'Lendo planilha Excel/CSV diretamente...';
+          const itensPlanilha = await window.extrairDadosDePlanilhaExcel(file);
+          const normalizados = window.normalizarItensExtraidos(itensPlanilha);
+          if (!normalizados.length) throw new Error('Nenhuma linha de produto encontrada na planilha.');
+          window.appState.itensIAExtraidos = normalizados;
+          window.renderizarPreviewItensIA();
+          if (statusBox) statusBox.classList.add('hidden');
+          window.mostrarToast("Planilha Carregada!", `${normalizados.length} produtos identificados.`);
+          return;
+        }
+
         let base64Data = '';
         let mimeType = file.type || 'image/jpeg';
         let textoNativoPDF = '';
 
-        if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-          if (textoStatus) textoStatus.innerText = 'Lendo páginas e texto do arquivo PDF...';
+        if (file.type === 'application/pdf' || nomeArq.endsWith('.pdf')) {
+          if (textoStatus) textoStatus.innerText = 'Extraindo dados do arquivo PDF...';
           const pdfResult = await window.converterPdfParaImagemETexto(file);
           base64Data = pdfResult.base64;
           mimeType = 'image/jpeg';
           textoNativoPDF = pdfResult.textoExtraido || '';
-        } else if (file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|bmp)$/i.test(file.name)) {
-          if (textoStatus) textoStatus.innerText = 'Otimizando imagem para leitura inteligente de colunas...';
+        } else if (file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|bmp)$/i.test(nomeArq)) {
+          if (textoStatus) textoStatus.innerText = 'Otimizando imagem para leitura de colunas...';
           const otimizada = await window.otimizarImagemParaBase64(file);
           base64Data = otimizada.base64;
           mimeType = otimizada.mimeType;
         } else {
-          throw new Error('Formato não reconhecido. Envie uma imagem (JPG, PNG) ou arquivo PDF.');
+          throw new Error('Formato não suportado. Envie Imagem (JPG/PNG), PDF ou Excel (.xlsx/.csv).');
         }
 
-        if (textoStatus) textoStatus.innerText = 'Analisando tabela (aceitando qualquer combinação de colunas)...';
         let itensExtraidos = [];
 
-        try {
-          itensExtraidos = await window.enviarParaLeitorGemini(base64Data, mimeType);
-        } catch (iaError) {
-          console.warn("Aviso na chamada IA, verificando extração alternativa:", iaError);
-          if (textoNativoPDF) {
-            itensExtraidos = window.extrairItensDeTextoBruto(textoNativoPDF);
-          } else {
-            throw iaError;
+        // Se for PDF e já possuir texto nativo estruturado, extrai imediatamente
+        if (textoNativoPDF && textoNativoPDF.trim().length > 15) {
+          itensExtraidos = window.extrairItensDeTextoBruto(textoNativoPDF);
+        }
+
+        // Tenta via IA Gemini se ainda não tiver extraído tudo, e se der HTTP 403 cai automaticamente para o OCR Local!
+        if (!itensExtraidos || itensExtraidos.length === 0) {
+          if (textoStatus) textoStatus.innerText = 'Analisando tabela da imagem...';
+          try {
+            itensExtraidos = await window.enviarParaLeitorGemini(base64Data, mimeType);
+          } catch (iaError) {
+            console.warn("API Gemini indisponível ou Status 403, acionando OCR Local automático:", iaError);
+            itensExtraidos = await window.executarOCRLocalImagem(base64Data, mimeType, textoStatus);
           }
         }
 
-        // Se a IA retornou vazio mas o PDF tinha texto selecionável, usa o parser local
-        if ((!itensExtraidos || itensExtraidos.length === 0) && textoNativoPDF) {
-          itensExtraidos = window.extrairItensDeTextoBruto(textoNativoPDF);
+        // Caso mesmo assim precise do OCR local
+        if (!itensExtraidos || itensExtraidos.length === 0) {
+          itensExtraidos = await window.executarOCRLocalImagem(base64Data, mimeType, textoStatus);
         }
 
         const itensNormalizados = window.normalizarItensExtraidos(itensExtraidos);
 
         if (!itensNormalizados || itensNormalizados.length === 0) {
-          throw new Error('Não conseguimos identificar linhas de produtos. Você também pode colar os dados na caixa de texto ao lado.');
+          throw new Error('Não conseguimos ler as linhas automaticamente. Cole os dados na caixa de texto ao lado ou adicione manualmente.');
         }
 
         window.appState.itensIAExtraidos = itensNormalizados;
         window.renderizarPreviewItensIA();
         if (statusBox) statusBox.classList.add('hidden');
-        window.mostrarToast("Análise Concluída!", `${itensNormalizados.length} itens identificados. Revise e escolha quais vão subir.`);
+        window.mostrarToast("Leitura Concluída!", `${itensNormalizados.length} itens identificados. Revise os saldos antes de confirmar.`);
 
       } catch (err) {
         console.error("Erro no processamento:", err);
         if (statusBox) statusBox.classList.add('hidden');
-        window.mostrarToast("Atenção na Leitura", err.message || "Não foi possível ler automaticamente. Tente colar o texto ou adicionar linha manual.", "error");
+        window.mostrarToast("Aviso na Leitura", err.message || "Tente colar o texto na caixa ao lado.", "error");
       }
     };
 
@@ -2475,11 +2601,23 @@
       await page.render({ canvasContext: context, viewport: viewport }).promise;
       const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
 
-      // Tenta extrair também o texto nativo do PDF como segurança
+      // Extrai o texto nativo do PDF preservando quebras de linha por coordenada Y
       let textoExtraido = '';
       try {
         const textContent = await page.getTextContent();
-        textoExtraido = textContent.items.map(i => i.str).join(' ');
+        let lastY = null;
+        const linhasMap = [];
+        textContent.items.forEach(item => {
+          const y = Math.round(item.transform[5]);
+          if (lastY !== null && Math.abs(y - lastY) > 4) {
+            linhasMap.push('\n');
+          } else if (lastY !== null) {
+            linhasMap.push('\t');
+          }
+          linhasMap.push(item.str);
+          lastY = y;
+        });
+        textoExtraido = linhasMap.join('');
       } catch (e) {}
 
       return {
@@ -2488,7 +2626,7 @@
       };
     };
 
-    // Analisador de texto colado ou extraído de PDF (aceita Código + Descrição + Estoque em qualquer formato)
+    // Analisador de texto colado ou extraído de PDF/OCR (aceita Código + Descrição + Estoque em qualquer formato)
     window.analisarTextoColadoManual = function() {
       const txtEl = document.getElementById('inputTextoColadoImportacao');
       const texto = txtEl ? txtEl.value.trim() : '';
@@ -2511,27 +2649,33 @@
     };
 
     window.extrairItensDeTextoBruto = function(texto) {
-      const linhas = texto.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 2);
+      const linhas = (texto || '').split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 2);
       const resultado = [];
 
-      linhas.forEach((linha, index) => {
+      linhas.forEach((linhaLimpa, index) => {
+        // Remove pipes "|" comuns em leituras de OCR de tabelas com bordas
+        const linha = linhaLimpa.replace(/[|¦]/g, '\t').replace(/\s{3,}/g, '\t').trim();
+
         // Ignora cabeçalhos óbvios
-        if (/^(filial|cod|código|produto|descrição|qtd|estoque)/i.test(linha) && !/\d{3,}/.test(linha)) {
+        if (/^(filial|cod|código|produto|descrição|qtd|estoque|total)/i.test(linha) && !/\d{4,}/.test(linha)) {
           return;
         }
 
-        // Caso 1: Separado por TAB (copiado do Excel) ou Ponto-e-vírgula
-        if (linha.includes('\t') || linha.split(';').length >= 2) {
-          const partes = (linha.includes('\t') ? linha.split('\t') : linha.split(';')).map(s => s.trim()).filter(Boolean);
+        // Remove prefixo de filial caso a linha comece com "438 - POSTERUS SUPERMERCADOS LTDA. GRAJAU"
+        let linhaSemFilial = linha.replace(/^\d{2,4}\s*[-–]\s*POSTERUS\s+SUPERMERCADOS[A-Z\s.]*\t?/i, '').trim();
+        if (!linhaSemFilial) return;
+
+        // Caso 1: Separado por TAB ou Ponto-e-vírgula
+        if (linhaSemFilial.includes('\t') || linhaSemFilial.split(';').length >= 2) {
+          const partes = (linhaSemFilial.includes('\t') ? linhaSemFilial.split('\t') : linhaSemFilial.split(';')).map(s => s.trim()).filter(Boolean);
           if (partes.length >= 2) {
-            // Procura se alguma coluna tem formato "458271 - DESCRICAO"
             let cod = '';
             let desc = '';
             let numerosFinais = [];
 
             partes.forEach(p => {
-              const m = p.match(/^(\d{3,14})\s*[-–]\s*(.+)$/);
-              if (m && !cod) {
+              const m = p.match(/^(\d{3,14})\s*[-–:]?\s*(.+)$/);
+              if (m && !cod && /[A-Z]{2,}/i.test(m[2])) {
                 cod = m[1];
                 desc = m[2];
               } else if (/^\d{3,14}$/.test(p) && !cod && !desc) {
@@ -2539,46 +2683,65 @@
               } else if (/^-?\d+([.,]\d+)?$/.test(p)) {
                 numerosFinais.push(p);
               } else if (!desc || p.length > desc.length) {
-                if (!/^\d+\s*-\s*POSTERUS/i.test(p)) {
+                if (!/POSTERUS/i.test(p)) {
                   desc = p;
                 }
               }
             });
 
-            resultado.push({
-              cod: cod || `ITEM-${index + 1}`,
-              desc: desc || partes.join(' '),
-              estoque: numerosFinais.length === 1 ? numerosFinais[0] : (numerosFinais.length >= 2 ? numerosFinais[1] : 0),
-              venda: numerosFinais.length >= 2 ? numerosFinais[0] : 0,
-              dde: numerosFinais.length >= 3 ? numerosFinais[2] : 0
-            });
-            return;
+            if (desc || cod) {
+              resultado.push({
+                cod: cod || `ITEM-${index + 1}`,
+                desc: desc || partes.join(' '),
+                estoque: numerosFinais.length === 1 ? numerosFinais[0] : (numerosFinais.length >= 2 ? numerosFinais[1] : 0),
+                venda: numerosFinais.length >= 2 ? numerosFinais[0] : 0,
+                dde: numerosFinais.length >= 3 ? numerosFinais[2] : 0
+              });
+              return;
+            }
           }
         }
 
-        // Caso 2: Linha livre (Ex: "458271 ESP BICARBONATO 40G 644" ou "ESP BICARBONATO 644")
-        let resto = linha;
+        // Caso 2: Linha livre de OCR ou texto corrido (Ex: "458271 - ESP BICARBONATO 40G 71 644 272" ou "458271 ESP BICARBONATO 644")
+        let resto = linhaSemFilial;
         let cod = '';
-        let estoque = 0;
 
-        // Extrai código no começo se houver
-        const matchCod = resto.match(/^(\d{2,14})\s*[-–:]?\s+(.+)$/);
+        // Procura código de 3 a 14 dígitos no início da linha
+        const matchCod = resto.match(/^(\d{3,14})\s*[-–:]?\s+(.+)$/);
         if (matchCod) {
           cod = matchCod[1];
           resto = matchCod[2].trim();
         }
 
-        // Extrai estoque no final da linha se houver número no fim
-        const matchEstFim = resto.match(/^(.+?)\s+(-?\d+(?:[.,]\d{3})?)$/);
-        if (matchEstFim) {
-          resto = matchEstFim[1].trim();
-          estoque = matchEstFim[2];
+        // Extrai até 3 números soltos no final da linha (Ex: Venda Estoque DDE ou apenas Estoque)
+        const tokens = resto.split(/\s+/);
+        const numsFinais = [];
+        while (tokens.length > 1 && /^-?\d+(?:[.,]\d{3})?$/.test(tokens[tokens.length - 1])) {
+          numsFinais.unshift(tokens.pop());
+          if (numsFinais.length === 3) break;
+        }
+
+        const descFinal = tokens.join(' ').trim();
+        if (!descFinal && !cod) return;
+
+        let venda = 0, estoque = 0, dde = 0;
+        if (numsFinais.length === 1) {
+          estoque = numsFinais[0];
+        } else if (numsFinais.length === 2) {
+          venda = numsFinais[0];
+          estoque = numsFinais[1];
+        } else if (numsFinais.length >= 3) {
+          venda = numsFinais[0];
+          estoque = numsFinais[1];
+          dde = numsFinais[2];
         }
 
         resultado.push({
           cod: cod,
-          desc: resto,
-          estoque: estoque
+          desc: descFinal || resto,
+          estoque: estoque,
+          venda: venda,
+          dde: dde
         });
       });
 
@@ -2610,7 +2773,8 @@
     };
 
     window.enviarParaLeitorGemini = async function(base64Data, mimeType) {
-      const apiKey = "";
+      const customKey = (document.getElementById('inputChaveGeminiOpcional')?.value || window.safeStorageGet('gemini_custom_api_key') || '').trim();
+      const apiKey = customKey || "";
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
 
       const systemPrompt = `Você é um extrator flexível de tabelas e listas de produtos/estoque de supermercado.
@@ -2644,28 +2808,22 @@ REGRAS OBRIGATÓRIAS:
         }
       };
 
-      let delay = 1000;
-      for (let i = 0; i < 3; i++) {
-        try {
-          const resp = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          if (!resp.ok) throw new Error(`Status HTTP ${resp.status}`);
-          const result = await resp.json();
-          let jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (jsonText) {
-            // Limpa eventuais blocos markdown ```json ... ```
-            jsonText = jsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
-            const parsed = JSON.parse(jsonText);
-            return Array.isArray(parsed) ? parsed : (parsed.itens || parsed.items || parsed.produtos || []);
-          }
-        } catch (e) {
-          if (i === 2) throw e;
-          await new Promise(r => setTimeout(r, delay));
-          delay *= 2;
-        }
+      const resp = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!resp.ok) {
+        throw new Error(`Status HTTP ${resp.status}`);
+      }
+
+      const result = await resp.json();
+      let jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (jsonText) {
+        jsonText = jsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(jsonText);
+        return Array.isArray(parsed) ? parsed : (parsed.itens || parsed.items || parsed.produtos || []);
       }
       return [];
     };
