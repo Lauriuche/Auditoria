@@ -362,7 +362,7 @@
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div id="dropZone" onclick="document.getElementById('inputArquivoUpload').click()" class="border-2 border-dashed border-violet-300 hover:border-violet-500 bg-violet-50/30 rounded-2xl p-4 text-center cursor-pointer min-h-[120px] flex flex-col items-center justify-center">
-          <input type="file" id="inputArquivoUpload" accept="image/*,application/pdf,.xlsx,.xls,.csv" class="hidden" onchange="processarArquivoSelecionado(event)">
+          <input type="file" id="inputArquivoUpload" accept="image/*,application/pdf,.xlsx,.xls,.csv" class="hidden" onchange="window.processarArquivoSelecionado?.(event)">
           <div class="w-10 h-10 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center mb-1.5"><i class="ph-bold ph-cloud-arrow-up text-xl"></i></div>
           <p class="text-xs font-bold">1. Enviar Foto, PDF ou Excel</p>
         </div>
@@ -402,7 +402,7 @@
     </div>
     <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-between">
       <button type="button" onclick="fecharModalUpload()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-lg">Cancelar</button>
-      <button type="button" id="btnConfirmarImportacaoIA" disabled onclick="aplicarDadosImportadosIA()" class="px-5 py-2.5 text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-50 rounded-lg flex items-center gap-1.5"><i class="ph-bold ph-cloud-arrow-up"></i> Confirmar & Subir</button>
+      <button type="button" id="btnConfirmarImportacaoIA" disabled onclick="window.aplicarDadosImportadosIA()" class="px-5 py-2.5 text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-50 rounded-lg flex items-center gap-1.5"><i class="ph-bold ph-cloud-arrow-up"></i> Confirmar & Subir</button>
     </div>
   </div>
 </div>
@@ -2061,13 +2061,24 @@ window.enviarParaLeitorGemini = async function(base64, mime) {
     ]}],
     generationConfig: { responseMimeType: 'application/json' }
   };
-  const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  const result = await resp.json();
-  let txt = result?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  txt = txt.replace(/```json/gi, '').replace(/```/g, '').trim();
-  const parsed = JSON.parse(txt);
-  return Array.isArray(parsed) ? parsed : (parsed.itens || parsed.items || parsed.produtos || []);
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 18000);
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const result = await resp.json();
+    let txt = result?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    txt = txt.replace(/```json/gi, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(txt);
+    return Array.isArray(parsed) ? parsed : (parsed.itens || parsed.items || parsed.produtos || []);
+  } finally {
+    clearTimeout(timer);
+  }
 };
 
 window.processarArquivo = async function(file) {
@@ -2079,45 +2090,81 @@ window.processarArquivo = async function(file) {
   if (resCont) resCont.classList.add('hidden');
   if (btnConf) btnConf.disabled = true;
   try {
+    if (!file) throw new Error('Nenhum arquivo selecionado.');
     const nome = (file.name || '').toLowerCase();
-    if (nome.endsWith('.xlsx') || nome.endsWith('.xls') || nome.endsWith('.csv') || file.type.includes('spreadsheet') || file.type.includes('csv')) {
+
+    // Excel / CSV — caminho rápido
+    if (nome.endsWith('.xlsx') || nome.endsWith('.xls') || nome.endsWith('.csv') || (file.type || '').includes('spreadsheet') || (file.type || '').includes('csv')) {
       if (textoStatus) textoStatus.innerText = 'Lendo planilha Excel/CSV...';
       const itens = await window.extrairDadosDePlanilhaExcel(file);
       const norm = window.normalizarItensExtraidos(itens);
       if (!norm.length) throw new Error('Nenhuma linha de produto na planilha.');
       window.appState.itensIAExtraidos = norm;
       window.renderizarPreviewItensIA();
-      if (statusBox) statusBox.classList.add('hidden');
-      window.mostrarToast('Planilha OK', `${norm.length} produtos mapeados.`);
+      window.mostrarToast('Planilha OK', norm.length + ' produtos mapeados.');
       return;
     }
+
     let base64 = '', mime = file.type || 'image/jpeg', textoPDF = '';
     if (file.type === 'application/pdf' || nome.endsWith('.pdf')) {
       if (textoStatus) textoStatus.innerText = 'Renderizando PDF...';
       const r = await window.converterPdfParaImagemETexto(file);
       base64 = r.base64; mime = 'image/jpeg'; textoPDF = r.textoExtraido || '';
-    } else if (file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|bmp)$/i.test(nome)) {
+    } else if ((file.type || '').startsWith('image/') || /\.(jpg|jpeg|png|webp|bmp)$/i.test(nome)) {
       if (textoStatus) textoStatus.innerText = 'Preparando imagem...';
       const o = await window.otimizarImagemParaBase64(file);
       base64 = o.base64; mime = o.mimeType;
-    } else throw new Error('Formato não suportado. Use JPG, PNG, PDF ou Excel.');
+    } else {
+      throw new Error('Formato não suportado. Use JPG, PNG, PDF ou Excel.');
+    }
+
     let extraidos = [];
-    if (textoStatus) textoStatus.innerText = 'Tentando IA Gemini...';
-    try { extraidos = await window.enviarParaLeitorGemini(base64, mime); } catch (e) { console.warn('Gemini:', e.message); }
-    if ((!extraidos || !extraidos.length) && textoPDF.trim().length > 10) extraidos = window.extrairItensDeTextoBruto(textoPDF);
-    if (!extraidos || !extraidos.length) extraidos = await window.executarOCRLocalImagem(base64, mime, textoStatus);
-    const norm = window.normalizarItensExtraidos(extraidos);
-    if (!norm.length) throw new Error('Não foi possível ler os produtos. Tente colar o texto ou usar Excel.');
+
+    // 1) Texto embutido no PDF (rápido)
+    if (textoPDF && textoPDF.trim().length > 10) {
+      if (textoStatus) textoStatus.innerText = 'Lendo texto do PDF...';
+      extraidos = window.extrairItensDeTextoBruto(textoPDF);
+    }
+
+    // 2) Gemini com timeout (já tem 18s)
+    if (!extraidos || !extraidos.length) {
+      if (textoStatus) textoStatus.innerText = 'Tentando IA Gemini (máx. 18s)...';
+      try {
+        extraidos = await window.enviarParaLeitorGemini(base64, mime);
+      } catch (e) {
+        console.warn('Gemini:', e.name || e.message);
+        if (textoStatus) textoStatus.innerText = 'Gemini indisponível, tentando OCR local...';
+      }
+    }
+
+    // 3) OCR local com timeout 40s
+    if (!extraidos || !extraidos.length) {
+      if (textoStatus) textoStatus.innerText = 'OCR local (pode levar alguns segundos)...';
+      try {
+        extraidos = await Promise.race([
+          window.executarOCRLocalImagem(base64, mime, textoStatus),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('OCR demorou demais')), 40000))
+        ]);
+      } catch (e) {
+        console.warn('OCR:', e.message);
+      }
+    }
+
+    const norm = window.normalizarItensExtraidos(extraidos || []);
+    if (!norm.length) {
+      throw new Error('Não foi possível ler os produtos. Cole o texto na caixa ou use Excel.');
+    }
     window.appState.itensIAExtraidos = norm;
     window.renderizarPreviewItensIA();
-    if (statusBox) statusBox.classList.add('hidden');
-    window.mostrarToast('Leitura OK', `${norm.length} itens reconhecidos.`);
+    window.mostrarToast('Leitura OK', norm.length + ' itens reconhecidos.');
   } catch (err) {
     console.error(err);
-    if (statusBox) statusBox.classList.add('hidden');
     window.mostrarToast('Erro na leitura', err.message || 'Tente colar o texto.', 'error');
+  } finally {
+    if (statusBox) statusBox.classList.add('hidden');
   }
 };
+
 
 window.analisarTextoColadoManual = function() {
   const txt = document.getElementById('inputTextoColadoImportacao')?.value.trim() || '';
@@ -2212,40 +2259,137 @@ window.aplicarDadosImportadosIA = async function() {
   const todos = window.appState?.itensIAExtraidos || [];
   const modo = document.getElementById('modoOperacaoUpload')?.value || 'completo';
   const selecionados = todos.filter(i => i.selecionado);
-  if (!selecionados.length) { window.mostrarToast('Nada selecionado', 'Marque pelo menos um item.', 'error'); return; }
+  if (!selecionados.length) {
+    window.mostrarToast('Nada selecionado', 'Marque pelo menos um item.', 'error');
+    return;
+  }
   const btn = document.getElementById('btnConfirmarImportacaoIA');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Salvando...'; }
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Preparando...';
+  }
+
+  const indPadrao = (document.getElementById('industriaPadraoImportacao')?.value || 'Puro Tempero').trim();
+  const agora = new Date().toISOString();
+  const patchMap = {};
   let atualizados = 0, adicionados = 0;
+
   for (const item of selecionados) {
-    const cod = String(item.cod || '').trim() || `COD-${Date.now()}`;
+    const cod = String(item.cod || '').trim() || ('COD-' + Date.now() + '-' + Math.floor(Math.random() * 999));
     const desc = String(item.desc || 'SEM DESCRIÇÃO').trim().toUpperCase();
-    const existente = window.buscarProdutoCorrespondente(cod, desc);
+    const ean = String(item.ean || '').replace(/\D/g, '');
+    const existente = window.buscarProdutoCorrespondente(cod, desc, ean);
+    const safeKey = String(existente ? existente.cod : cod).replace(/\.|#|\$|\[|\]/g, '_');
+
     if (existente) {
-      await window.salvarProdutoNoBanco({
+      const payload = {
         ...existente,
+        cod: String(existente.cod),
         desc: desc || existente.desc,
-        ean: (item.ean && String(item.ean).replace(/\D/g,'').length >= 8) ? String(item.ean).replace(/\D/g,'') : (existente.ean || ''),
-        estoque: item.estoque !== undefined ? Number(item.estoque) : existente.estoque,
-        venda: (item.venda !== undefined && item.venda !== 0) ? Number(item.venda) : existente.venda,
-        dde: (item.dde !== undefined && item.dde !== 0) ? Number(item.dde) : existente.dde,
-        industria: (item.industria || existente.industria || 'Puro Tempero').trim()
-      });
+        ean: (ean.length >= 8) ? ean : (existente.ean || ''),
+        estoque: item.estoque !== undefined ? Number(item.estoque) : Number(existente.estoque) || 0,
+        venda: (item.venda !== undefined && item.venda !== 0) ? Number(item.venda) : Number(existente.venda) || 0,
+        dde: (item.dde !== undefined && item.dde !== 0) ? Number(item.dde) : Number(existente.dde) || 0,
+        industria: (item.industria || existente.industria || indPadrao).trim(),
+        presenca: existente.presenca || 'pendente',
+        contagemFisica: existente.contagemFisica ?? '',
+        obs: existente.obs || '',
+        validade: existente.validade || '',
+        atualizadoEm: agora
+      };
+      delete payload._lastLocalEdit;
+      patchMap[safeKey] = payload;
+      // atualiza estado local
+      const idx = window.appState.produtos.findIndex(p => String(p.cod) === String(existente.cod));
+      if (idx >= 0) window.appState.produtos[idx] = { ...payload };
       atualizados++;
     } else if (modo !== 'apenas_ajuste') {
-      await window.salvarProdutoNoBanco({
-        cod, ean: String(item.ean || '').replace(/\D/g,''), desc,
-        industria: (item.industria || 'Puro Tempero').trim(),
-        venda: Number(item.venda) || 0, estoque: Number(item.estoque) || 0, dde: Number(item.dde) || 0,
-        validade: '', presenca: 'pendente', contagemFisica: '', obs: ''
-      });
+      const payload = {
+        cod: String(cod),
+        ean,
+        desc,
+        industria: (item.industria || indPadrao).trim(),
+        venda: Number(item.venda) || 0,
+        estoque: Number(item.estoque) || 0,
+        dde: Number(item.dde) || 0,
+        validade: '',
+        presenca: 'pendente',
+        contagemFisica: '',
+        obs: '',
+        atualizadoEm: agora
+      };
+      patchMap[safeKey] = payload;
+      window.appState.produtos.push({ ...payload });
       adicionados++;
     }
   }
+
+  const total = Object.keys(patchMap).length;
+  if (!total) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph-bold ph-cloud-arrow-up"></i> Confirmar & Subir'; }
+    window.mostrarToast('Nada a enviar', 'Nenhum item novo/atualizável no modo atual.', 'error');
+    return;
+  }
+
+  if (btn) btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Enviando ' + total + ' itens...';
+
+  let ok = false;
+  try {
+    // Um único PATCH no Firebase (muito mais rápido que N puts)
+    const base = (typeof RTDB_BASE !== 'undefined' && RTDB_BASE)
+      ? RTDB_BASE
+      : 'https://banco-de-prompt-815b9-default-rtdb.firebaseio.com';
+    const res = await fetch(base + '/auditoria_estoque/produtos.json?_=' + Date.now(), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
+      body: JSON.stringify(patchMap)
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    ok = true;
+    console.log('[UPLOAD] PATCH OK', total);
+  } catch (err) {
+    console.warn('[UPLOAD] PATCH falhou, tentando um a um...', err);
+    // Fallback: grava em lotes de 5
+    const entries = Object.entries(patchMap);
+    let done = 0;
+    for (let i = 0; i < entries.length; i += 5) {
+      const slice = entries.slice(i, i + 5);
+      await Promise.all(slice.map(async ([key, payload]) => {
+        try {
+          await window.salvarProdutoNoBanco(payload);
+          done++;
+          if (btn) btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> ' + done + '/' + total;
+        } catch (e) { console.warn(key, e); }
+      }));
+    }
+    ok = done > 0;
+  }
+
+  if (typeof window.persistirLocalmente === 'function') {
+    // persistirLocalmente is inside module - use appState already updated
+  }
+  try {
+    localStorage.setItem('auditoria_produtos_cache', JSON.stringify(window.appState.produtos || []));
+  } catch (e) {}
+
   window.fecharModalUpload();
-  window.renderizarAbasIndustrias();
-  window.aplicarFiltros();
-  window.mostrarToast('Estoque sincronizado', `${atualizados} atualizados, ${adicionados} novos.`);
+  window.renderizarAbasIndustrias?.();
+  window.aplicarFiltros?.();
+  window.atualizarEstatisticas?.();
+
+  if (ok) {
+    window.mostrarToast('Estoque sincronizado', atualizados + ' atualizados, ' + adicionados + ' novos · online');
+    // Força re-leitura do Firebase
+    setTimeout(() => window.reconectarFirebase?.(), 500);
+  } else {
+    window.mostrarToast('Falha no envio', 'Não conseguiu gravar no Firebase. Toque no badge e tente de novo.', 'error');
+  }
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ph-bold ph-cloud-arrow-up"></i> Confirmar & Subir';
+  }
 };
+
 
 
 /* ========== EAN: busca online + scanner ========== */
