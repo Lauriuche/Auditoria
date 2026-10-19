@@ -2325,7 +2325,7 @@
         reader.onload = (ev) => {
           const img = new Image();
           img.onload = () => {
-            const maxDim = 2200;
+            const maxDim = 2400;
             let w = img.width;
             let h = img.height;
             if (w > maxDim || h > maxDim) {
@@ -2344,11 +2344,11 @@
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(0, 0, w, h);
             ctx.drawImage(img, 0, 0, w, h);
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
-            resolve({ base64: dataUrl.split(',')[1], mimeType: 'image/jpeg' });
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+            resolve({ base64: dataUrl.split(',')[1], mimeType: 'image/jpeg', width: w, height: h });
           };
           img.onerror = () => {
-            resolve({ base64: ev.target.result.split(',')[1], mimeType: file.type || 'image/jpeg' });
+            resolve({ base64: ev.target.result.split(',')[1], mimeType: file.type || 'image/jpeg', width: 1000, height: 1000 });
           };
           img.src = ev.target.result;
         };
@@ -2357,29 +2357,44 @@
       });
     };
 
+    // Limpa números lidos por OCR que podem ter trocado 0 por O, 1 por I/l, 5 por S, etc.
+    window.limparNumeroOCR = function(val, defaultVal = 0) {
+      if (val === undefined || val === null || val === '') return defaultVal;
+      if (typeof val === 'number') return isNaN(val) ? defaultVal : Math.round(val);
+      let str = String(val).trim();
+      if (!str) return defaultVal;
+
+      // Ignora se for claramente unidade de medida (ex: 30G, 250ML, 500G)
+      if (/^\d+\s*(G|GR|KG|ML|L|UN|PCT|CX)$/i.test(str)) return defaultVal;
+
+      // Substitui letras comuns de erro de OCR quando cercadas por dígitos ou sinais
+      str = str
+        .replace(/[|¦!\[\]]/g, '')
+        .replace(/[oO]/g, '0')
+        .replace(/[lI]/g, '1')
+        .replace(/\s+/g, '');
+
+      // Trata ponto de milhar brasileiro: ex "1.359" -> 1359, "1.876" -> 1876
+      if (/^-?\d{1,3}(\.\d{3})+$/.test(str)) {
+        str = str.replace(/\./g, '');
+      } else if (str.includes(',') && !str.includes('.')) {
+        // Se for decimal com vírgula (ex: "90,43"), pega a parte inteira arredondada
+        str = str.replace(',', '.');
+      }
+
+      const matchNum = str.match(/-?\d+(\.\d+)?/);
+      if (!matchNum) return defaultVal;
+      const parsed = parseFloat(matchNum[0]);
+      return isNaN(parsed) ? defaultVal : Math.round(parsed);
+    };
+
     // Normaliza qualquer objeto vindo da IA ou do parser de colunas, limpando sujeiras e cruzando com o catálogo
     window.normalizarItensExtraidos = function(listaBruta) {
       const indPadraoEl = document.getElementById('industriaPadraoImportacao');
       const indPadrao = (indPadraoEl && indPadraoEl.value.trim()) ? indPadraoEl.value.trim() : 'Puro Tempero';
 
-      const parseNumFlex = (val, defaultVal = 0) => {
-        if (val === undefined || val === null || val === '') return defaultVal;
-        if (typeof val === 'number') return isNaN(val) ? defaultVal : Math.round(val);
-        let str = String(val).trim().replace(/\s+/g, '');
-        // Ignora caso seja uma medida tipo "30G" ou "250ML"
-        if (/^\d+\s*(G|GR|KG|ML|L|UN|PCT|CX)$/i.test(str)) return defaultVal;
-        // Trata ponto de milhar brasileiro: ex "1.359" -> 1359, "-19" -> -19
-        if (/^-?\d{1,3}(\.\d{3})+$/.test(str)) {
-          str = str.replace(/\./g, '');
-        } else if (str.includes(',') && !str.includes('.')) {
-          // Caso seja decimal com vírgula (ex: "90,43"), arredonda
-          str = str.replace(',', '.');
-        }
-        const parsed = parseFloat(str);
-        return isNaN(parsed) ? defaultVal : Math.round(parsed);
-      };
-
       const itensLimpos = [];
+      const codigosJaAdicionados = new Set();
 
       (listaBruta || []).forEach((raw, idx) => {
         if (!raw) return;
@@ -2390,48 +2405,53 @@
         let ddeBruto = raw.dde !== undefined ? raw.dde : raw.cobertura;
         let ind = raw.industria || raw.marca || raw.fornecedor || '';
 
-        cod = String(cod).trim().replace(/^[-–:\s]+|[-–:\s]+$/g, '');
-        desc = String(desc).trim().toUpperCase();
+        cod = String(cod).trim().replace(/^[-–:\s|¦]+|[-–:\s|¦]+$/g, '');
+        desc = String(desc).trim().toUpperCase().replace(/[|¦_~^]/g, ' ').replace(/\s+/g, ' ');
 
-        // Remove eventual prefixo de filial que tenha vazado para a descrição
-        desc = desc.replace(/^\d{2,4}\s*[-–]\s*POSTERUS\s+SUPERMERCADOS[A-Z\s.]*/i, '').trim();
-
-        // Se o código veio grudado no início da descrição (ex: "458271 - ESP BICARBONATO 40G")
-        const matchCodInicio = desc.match(/^(\d{4,14})\s*[-–:]?\s*(.+)$/);
-        if (matchCodInicio) {
-          if (!cod || cod.startsWith('S/COD') || cod.startsWith('ITEM')) {
-            cod = matchCodInicio[1];
+        // Corta qualquer texto de filial que tenha vindo antes do código de 5-7 dígitos (ex: "438 - POSTERUS... 458271 - ESP...")
+        const matchAncoraCod = desc.match(/(?:^|\s)(\d{5,14})\s*[-–:]?\s*([A-Z].+)$/);
+        if (matchAncoraCod) {
+          if (!cod || cod === '438' || cod.startsWith('S/COD') || cod.startsWith('ITEM')) {
+            cod = matchAncoraCod[1];
           }
-          desc = matchCodInicio[2].trim();
+          desc = matchAncoraCod[2].trim();
         }
+
+        // Remove prefixo residual da filial 438 mesmo com erros de OCR
+        desc = desc.replace(/^438\s*[-–]?\s*POSTER[A-Z0-9\s.,-]*?(GRAJAU|LTDA)\s*/i, '').trim();
 
         // Ignora linhas que sejam cabeçalho da tabela ou linha de totalizador geral
         if (/^(FILIAL|PRODUTO|DESCRI|QTD\s*VEND|ESTOQUE\s*ATU|TOTAL\s*GERAL)/i.test(desc)) return;
-        if (!desc && (!cod || cod === '438')) return;
-        if (cod === '438' && /POSTERUS/i.test(desc)) return;
+        if (cod === '3797' || cod === '10606' || (cod === '438' && (!desc || /POSTER/i.test(desc)))) return;
 
         // Verifica se esse código ou descrição já existe no nosso banco para recuperar dados limpos
         const existente = window.buscarProdutoCorrespondente(cod, desc);
         if (existente) {
           cod = existente.cod;
-          // Se a descrição vinda do OCR estiver truncada ou com ruído, preserva a descrição limpa do catálogo
-          if (!desc || desc.length < 5 || /[|¦_]{2,}/.test(desc)) {
-            desc = existente.desc;
-          }
+          desc = existente.desc;
           if (!ind) ind = existente.industria;
+        } else {
+          // Limpa códigos que tenham ficado com letras de OCR
+          const codLimpoDigitos = cod.replace(/[^\d]/g, '');
+          if (codLimpoDigitos.length >= 4) cod = codLimpoDigitos;
         }
 
         if (!cod) cod = `S/COD-${idx + 1}`;
-        if (!desc) return;
+        if (!desc || desc.length < 2) return;
+
+        // Evita duplicar a mesma mercadoria se o OCR ler duas vezes a mesma linha
+        const chaveUnica = cod.startsWith('S/COD') ? desc : cod;
+        if (codigosJaAdicionados.has(chaveUnica)) return;
+        codigosJaAdicionados.add(chaveUnica);
 
         itensLimpos.push({
           selecionado: true,
           cod: cod,
           desc: desc,
           industria: (ind || indPadrao).trim(),
-          estoque: parseNumFlex(estBruto, 0),
-          venda: parseNumFlex(vendaBruta, 0),
-          dde: parseNumFlex(ddeBruto, 0)
+          estoque: window.limparNumeroOCR(estBruto, 0),
+          venda: window.limparNumeroOCR(vendaBruta, 0),
+          dde: window.limparNumeroOCR(ddeBruto, 0)
         });
       });
 
@@ -2442,7 +2462,7 @@
       window.safeStorageSet('gemini_custom_api_key', (val || '').trim());
     };
 
-    // Permite inverter rapidamente as colunas Venda <->Novo Estoque caso a planilha tivesse ordem diferente
+    // Permite inverter rapidamente as colunas Venda <-> Novo Estoque caso a planilha tivesse ordem diferente
     window.inverterColunasVendaEstoquePreviewIA = function() {
       const itens = (window.appState && window.appState.itensIAExtraidos) ? window.appState.itensIAExtraidos : [];
       if (!itens.length) return;
@@ -2515,58 +2535,139 @@
       return resultado;
     };
 
-    // OCR Local Inteligente: Reconstrói linhas e colunas pela posição geométrica (X, Y) na imagem
+    // Pré-processa imagem em P&B de alto contraste para o Tesseract não errar números de tabelas
+    window.criarImagemAltoContrasteOCR = function(base64Data, mimeType) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const scale = img.width < 1400 ? 2 : 1;
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const d = imgData.data;
+          for (let i = 0; i < d.length; i += 4) {
+            // Luminância
+            const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+            // Aumenta nitidez do texto escuro e limpa fundos coloridos suaves (amarelo/cinza de planilha)
+            const val = lum < 165 ? Math.max(0, (lum - 40) * 0.5) : 255;
+            d[i] = d[i + 1] = d[i + 2] = val;
+          }
+          ctx.putImageData(imgData, 0, 0);
+          resolve({ dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height });
+        };
+        img.onerror = () => resolve({ dataUrl: `data:${mimeType};base64,${base64Data}`, width: 1000, height: 1000 });
+        img.src = `data:${mimeType};base64,${base64Data}`;
+      });
+    };
+
+    // OCR Local Inteligente: Reconstrói linhas e mapeia colunas pela posição geométrica X/Y na imagem
     window.executarOCRLocalImagem = async function(base64Data, mimeType, textoStatusEl) {
       if (!window.Tesseract) {
         throw new Error("Leitor OCR Local indisponível.");
       }
       if (textoStatusEl) {
-        textoStatusEl.innerText = 'Analisando colunas da tabela via OCR Local...';
+        textoStatusEl.innerText = 'Otimizando nitidez da tabela e lendo colunas via OCR Local...';
       }
-      const dataUrl = `data:${mimeType};base64,${base64Data}`;
-      const result = await window.Tesseract.recognize(dataUrl, 'por+eng', {
+
+      const prep = await window.criarImagemAltoContrasteOCR(base64Data, mimeType);
+      const imgWidth = prep.width || 1000;
+
+      const result = await window.Tesseract.recognize(prep.dataUrl, 'por+eng', {
         logger: m => {
           if (m.status === 'recognizing text' && textoStatusEl) {
             const pct = Math.round((m.progress || 0) * 100);
-            textoStatusEl.innerText = `Lendo colunas da imagem (${pct}%)...`;
+            textoStatusEl.innerText = `Analisando linhas e colunas da imagem (${pct}%)...`;
           }
         }
       });
 
-      // Agrupa palavras pela coordenada vertical (Y) para formar linhas exatas da tabela
       const words = result?.data?.words || [];
       if (words.length > 0) {
         const linhasGeom = [];
         words.forEach(w => {
-          const textoPalavra = (w.text || '').trim();
-          if (!textoPalavra || textoPalavra === '|' || textoPalavra === '¦') return;
+          const textoPalavra = (w.text || '').replace(/[|¦_~]/g, '').trim();
+          if (!textoPalavra) return;
           const cy = (w.bbox.y0 + w.bbox.y1) / 2;
-          const alt = Math.max(8, w.bbox.y1 - w.bbox.y0);
-          let linhaExistente = linhasGeom.find(l => Math.abs(l.cy - cy) < alt * 0.65);
+          const cx = (w.bbox.x0 + w.bbox.x1) / 2;
+          const alt = Math.max(10, w.bbox.y1 - w.bbox.y0);
+          let linhaExistente = linhasGeom.find(l => Math.abs(l.cy - cy) <= alt * 0.55);
           if (!linhaExistente) {
             linhaExistente = { cy, words: [] };
             linhasGeom.push(linhaExistente);
           }
-          linhaExistente.words.push({ text: textoPalavra, x0: w.bbox.x0, x1: w.bbox.x1 });
+          linhaExistente.words.push({ text: textoPalavra, x0: w.bbox.x0, x1: w.bbox.x1, cx });
         });
 
         linhasGeom.sort((a, b) => a.cy - b.cy);
 
-        const linhasFormatadas = linhasGeom.map(l => {
+        // Tenta detectar coordenadas X dos cabeçalhos ("Qtd Vendida", "Estoque Atual", "DDE")
+        let xColunaVenda = null;
+        let xColunaEstoque = null;
+        let xColunaDDE = null;
+
+        linhasGeom.slice(0, 8).forEach(l => {
+          const textoLinha = window.normalizarTexto(l.words.map(w => w.text).join(' '));
+          if (textoLinha.includes('vend') || textoLinha.includes('estoque') || textoLinha.includes('produto')) {
+            l.words.forEach(w => {
+              const wn = window.normalizarTexto(w.text);
+              if (wn.includes('vend') || wn === 'qtd') xColunaVenda = w.cx;
+              else if (wn.includes('est') || wn.includes('atu') || wn.includes('saldo')) xColunaEstoque = w.cx;
+              else if (wn.includes('dde')) xColunaDDE = w.cx;
+            });
+          }
+        });
+
+        const linhasFormatadas = [];
+        linhasGeom.forEach(l => {
           l.words.sort((a, b) => a.x0 - b.x0);
-          // Insere TAB quando houver distância de coluna entre duas palavras
+
+          // Se detectamos a posição das colunas numéricas no cabeçalho, separamos com precisão geométrica
+          if (xColunaEstoque !== null && xColunaVenda !== null) {
+            const limiteTexto = Math.min(xColunaVenda, xColunaEstoque) - (imgWidth * 0.045);
+            const palavrasTexto = [];
+            let valVenda = '';
+            let valEstoque = '';
+            let valDDE = '';
+
+            l.words.forEach(w => {
+              if (w.cx < limiteTexto) {
+                palavrasTexto.push(w.text);
+              } else {
+                const distVenda = Math.abs(w.cx - xColunaVenda);
+                const distEst = Math.abs(w.cx - xColunaEstoque);
+                const distDDE = xColunaDDE !== null ? Math.abs(w.cx - xColunaDDE) : 99999;
+                const menor = Math.min(distVenda, distEst, distDDE);
+                if (menor === distVenda) valVenda += w.text;
+                else if (menor === distEst) valEstoque += w.text;
+                else valDDE += w.text;
+              }
+            });
+
+            if (palavrasTexto.length > 0 && (valEstoque !== '' || valVenda !== '')) {
+              linhasFormatadas.push(`${palavrasTexto.join(' ')}\t${valVenda || '0'}\t${valEstoque || '0'}\t${valDDE || '0'}`);
+              return;
+            }
+          }
+
+          // Montagem padrão com TAB quando há espaçamento de coluna
           let str = '';
           for (let i = 0; i < l.words.length; i++) {
             if (i > 0) {
               const gap = l.words[i].x0 - l.words[i - 1].x1;
-              str += gap > 22 ? '\t' : ' ';
+              str += gap > 18 ? '\t' : ' ';
             }
             str += l.words[i].text;
           }
-          return str;
-        }).join('\n');
+          linhasFormatadas.push(str);
+        });
 
-        const extraidosGeom = window.extrairItensDeTextoBruto(linhasFormatadas);
+        const extraidosGeom = window.extrairItensDeTextoBruto(linhasFormatadas.join('\n'));
         if (extraidosGeom && extraidosGeom.length > 0) {
           return extraidosGeom;
         }
@@ -2736,45 +2837,79 @@
       // Detecta na linha de cabeçalho (se houver) se a tabela tem apenas Estoque ou se tem Venda + Estoque + DDE
       let temColunaVenda = false;
       let temColunaDDE = false;
-      for (let i = 0; i < Math.min(linhas.length, 6); i++) {
+      for (let i = 0; i < Math.min(linhas.length, 8); i++) {
         const cab = window.normalizarTexto(linhas[i]);
-        if (cab.includes('qtd vend') || cab.includes('venda')) temColunaVenda = true;
+        if (cab.includes('vend') || cab.includes('qtd')) temColunaVenda = true;
         if (cab.includes('dde') || cab.includes('cobert')) temColunaDDE = true;
       }
 
       linhas.forEach((linhaBruta) => {
         // Limpa caracteres de grade de OCR
-        let linha = linhaBruta.replace(/[|¦]/g, ' ').trim();
+        let linha = linhaBruta.replace(/[|¦_~]/g, ' ').trim();
 
         // Ignora cabeçalhos ou linhas só de totais no topo
         if (/^(filial|cod|código|produto|descrição|qtd\s*vend|estoque\s*atu|total)/i.test(linha) && !/\d{5,}/.test(linha)) {
           return;
         }
 
-        // Remove coluna de Filial no início da linha: ex "438 - POSTERUS SUPERMERCADOS LTDA. GRAJAU"
-        linha = linha.replace(/^\d{2,4}\s*[-–]?\s*POSTERUS\s+SUPERMERCADOS[A-Z\s.]*/i, '').trim();
-        if (!linha) return;
-
-        // Procura o padrão clássico de produto: CÓDIGO (4 a 14 dígitos) + hífen/espaço + DESCRIÇÃO + NÚMEROS NO FINAL
-        // Ex: "458271 - ESP BICARBONATO PURO TEMPERO 40G   71   644   272"
-        const matchProduto = linha.match(/^(\d{4,14})\s*[-–:]?\s*(.+)$/);
+        // 1. Se a linha contiver um código de 5 a 14 dígitos (ex: 458271), corta TUDO que vier antes dele (como "438 - POSTERUS SUPERMERCADOS LTDA. GRAJAU")
+        const matchCodigoAncora = linha.match(/(?:^|\s)(\d{5,14})\s*[-–:]?\s*([A-Za-z].*)$/);
         let cod = '';
         let corpo = linha;
 
-        if (matchProduto) {
-          cod = matchProduto[1];
-          corpo = matchProduto[2].trim();
+        if (matchCodigoAncora) {
+          cod = matchCodigoAncora[1];
+          corpo = matchCodigoAncora[2].trim();
+        } else {
+          // Remove coluna de Filial mesmo se o OCR tiver lido errado alguma letra
+          linha = linha.replace(/^\d{2,4}\s*[-–]?\s*POSTER[A-Z0-9\s.,-]*?(GRAJAU|GRAJAÚ|LTDA\.?)\s*/i, '').trim();
+          if (!linha) return;
+          const matchSimples = linha.match(/^(\d{4,14})\s*[-–:]?\s*(.+)$/);
+          if (matchSimples) {
+            cod = matchSimples[1];
+            corpo = matchSimples[2].trim();
+          } else {
+            corpo = linha;
+          }
         }
 
-        // Separa os tokens do final da linha que são puramente números de colunas (e NÃO pesos como "40G", "150ML", "500G")
+        // Se a linha já veio separada por TABs do extrator geométrico
+        if (corpo.includes('\t')) {
+          const partesTab = corpo.split('\t').map(s => s.trim()).filter(Boolean);
+          if (partesTab.length >= 2 && /[A-Z]{2,}/i.test(partesTab[0])) {
+            const descTab = partesTab[0].replace(/[-–:\s]+$/, '').trim();
+            const numsTab = partesTab.slice(1).map(n => window.limparNumeroOCR(n, null)).filter(n => n !== null);
+            let venda = 0, estoque = 0, dde = 0;
+            if (numsTab.length === 1) {
+              estoque = numsTab[0];
+            } else if (numsTab.length === 2) {
+              // Na planilha Posterus, quando DDE está em branco (estoque 0), os 2 números são Venda e Estoque
+              venda = numsTab[0];
+              estoque = numsTab[1];
+            } else if (numsTab.length >= 3) {
+              venda = numsTab[0];
+              estoque = numsTab[1];
+              dde = numsTab[2];
+            }
+            resultado.push({ cod, desc: descTab, venda, estoque, dde });
+            return;
+          }
+        }
+
+        // Separa os tokens do final da linha que são números de colunas (e NÃO pesos como "40G", "150ML", "500G")
         const tokens = corpo.split(/\s+/);
         const numerosColunas = [];
 
         while (tokens.length > 0) {
-          const ultimo = tokens[tokens.length - 1];
-          // Verifica se é um número puro (ex: "71", "644", "1.359", "-19") e NÃO medida (não tem letras)
-          if (/^-?\d{1,4}(?:\.\d{3})*$/.test(ultimo)) {
-            numerosColunas.unshift(ultimo);
+          let ultimo = tokens[tokens.length - 1];
+          // Se terminar com G, ML, KG, L (ex: 30G, 250ML, 500G), faz parte da descrição do produto! Para imediatamente.
+          if (/^\d+(G|GR|KG|ML|L|UN|PCT)$/i.test(ultimo)) {
+            break;
+          }
+          // Corrige pequenos erros de OCR em números puros no fim da linha (ex: "1.359", "-19", "O" -> "0")
+          const limpoTeste = ultimo.replace(/[oO]/g, '0').replace(/[lI]/g, '1');
+          if (/^-?\d{1,4}(?:\.\d{3})*$/.test(limpoTeste)) {
+            numerosColunas.unshift(window.limparNumeroOCR(limpoTeste, 0));
             tokens.pop();
             if (numerosColunas.length >= 3) break;
           } else {
@@ -2791,13 +2926,9 @@
         if (numerosColunas.length === 1) {
           estoque = numerosColunas[0];
         } else if (numerosColunas.length === 2) {
-          if (temColunaVenda) {
-            venda = numerosColunas[0];
-            estoque = numerosColunas[1];
-          } else {
-            estoque = numerosColunas[0];
-            dde = numerosColunas[1];
-          }
+          // Quando há 2 números (ex: Venda=25 e Estoque=0 com DDE vazio), o 1º é Venda e o 2º é Estoque
+          venda = numerosColunas[0];
+          estoque = numerosColunas[1];
         } else if (numerosColunas.length >= 3) {
           venda = numerosColunas[0];
           estoque = numerosColunas[1];
@@ -2816,25 +2947,64 @@
       return resultado;
     };
 
-    // Localiza inteligente se o produto enviado no upload já existe no sistema (por código exato ou descrição)
+    // Localiza inteligente se o produto enviado no upload já existe no sistema (por código exato, código parcial ou similaridade de descrição)
     window.buscarProdutoCorrespondente = function(codExtraido, descExtraida) {
       const lista = (window.appState && window.appState.produtos) ? window.appState.produtos : [];
-      const codLimpo = String(codExtraido || '').trim();
+      const codLimpo = String(codExtraido || '').replace(/[^\d]/g, '').trim();
       const descNorm = window.normalizarTexto(descExtraida);
 
-      // 1. Busca por Código exato (ignorando zeros à esquerda se numérico)
-      if (codLimpo && !codLimpo.startsWith('S/COD-') && !codLimpo.startsWith('ITEM-')) {
+      // 1. Busca por Código exato
+      if (codLimpo && codLimpo.length >= 4) {
         const porCod = lista.find(p => {
-          const pCod = String(p.cod || '').trim();
-          return pCod === codLimpo || (pCod.replace(/^0+/, '') === codLimpo.replace(/^0+/, '') && codLimpo.length >= 3);
+          const pCod = String(p.cod || '').replace(/[^\d]/g, '').trim();
+          return pCod === codLimpo || pCod.replace(/^0+/, '') === codLimpo.replace(/^0+/, '');
         });
         if (porCod) return porCod;
+
+        // 1b. Se o OCR errou 1 dígito do código de 6 dígitos, mas a descrição bate nas palavras principais
+        if (codLimpo.length === 6 && descNorm.length >= 5) {
+          const porCodAprox = lista.find(p => {
+            const pCod = String(p.cod || '').replace(/[^\d]/g, '');
+            if (pCod.length !== 6) return false;
+            let diffs = 0;
+            for (let i = 0; i < 6; i++) {
+              if (pCod[i] !== codLimpo[i]) diffs++;
+            }
+            if (diffs <= 1) {
+              const pDesc = window.normalizarTexto(p.desc);
+              const primeiraPalavra = pDesc.split(' ').find(w => w.length > 3);
+              return primeiraPalavra && descNorm.includes(primeiraPalavra);
+            }
+            return false;
+          });
+          if (porCodAprox) return porCodAprox;
+        }
       }
 
       // 2. Busca por Descrição Normalizada Exata
       if (descNorm && descNorm.length >= 4) {
         const porDescExata = lista.find(p => window.normalizarTexto(p.desc) === descNorm);
         if (porDescExata) return porDescExata;
+
+        // 3. Busca por Similaridade de Palavras (caso o OCR tenha comido alguma letra da descrição)
+        const tokensBusca = descNorm.split(/\s+/).filter(t => t.length >= 3 && t !== 'esp' && t !== 'puro' && t !== 'tempero');
+        if (tokensBusca.length >= 2) {
+          let melhorMatch = null;
+          let maiorPontuacao = 0;
+          lista.forEach(p => {
+            const pDesc = window.normalizarTexto(p.desc);
+            let acertos = 0;
+            tokensBusca.forEach(tk => {
+              if (pDesc.includes(tk)) acertos++;
+            });
+            const score = acertos / tokensBusca.length;
+            if (score >= 0.75 && score > maiorPontuacao) {
+              maiorPontuacao = score;
+              melhorMatch = p;
+            }
+          });
+          if (melhorMatch) return melhorMatch;
+        }
       }
 
       return null;
