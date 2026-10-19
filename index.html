@@ -24,7 +24,9 @@
       if (ind && window.appState?.industriaAtiva && window.appState.industriaAtiva !== 'todas') ind.value = window.appState.industriaAtiva;
       else if (ind && !ind.value) ind.value = 'Puro Tempero';
       const key = document.getElementById('inputChaveGeminiOpcional');
-      if (key && window.safeStorageGet) key.value = window.safeStorageGet('gemini_custom_api_key') || '';
+      if (key) {
+        key.value = (window.appState?.geminiApiKey || window.safeStorageGet?.('gemini_custom_api_key') || '');
+      }
     };
     window.fecharModalUpload = () => document.getElementById('modalUpload')?.classList.add('hidden');
     window.abrirModalNovoProduto = function() {
@@ -91,7 +93,7 @@
       <div>
         <div class="flex items-center gap-2">
           <h1 class="text-base font-extrabold text-slate-900">Auditoria & Presença</h1>
-          <span id="badgeConexao" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> Conectando...</span>
+          <span id="badgeConexao" onclick="window.reconectarFirebase?.()" title="Clique para reconectar" class="cursor-pointer inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> Conectando...</span>
         </div>
         <p class="text-xs text-slate-500">Filial: <span class="text-slate-800 font-bold">438 - POSTERUS SUPERMERCADOS GRAJAÚ</span></p>
       </div>
@@ -320,7 +322,7 @@
         </div>
         <div class="md:col-span-2">
           <label class="font-bold block mb-1">Chave Gemini (opcional):</label>
-          <input type="password" id="inputChaveGeminiOpcional" placeholder="API Key Google AI Studio" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 font-mono text-[11px]" onchange="window.safeStorageSet?.('gemini_custom_api_key', this.value)">
+          <input type="password" id="inputChaveGeminiOpcional" placeholder="API Key Google AI Studio" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 font-mono text-[11px]" onchange="window.salvarChaveGeminiNoBanco?.(this.value)" onblur="window.salvarChaveGeminiNoBanco?.(this.value)">
         </div>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -486,9 +488,9 @@
 </div>
 
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-  import { getDatabase, ref, set, update, remove, onValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+  import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  import { getDatabase, ref, set, update, remove, onValue, goOnline } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCo0_0sfWJat4zG7mjdSNE7nsy5xie4SSI",
@@ -501,8 +503,10 @@
     measurementId: "G-LKLKL0GSYZ"
   };
 
-  let db = null, auth = null, produtosRef = null, isApplyingRemote = false;
-  window.appState = { produtos: [], industriaAtiva: 'todas', selecionados: new Set(), itensIAExtraidos: [], isFirebaseConnected: false };
+  const RTDB_BASE = firebaseConfig.databaseURL;
+  let db = null, auth = null, produtosRef = null, configRef = null, isApplyingRemote = false;
+  let listenersAtivos = false, restPollTimer = null, sdkOnline = false;
+  window.appState = { produtos: [], industriaAtiva: 'todas', selecionados: new Set(), itensIAExtraidos: [], isFirebaseConnected: false, geminiApiKey: '', syncMode: 'none' };
 
   function carregarProdutosLocais() {
     const salvo = window.safeStorageGet?.('auditoria_produtos_cache');
@@ -517,71 +521,229 @@
   }
   function atualizarBadge(status, msg) {
     const badge = document.getElementById('badgeConexao'); if (!badge) return;
+    const base = 'cursor-pointer inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ';
     if (status === 'connected') {
-      badge.className = "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800";
-      badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> ${msg||'Realtime DB Conectado'}`;
+      badge.className = base + 'bg-emerald-100 text-emerald-800';
+      badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> ${msg||'Online'}`;
     } else if (status === 'connecting') {
-      badge.className = "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800";
+      badge.className = base + 'bg-amber-100 text-amber-800';
       badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> ${msg||'Conectando...'}`;
     } else if (status === 'error') {
-      badge.className = "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-100 text-rose-800";
+      badge.className = base + 'bg-rose-100 text-rose-800';
       badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> ${msg||'Erro'}`;
     } else {
-      badge.className = "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700";
-      badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> ${msg||'Offline'}`;
+      badge.className = base + 'bg-slate-200 text-slate-700';
+      badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> ${msg||'Offline · toque'}`;
     }
   }
 
-  async function inicializarRealtimeDatabase() {
-    atualizarBadge('connecting');
-    carregarProdutosLocais();
-    dispararAtualizacaoUI();
-    try {
-      const app = initializeApp(firebaseConfig);
-      auth = getAuth(app); db = getDatabase(app);
-      produtosRef = ref(db, 'auditoria_estoque/produtos');
-      onValue(ref(db, '.info/connected'), (snap) => {
-        if (snap.val() === true) { window.appState.isFirebaseConnected = true; atualizarBadge('connected'); }
-        else { window.appState.isFirebaseConnected = false; atualizarBadge('offline', 'Offline (cache local)'); }
-      });
-      try { await signInAnonymously(auth); } catch(e) { console.warn('Auth:', e.code); }
-      onValue(produtosRef, (snapshot) => {
-        if (isApplyingRemote) return;
-        const data = snapshot.val();
-        if (!data) {
-          window.appState.produtos = []; persistirLocalmente();
-          window.appState.isFirebaseConnected = true; atualizarBadge('connected', 'Realtime DB (vazio)');
-          dispararAtualizacaoUI(); return;
-        }
-        const listaRemota = [];
-        Object.keys(data).forEach(k => { if (data[k]?.cod) listaRemota.push(data[k]); });
-        const mapaLocal = new Map(window.appState.produtos.map(p => [String(p.cod), p]));
-        const mapaRemoto = new Map(listaRemota.map(p => [String(p.cod), p]));
-        const mergeado = [];
-        listaRemota.forEach(remoto => {
-          const local = mapaLocal.get(String(remoto.cod));
-          if (local) {
-            const recent = local._lastLocalEdit && (Date.now() - local._lastLocalEdit < 3000);
-            mergeado.push({
-              ...remoto,
-              contagemFisica: recent ? local.contagemFisica : (remoto.contagemFisica ?? local.contagemFisica ?? ''),
-              presenca: recent ? local.presenca : (remoto.presenca ?? local.presenca ?? 'pendente'),
-              obs: remoto.obs ?? local.obs ?? '',
-              validade: remoto.validade ?? local.validade ?? ''
-            });
-          } else mergeado.push(remoto);
+  function mesclarListaRemota(data) {
+    if (!data) {
+      if (!window.appState.produtos?.length) window.appState.produtos = [];
+      persistirLocalmente();
+      return window.appState.produtos;
+    }
+    const listaRemota = [];
+    Object.keys(data).forEach(k => { if (data[k]?.cod) listaRemota.push(data[k]); });
+    const mapaLocal = new Map(window.appState.produtos.map(p => [String(p.cod), p]));
+    const mapaRemoto = new Map(listaRemota.map(p => [String(p.cod), p]));
+    const mergeado = [];
+    listaRemota.forEach(remoto => {
+      const local = mapaLocal.get(String(remoto.cod));
+      if (local) {
+        const recent = local._lastLocalEdit && (Date.now() - local._lastLocalEdit < 4000);
+        mergeado.push({
+          ...remoto,
+          contagemFisica: recent ? local.contagemFisica : (remoto.contagemFisica ?? local.contagemFisica ?? ''),
+          presenca: recent ? local.presenca : (remoto.presenca ?? local.presenca ?? 'pendente'),
+          obs: remoto.obs ?? local.obs ?? '',
+          validade: remoto.validade ?? local.validade ?? ''
         });
-        window.appState.produtos.forEach(local => { if (!mapaRemoto.has(String(local.cod))) mergeado.push(local); });
-        window.appState.produtos = mergeado; persistirLocalmente();
-        window.appState.isFirebaseConnected = true; atualizarBadge('connected');
-        dispararAtualizacaoUI();
-      }, (error) => {
-        console.error('Erro RTDB:', error.code, error.message);
-        window.appState.isFirebaseConnected = false;
-        atualizarBadge('error', error.code === 'PERMISSION_DENIED' ? 'Sem permissão (regras RTDB)' : 'Erro de conexão');
-      });
-    } catch(err) { console.error(err); atualizarBadge('error', 'Falha ao conectar'); dispararAtualizacaoUI(); }
+      } else mergeado.push(remoto);
+    });
+    window.appState.produtos.forEach(local => { if (!mapaRemoto.has(String(local.cod))) mergeado.push(local); });
+    window.appState.produtos = mergeado;
+    persistirLocalmente();
+    return mergeado;
   }
+
+  async function sincronizarViaREST() {
+    try {
+      const [prodRes, cfgRes] = await Promise.all([
+        fetch(`${RTDB_BASE}/auditoria_estoque/produtos.json`, { cache: 'no-store' }),
+        fetch(`${RTDB_BASE}/auditoria_estoque/config.json`, { cache: 'no-store' })
+      ]);
+      if (!prodRes.ok) throw new Error('HTTP ' + prodRes.status);
+      const data = await prodRes.json();
+      if (isApplyingRemote) return true;
+      const mergeado = mesclarListaRemota(data);
+      window.appState.isFirebaseConnected = true;
+      if (!sdkOnline) {
+        window.appState.syncMode = 'rest';
+        atualizarBadge('connected', `Online · ${mergeado.length} itens`);
+      }
+      dispararAtualizacaoUI();
+      if (cfgRes.ok) {
+        const cfg = (await cfgRes.json()) || {};
+        const keyRemota = (cfg.gemini_api_key || '').trim();
+        if (keyRemota) {
+          window.appState.geminiApiKey = keyRemota;
+          window.safeStorageSet?.('gemini_custom_api_key', keyRemota);
+          const inp = document.getElementById('inputChaveGeminiOpcional');
+          if (inp && !inp.value) inp.value = keyRemota;
+        }
+      }
+      console.log('[REST] OK', mergeado.length);
+      return true;
+    } catch (err) {
+      console.warn('[REST] falhou:', err.message);
+      return false;
+    }
+  }
+
+  function iniciarPollingREST() {
+    if (restPollTimer) return;
+    restPollTimer = setInterval(() => { if (!sdkOnline) sincronizarViaREST(); }, 12000);
+  }
+
+  async function escreverProdutoREST(produto) {
+    const safeKey = String(produto.cod).replace(/[.#$\[\]]/g, '_');
+    const { _lastLocalEdit, ...paraSalvar } = produto;
+    const body = JSON.stringify({ ...paraSalvar, cod: String(produto.cod), atualizadoEm: new Date().toISOString() });
+    const res = await fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${safeKey}.json`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body
+    });
+    if (!res.ok) throw new Error('REST write ' + res.status);
+  }
+
+  function registrarListeners() {
+    if (!db || listenersAtivos) return;
+    listenersAtivos = true;
+    produtosRef = ref(db, 'auditoria_estoque/produtos');
+    configRef = ref(db, 'auditoria_estoque/config');
+
+    onValue(ref(db, '.info/connected'), (snap) => {
+      const online = snap.val() === true;
+      console.log('[SDK] connected=', online);
+      sdkOnline = online === true;
+      if (online) {
+        window.appState.isFirebaseConnected = true;
+        window.appState.syncMode = 'sdk';
+        atualizarBadge('connected', 'Realtime online');
+      }
+    });
+
+    onValue(configRef, (snap) => {
+      try {
+        const cfg = snap.val() || {};
+        const keyRemota = (cfg.gemini_api_key || '').trim();
+        if (keyRemota) {
+          window.appState.geminiApiKey = keyRemota;
+          window.safeStorageSet?.('gemini_custom_api_key', keyRemota);
+          const inp = document.getElementById('inputChaveGeminiOpcional');
+          if (inp && !inp.value) inp.value = keyRemota;
+        }
+      } catch (e) {}
+    }, (err) => console.warn('[SDK] config', err.code));
+
+    onValue(produtosRef, (snapshot) => {
+      if (isApplyingRemote) return;
+      try {
+        sdkOnline = true;
+        window.appState.isFirebaseConnected = true;
+        window.appState.syncMode = 'sdk';
+        const mergeado = mesclarListaRemota(snapshot.val());
+        atualizarBadge('connected', `Online · ${mergeado.length}`);
+        dispararAtualizacaoUI();
+      } catch (e) { console.error(e); }
+    }, (error) => {
+      console.error('[SDK] produtos', error.code, error.message);
+      if (error.code === 'PERMISSION_DENIED') {
+        atualizarBadge('error', 'Sem permissão (regras)');
+        window.mostrarToast?.('Permissão negada', 'Firebase → Realtime Database → Regras com read/write true', 'error');
+      }
+      sincronizarViaREST();
+      iniciarPollingREST();
+    });
+  }
+
+  async function inicializarRealtimeDatabase() {
+    atualizarBadge('connecting', 'Conectando...');
+    carregarProdutosLocais();
+    const keyLocal = (window.safeStorageGet?.('gemini_custom_api_key') || '').trim();
+    if (keyLocal) window.appState.geminiApiKey = keyLocal;
+    dispararAtualizacaoUI();
+
+    // REST primeiro (funciona no Android / file:// / redes que bloqueiam WebSocket)
+    const restOk = await sincronizarViaREST();
+    if (restOk) atualizarBadge('connected', `Online · ${window.appState.produtos.length} itens`);
+    iniciarPollingREST();
+
+    try {
+      const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      db = getDatabase(app);
+      try { goOnline(db); } catch (e) {}
+
+      try {
+        await signInAnonymously(auth);
+        console.log('[SDK] Auth OK', auth.currentUser?.uid);
+      } catch (e) {
+        console.warn('[SDK] Auth', e.code);
+      }
+
+      onAuthStateChanged(auth, (user) => console.log('[SDK] auth state', user?.uid || 'none'));
+      registrarListeners();
+
+      setTimeout(async () => {
+        if (!sdkOnline) {
+          const ok = await sincronizarViaREST();
+          if (ok) atualizarBadge('connected', `Online · ${window.appState.produtos.length} itens`);
+          else if (!window.appState.isFirebaseConnected) atualizarBadge('offline', 'Offline · toque');
+        }
+      }, 6000);
+    } catch (err) {
+      console.error('[SDK] init', err);
+      if (!window.appState.isFirebaseConnected) {
+        const ok = await sincronizarViaREST();
+        atualizarBadge(ok ? 'connected' : 'error', ok ? `Online · ${window.appState.produtos.length}` : 'Falha de rede');
+      }
+    }
+  }
+
+  window.reconectarFirebase = async function() {
+    atualizarBadge('connecting', 'Reconectando...');
+    window.appState.isFirebaseConnected = false;
+    sdkOnline = false;
+    if (db) { try { goOnline(db); } catch(e) {} }
+    const ok = await sincronizarViaREST();
+    if (ok) window.mostrarToast?.('Conectado', `${window.appState.produtos.length} produtos sincronizados.`);
+    else {
+      window.mostrarToast?.('Sem rede', 'Não alcançou o Firebase.', 'error');
+      atualizarBadge('offline', 'Offline · toque');
+    }
+    if (!listenersAtivos && db) registrarListeners();
+  };
+
+  window.salvarChaveGeminiNoBanco = async function(chave) {
+    const key = String(chave || '').trim();
+    window.appState.geminiApiKey = key;
+    window.safeStorageSet?.('gemini_custom_api_key', key);
+    try {
+      if (db) {
+        await set(ref(db, 'auditoria_estoque/config/gemini_api_key'), key || null);
+      } else {
+        const res = await fetch(`${RTDB_BASE}/auditoria_estoque/config/gemini_api_key.json`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(key || null)
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+      }
+      window.mostrarToast?.(key ? 'Chave Gemini salva no banco' : 'Chave removida', key ? 'Sincronizada no Firebase.' : 'Removida.', 'success');
+    } catch (err) {
+      console.warn(err);
+      window.mostrarToast?.('Erro ao salvar chave', err.message || 'Ficou só local.', 'error');
+    }
+  };
 
   window.salvarProdutoNoBanco = async function(produto) {
     if (!produto?.cod) return;
@@ -591,15 +753,23 @@
     if (idx >= 0) window.appState.produtos[idx] = { ...window.appState.produtos[idx], ...produto };
     else window.appState.produtos.push(produto);
     persistirLocalmente(); dispararAtualizacaoUI();
-    if (db && produtosRef) {
-      try {
-        isApplyingRemote = true;
+    try {
+      isApplyingRemote = true;
+      if (db && produtosRef) {
         const { _lastLocalEdit, ...paraSalvar } = produto;
         await set(ref(db, `auditoria_estoque/produtos/${safeKey}`), { ...paraSalvar, cod: String(produto.cod), atualizadoEm: new Date().toISOString() });
-      } catch(err) {
-        console.warn('Escrita falhou:', err.code);
-        if (err.code === 'PERMISSION_DENIED') window.mostrarToast?.('Sem permissão', 'Libere as regras do Realtime Database.', 'error');
-      } finally { setTimeout(() => { isApplyingRemote = false; }, 500); }
+      } else {
+        await escreverProdutoREST(produto);
+      }
+    } catch (err) {
+      console.warn('Escrita SDK falhou, tentando REST...', err.code || err.message);
+      try { await escreverProdutoREST(produto); }
+      catch (e2) {
+        console.warn('REST write fail', e2);
+        if (String(err.code) === 'PERMISSION_DENIED') window.mostrarToast?.('Sem permissão', 'Libere regras do Realtime Database.', 'error');
+      }
+    } finally {
+      setTimeout(() => { isApplyingRemote = false; }, 500);
     }
   };
 
@@ -610,10 +780,14 @@
       window.appState.selecionados.delete(codigo);
       persistirLocalmente(); window.atualizarBarraLote?.(); dispararAtualizacaoUI();
       window.mostrarToast?.('Excluído', 'Mercadoria removida.', 'info');
-      if (db) {
-        try { isApplyingRemote = true; await remove(ref(db, `auditoria_estoque/produtos/${String(codigo).replace(/[.#$\[\]]/g, '_')}`)); }
-        catch(e){} finally { setTimeout(() => { isApplyingRemote = false; }, 500); }
-      }
+      const sk = String(codigo).replace(/[.#$\[\]]/g, '_');
+      try {
+        isApplyingRemote = true;
+        if (db) await remove(ref(db, `auditoria_estoque/produtos/${sk}`));
+        else await fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${sk}.json`, { method: 'DELETE' });
+      } catch(e) {
+        try { await fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${sk}.json`, { method: 'DELETE' }); } catch(e2) {}
+      } finally { setTimeout(() => { isApplyingRemote = false; }, 500); }
     });
   };
 
@@ -623,13 +797,21 @@
     window.appState.produtos = window.appState.produtos.filter(p => nome !== 'todas' && (p.industria||'').trim().toLowerCase() !== nome.trim().toLowerCase());
     window.appState.selecionados.clear(); persistirLocalmente(); window.atualizarBarraLote?.(); dispararAtualizacaoUI();
     window.mostrarToast?.('Limpeza', `Indústria "${nome}" limpa.`, 'info');
-    if (db && produtosRef) {
-      try {
-        isApplyingRemote = true;
+    try {
+      isApplyingRemote = true;
+      if (db && produtosRef) {
         if (nome === 'todas') await remove(produtosRef);
-        else { const updates = {}; itens.forEach(i => { updates[String(i.cod).replace(/[.#$\[\]]/g, '_')] = null; }); await update(produtosRef, updates); }
-      } catch(e){} finally { setTimeout(() => { isApplyingRemote = false; }, 500); }
-    }
+        else {
+          const updates = {};
+          itens.forEach(i => { updates[String(i.cod).replace(/[.#$\[\]]/g, '_')] = null; });
+          await update(produtosRef, updates);
+        }
+      } else {
+        if (nome === 'todas') await fetch(`${RTDB_BASE}/auditoria_estoque/produtos.json`, { method: 'PUT', body: 'null' });
+        else await Promise.all(itens.map(i => fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${String(i.cod).replace(/[.#$\[\]]/g, '_')}.json`, { method: 'DELETE' })));
+      }
+    } catch(e) { console.warn(e); }
+    finally { setTimeout(() => { isApplyingRemote = false; }, 500); }
   };
 
   window.executarAcaoEmLote = async function(tipo, valor) {
@@ -645,23 +827,35 @@
       else if (tipo === 'excluir') window.appState.produtos = window.appState.produtos.filter(p => p.cod !== cod);
     });
     persistirLocalmente(); window.appState.selecionados.clear(); window.atualizarBarraLote?.(); dispararAtualizacaoUI();
-    if (db && produtosRef) {
-      try {
-        isApplyingRemote = true;
+    try {
+      isApplyingRemote = true;
+      if (db && produtosRef) {
         const updates = {};
         codigos.forEach(cod => {
           const sk = String(cod).replace(/[.#$\[\]]/g, '_');
           const prod = window.appState.produtos.find(p => p.cod === cod);
           if (tipo === 'presenca' && prod) {
-            updates[`${sk}/presenca`] = valor; updates[`${sk}/contagemFisica`] = prod.contagemFisica;
+            updates[`${sk}/presenca`] = valor;
+            updates[`${sk}/contagemFisica`] = prod.contagemFisica;
             updates[`${sk}/atualizadoEm`] = new Date().toISOString();
           } else if (tipo === 'trocarIndustria' && prod) {
-            updates[`${sk}/industria`] = valor; updates[`${sk}/atualizadoEm`] = new Date().toISOString();
+            updates[`${sk}/industria`] = valor;
+            updates[`${sk}/atualizadoEm`] = new Date().toISOString();
           } else if (tipo === 'excluir') updates[sk] = null;
         });
         await update(produtosRef, updates);
-      } catch(e){} finally { setTimeout(() => { isApplyingRemote = false; }, 500); }
-    }
+      } else {
+        for (const cod of codigos) {
+          const prod = window.appState.produtos.find(p => p.cod === cod);
+          if (tipo === 'excluir') {
+            await fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${String(cod).replace(/[.#$\[\]]/g, '_')}.json`, { method: 'DELETE' });
+          } else if (prod) {
+            await escreverProdutoREST(prod);
+          }
+        }
+      }
+    } catch(e) { console.warn(e); }
+    finally { setTimeout(() => { isApplyingRemote = false; }, 500); }
   };
 
   window.addEventListener('DOMContentLoaded', () => {
@@ -1423,7 +1617,7 @@ window.executarOCRLocalImagem = async function(base64, mime, statusEl) {
 };
 
 window.enviarParaLeitorGemini = async function(base64, mime) {
-  const key = (document.getElementById('inputChaveGeminiOpcional')?.value || window.safeStorageGet('gemini_custom_api_key') || '').trim();
+  const key = (document.getElementById('inputChaveGeminiOpcional')?.value || window.appState?.geminiApiKey || window.safeStorageGet('gemini_custom_api_key') || '').trim();
   if (!key) throw new Error('Sem chave Gemini');
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
   const payload = {
