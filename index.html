@@ -743,6 +743,15 @@
         </div>
 
         <div class="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
+          <button type="button" onclick="window.fecharModalNovoProduto()" class="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer">Cancelar</button>
+          <button type="submit" id="btnSalvarNovoProd" class="px-4 py-2 font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition flex items-center gap-1.5 shadow-xs cursor-pointer">
+            <i class="ph-bold ph-check text-base"></i> Cadastrar Mercadoria
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- MODAL: LEITURA DE PDF / IMAGEM / AJUSTE DE ESTOQUE COM INTELIGÊNCIA ARTIFICIAL -->
   <div id="modalUpload" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 hidden">
     <div class="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[94vh] flex flex-col overflow-hidden border border-slate-200">
@@ -821,6 +830,9 @@
               <i class="ph-bold ph-spinner animate-spin text-base"></i>
               <span id="textoStatusIA">Analisando colunas disponíveis na imagem/documento...</span>
             </div>
+          </div>
+        </div>
+
         <!-- Tabela Interativa de Decisão e Conciliação de Estoque Pré-Importação -->
         <div id="containerResultadosIA" class="hidden space-y-2.5">
           <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-100 px-3 py-2 rounded-xl border border-slate-200">
@@ -1644,91 +1656,6 @@
         window.safeStorageSet('auditorObsPosterus', el.value);
         window.mostrarToast("Anotação Salva", "Observações registradas com sucesso.");
       }
-    };
-
-    // Funções de abertura e fechamento de modais garantidas no escopo global (window.*)
-    window.abrirModalUpload = function() {
-      const m = document.getElementById('modalUpload');
-      if (m) m.classList.remove('hidden');
-      const s = document.getElementById('statusProcessamentoIA');
-      if (s) s.classList.add('hidden');
-      const c = document.getElementById('containerResultadosIA');
-      if (c) c.classList.add('hidden');
-      const b = document.getElementById('btnConfirmarImportacaoIA');
-      if (b) b.disabled = true;
-      const inp = document.getElementById('inputArquivoUpload');
-      if (inp) inp.value = '';
-    };
-
-    window.fecharModalUpload = function() {
-      const m = document.getElementById('modalUpload');
-      if (m) m.classList.add('hidden');
-    };
-
-    window.abrirModalNovoProduto = function() {
-      const f = document.getElementById('formNovoProduto');
-      if (f) f.reset();
-      if (window.appState && window.appState.industriaAtiva && window.appState.industriaAtiva !== 'todas') {
-        const indInp = document.getElementById('novoIndustria');
-        if (indInp) indInp.value = window.appState.industriaAtiva;
-      }
-      const alerta = document.getElementById('alertaDuplicidade');
-      if (alerta) alerta.classList.add('hidden');
-      const m = document.getElementById('modalNovoProduto');
-      if (m) m.classList.remove('hidden');
-    };
-
-    window.fecharModalNovoProduto = function() {
-      const m = document.getElementById('modalNovoProduto');
-      if (m) m.classList.add('hidden');
-    };
-
-    window.abrirModalListaSimples = function() {
-      window.atualizarConteudoListaSimples();
-      const m = document.getElementById('modalListaSimples');
-      if (m) m.classList.remove('hidden');
-    };
-
-    window.fecharModalListaSimples = function() {
-      const m = document.getElementById('modalListaSimples');
-      if (m) m.classList.add('hidden');
-    };
-
-    window.abrirModalEditarProduto = function(codigo) {
-      if (!window.appState || !window.appState.produtos) return;
-      const prod = window.appState.produtos.find(p => p.cod === codigo);
-      if (!prod) return;
-
-      document.getElementById('editCodOriginal').value = prod.cod;
-      document.getElementById('editCod').value = prod.cod;
-      document.getElementById('editDesc').value = prod.desc;
-      document.getElementById('editIndustria').value = prod.industria || 'Puro Tempero';
-      document.getElementById('editVenda').value = prod.venda || 0;
-      document.getElementById('editEstoque').value = prod.estoque || 0;
-      document.getElementById('editDde').value = prod.dde || 0;
-      if (document.getElementById('editValidade')) {
-        document.getElementById('editValidade').value = prod.validade || '';
-      }
-
-      const m = document.getElementById('modalEditarProduto');
-      if (m) m.classList.remove('hidden');
-    };
-
-    window.fecharModalEditarProduto = function() {
-      const m = document.getElementById('modalEditarProduto');
-      if (m) m.classList.add('hidden');
-    };
-
-    window.abrirModalTransferenciaLote = function() {
-      const inp = document.getElementById('inputDestinoLote');
-      if (inp) inp.value = '';
-      const m = document.getElementById('modalTransferenciaLote');
-      if (m) m.classList.remove('hidden');
-    };
-
-    window.fecharModalTransferenciaLote = function() {
-      const m = document.getElementById('modalTransferenciaLote');
-      if (m) m.classList.add('hidden');
     };
 
     // RENDERIZAÇÃO DAS ABAS ESTILO PASTA / CHROME POR INDÚSTRIA
