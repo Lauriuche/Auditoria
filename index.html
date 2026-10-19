@@ -48,6 +48,7 @@
       if (!prod) return;
       document.getElementById('editCodOriginal').value = prod.cod;
       document.getElementById('editCod').value = prod.cod;
+      const eanEl = document.getElementById('editEan'); if (eanEl) eanEl.value = prod.ean || '';
       document.getElementById('editDesc').value = prod.desc || '';
       document.getElementById('editIndustria').value = prod.industria || 'Puro Tempero';
       document.getElementById('editVenda').value = prod.venda || 0;
@@ -76,13 +77,21 @@
     .chrome-tab{position:relative;display:inline-flex;align-items:center;gap:8px;padding:9px 18px 10px;font-size:13px;font-weight:600;color:#475569;background:#e2e8f0;border-top-left-radius:12px;border-top-right-radius:12px;border:1px solid #cbd5e1;border-bottom:none;cursor:pointer;transition:all .15s;white-space:nowrap;user-select:none}
     .chrome-tab:hover{background:#f1f5f9;color:#0f172a}
     .chrome-tab.active{background:#fff;color:#0f172a;font-weight:700;border-top:3px solid #059669;z-index:10;padding-bottom:11px;margin-bottom:-1px}
-    thead th{position:sticky;top:0;z-index:20;background:#f1f5f9;box-shadow:0 1px 0 #e2e8f0}
-    .presenca-btn{min-height:32px;min-width:48px}
+    thead th{position:sticky;top:0;z-index:20;background:#f1f5f9;box-shadow:0 1px 0 #e2e8f0;white-space:nowrap}
+    .presenca-btn{min-height:28px;min-width:36px;padding:2px 4px!important}
+    #tabelaCorpo tr,#tabelaCorpo td{white-space:nowrap;vertical-align:middle}
+    #tabelaCorpo td .desc-cell{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle}
+    .val-dot{display:inline-block;min-width:4.5rem;text-align:center;font-weight:700;font-size:11px;padding:3px 6px;border-radius:6px;font-variant-numeric:tabular-nums}
+    .kpi-compact{padding:0.5rem 0.6rem!important;min-height:0}
+    .kpi-compact .kpi-label{font-size:10px;line-height:1.1}
+    .kpi-compact .kpi-val{font-size:1.05rem;line-height:1.15;margin-top:2px}
     @media print{.no-print{display:none!important}body{background:#fff!important;font-size:10px}body.imprimindo-simples #areaAuditoria,body.imprimindo-simples header{display:none!important}}
     input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
     .custom-scrollbar::-webkit-scrollbar{width:6px;height:6px}
     .custom-scrollbar::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
+    #readerEAN{width:100%;max-width:360px;margin:0 auto}
   </style>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col font-sans antialiased">
 
@@ -139,18 +148,27 @@
     </div>
   </div>
 
-  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2.5">
-    <div class="bg-white p-2.5 rounded-xl border border-slate-200 flex flex-col justify-between">
-      <span class="text-[11px] font-bold uppercase text-slate-500">Conferidos</span>
-      <div class="flex items-baseline justify-between mt-1"><span class="text-lg font-black" id="statAuditados">0/0</span><span class="text-xs font-extrabold text-emerald-600" id="statProgresso">0%</span></div>
-      <div class="w-full bg-slate-100 rounded-full h-1.5 mt-1.5"><div id="progressBar" class="bg-emerald-500 h-1.5 rounded-full transition-all" style="width:0%"></div></div>
+  <div class="grid grid-cols-4 gap-1.5 sm:gap-2">
+    <div class="kpi-compact bg-white rounded-lg border border-slate-200 flex flex-col justify-between">
+      <span class="kpi-label font-bold uppercase text-slate-500">Conferidos</span>
+      <div class="flex items-baseline justify-between gap-1"><span class="kpi-val font-black" id="statAuditados">0/0</span><span class="text-[10px] font-extrabold text-emerald-600" id="statProgresso">0%</span></div>
+      <div class="w-full bg-slate-100 rounded-full h-1 mt-1"><div id="progressBar" class="bg-emerald-500 h-1 rounded-full transition-all" style="width:0%"></div></div>
     </div>
-    <div class="bg-white p-2.5 rounded-xl border border-emerald-100 bg-emerald-50/20 flex flex-col justify-between"><span class="text-[11px] font-bold uppercase text-emerald-700 flex items-center gap-1"><i class="ph-bold ph-check-circle"></i> Presente</span><span class="text-xl font-black text-emerald-700 mt-1" id="statPresente">0</span></div>
-    <div class="bg-white p-2.5 rounded-xl border border-rose-200 bg-rose-50/25 flex flex-col justify-between"><span class="text-[11px] font-bold uppercase text-rose-600 flex items-center gap-1"><i class="ph-bold ph-x-circle"></i> Ruptura</span><span class="text-xl font-black text-rose-600 mt-1" id="statAusente">0</span></div>
-    <div class="bg-white p-2.5 rounded-xl border border-amber-200 bg-amber-50/25 flex flex-col justify-between"><span class="text-[11px] font-bold uppercase text-amber-700 flex items-center gap-1"><i class="ph-bold ph-warning"></i> Negativo</span><span class="text-xl font-black text-amber-700 mt-1" id="statNegativo">0</span></div>
-    <div class="bg-white p-2.5 rounded-xl border border-orange-200 bg-orange-50/25 flex flex-col justify-between"><span class="text-[11px] font-bold uppercase text-orange-700 flex items-center gap-1"><i class="ph-bold ph-clock-countdown"></i> DDE &lt;10d</span><span class="text-xl font-black text-orange-700 mt-1" id="statDdeCritico">0</span></div>
-    <div class="bg-white p-2.5 rounded-xl border border-indigo-200 bg-indigo-50/25 flex flex-col justify-between"><span class="text-[11px] font-bold uppercase text-indigo-700 flex items-center gap-1"><i class="ph-bold ph-arrows-left-right"></i> Divergências</span><span class="text-xl font-black text-indigo-700 mt-1" id="statDivergencias">0</span></div>
-    <div class="bg-white p-2.5 rounded-xl border border-pink-200 bg-pink-50/25 flex flex-col justify-between"><span class="text-[11px] font-bold uppercase text-pink-700 flex items-center gap-1"><i class="ph-bold ph-calendar-x"></i> Vencendo</span><span class="text-xl font-black text-pink-700 mt-1" id="statValidadeAlerta">0</span></div>
+    <div class="kpi-compact bg-emerald-50/40 rounded-lg border border-emerald-100 flex flex-col justify-between"><span class="kpi-label font-bold uppercase text-emerald-700">Presente</span><span class="kpi-val font-black text-emerald-700" id="statPresente">0</span></div>
+    <div class="kpi-compact bg-rose-50/40 rounded-lg border border-rose-200 flex flex-col justify-between"><span class="kpi-label font-bold uppercase text-rose-600">Ruptura</span><span class="kpi-val font-black text-rose-600" id="statAusente">0</span></div>
+    <div class="kpi-compact bg-amber-50/40 rounded-lg border border-amber-200 flex flex-col justify-between"><span class="kpi-label font-bold uppercase text-amber-700">Negativo</span><span class="kpi-val font-black text-amber-700" id="statNegativo">0</span></div>
+    <div class="kpi-compact bg-orange-50/40 rounded-lg border border-orange-200 flex flex-col justify-between"><span class="kpi-label font-bold uppercase text-orange-700">DDE &lt;10d</span><span class="kpi-val font-black text-orange-700" id="statDdeCritico">0</span></div>
+    <div class="kpi-compact bg-indigo-50/40 rounded-lg border border-indigo-200 flex flex-col justify-between"><span class="kpi-label font-bold uppercase text-indigo-700">Diverg.</span><span class="kpi-val font-black text-indigo-700" id="statDivergencias">0</span></div>
+    <div class="kpi-compact bg-pink-50/40 rounded-lg border border-pink-200 flex flex-col justify-between"><span class="kpi-label font-bold uppercase text-pink-700">Vencendo</span><span class="kpi-val font-black text-pink-700" id="statValidadeAlerta">0</span></div>
+    <div class="kpi-compact bg-white rounded-lg border border-slate-200 flex flex-col justify-center items-center text-center px-1">
+      <span class="kpi-label font-bold uppercase text-slate-500">Legenda val.</span>
+      <div class="flex flex-wrap justify-center gap-0.5 mt-0.5 text-[9px] font-bold leading-tight">
+        <span class="px-1 rounded bg-rose-600 text-white">Ven</span>
+        <span class="px-1 rounded bg-red-100 text-red-800">15d</span>
+        <span class="px-1 rounded bg-amber-100 text-amber-800">30d</span>
+        <span class="px-1 rounded bg-emerald-50 text-emerald-700">OK</span>
+      </div>
+    </div>
   </div>
 
   <div class="w-full pt-2"><div class="chrome-tab-container custom-scrollbar border-b border-slate-300" id="containerAbasIndustria"></div></div>
@@ -159,7 +177,7 @@
     <div class="p-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2.5 bg-slate-50/80 no-print">
       <div class="relative flex-1 min-w-[240px]">
         <i class="ph-bold ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-        <input type="text" id="searchInput" oninput="aplicarFiltros()" placeholder="Buscar por código, descrição ou marca..." class="w-full pl-9 pr-3 py-1.5 text-xs font-medium border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500">
+        <input type="text" id="searchInput" oninput="aplicarFiltros()" placeholder="Buscar código, EAN, descrição ou indústria..." class="w-full pl-9 pr-3 py-1.5 text-xs font-medium border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500">
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <select id="filtroPresenca" onchange="aplicarFiltros()" class="text-xs font-semibold border border-slate-300 rounded-lg px-2.5 py-1.5">
@@ -187,21 +205,18 @@
     <div class="overflow-x-auto max-h-[70vh]">
       <table class="w-full text-left border-collapse text-xs">
         <thead>
-          <tr class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
-            <th class="py-2.5 px-3 w-10 text-center no-print"><input type="checkbox" id="checkSelectAll" onchange="alternarSelecionarTodos(this.checked)" class="w-4 h-4 rounded text-brand-600"></th>
-            <th class="py-2.5 px-3 w-12 text-center">#</th>
-            <th class="py-2.5 px-3 w-24">Código</th>
-            <th class="py-2.5 px-3 min-w-[200px]">Descrição</th>
-            <th class="py-2.5 px-3 w-28">Indústria</th>
-            <th class="py-2.5 px-2 text-center w-14">Venda</th>
-            <th class="py-2.5 px-2 text-center w-16">Saldo ERP</th>
-            <th class="py-2.5 px-2 text-center w-14">DDE</th>
-            <th class="py-2.5 px-3 w-40 text-center bg-slate-200/70 font-black border-x border-slate-300">Presença?</th>
-            <th class="py-2.5 px-3 w-24 text-center">Contagem</th>
-            <th class="py-2.5 px-3 w-20 text-center">Diverg.</th>
-            <th class="py-2.5 px-3 w-32 text-center bg-pink-50/40 border-x border-slate-200 font-bold text-pink-950">Validade</th>
-            <th class="py-2.5 px-3 min-w-[120px]">Anotação</th>
-            <th class="py-2.5 px-2 w-16 text-center no-print">Ações</th>
+          <tr class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 text-[11px]">
+            <th class="py-2 px-1.5 w-8 text-center no-print"><input type="checkbox" id="checkSelectAll" onchange="alternarSelecionarTodos(this.checked)" class="w-3.5 h-3.5 rounded text-brand-600"></th>
+            <th class="py-2 px-1.5 text-center">Cód.</th>
+            <th class="py-2 px-1.5 text-center">EAN</th>
+            <th class="py-2 px-1.5">Descrição</th>
+            <th class="py-2 px-1.5">Indústria</th>
+            <th class="py-2 px-1.5 text-center">Estoque</th>
+            <th class="py-2 px-1.5 text-center bg-pink-50/50">Validade</th>
+            <th class="py-2 px-1.5 text-center bg-slate-200/70 border-x border-slate-300">Presença</th>
+            <th class="py-2 px-1.5 text-center">Contagem</th>
+            <th class="py-2 px-1.5 text-center">Diverg.</th>
+            <th class="py-2 px-1.5 w-10 text-center no-print">⚙️</th>
           </tr>
         </thead>
         <tbody id="tabelaCorpo" class="divide-y divide-slate-200"></tbody>
@@ -238,8 +253,16 @@
     <form id="formEditarProduto" onsubmit="salvarEdicaoProduto(event)" class="p-5 space-y-3.5 text-xs">
       <input type="hidden" id="editCodOriginal">
       <div class="grid grid-cols-2 gap-3">
-        <div><label class="block font-bold text-slate-700 mb-1">Código / EAN</label><input type="text" id="editCod" required readonly class="w-full border border-slate-300 rounded-lg px-3 py-2 font-mono font-bold bg-slate-100 cursor-not-allowed"></div>
+        <div><label class="block font-bold text-slate-700 mb-1">Cód. Reduzido *</label><input type="text" id="editCod" required readonly class="w-full border border-slate-300 rounded-lg px-3 py-2 font-mono font-bold bg-slate-100 cursor-not-allowed"></div>
         <div><label class="block font-bold text-slate-700 mb-1">Indústria *</label><input list="listaIndustriasExistentes" type="text" id="editIndustria" required class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500"></div>
+      </div>
+      <div>
+        <label class="block font-bold text-slate-700 mb-1">Código EAN</label>
+        <div class="flex gap-1.5">
+          <input type="text" id="editEan" inputmode="numeric" placeholder="789..." class="flex-1 border border-slate-300 rounded-lg px-3 py-2 font-mono focus:ring-2 focus:ring-brand-500" onblur="window.buscarInfoEAN?.(this.value,'edit')">
+          <button type="button" onclick="window.abrirScannerEAN?.('edit')" class="px-3 py-2 bg-slate-800 text-white rounded-lg font-bold" title="Escanear"><i class="ph-bold ph-barcode"></i></button>
+          <button type="button" onclick="window.buscarInfoEAN?.(document.getElementById('editEan').value,'edit')" class="px-3 py-2 bg-blue-600 text-white rounded-lg font-bold" title="Buscar online"><i class="ph-bold ph-magnifying-glass"></i></button>
+        </div>
       </div>
       <div><label class="block font-bold text-slate-700 mb-1">Descrição *</label><input type="text" id="editDesc" required class="w-full border border-slate-300 rounded-lg px-3 py-2 uppercase focus:ring-2 focus:ring-brand-500"></div>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -266,8 +289,17 @@
     <form id="formNovoProduto" onsubmit="salvarNovoProduto(event)" class="p-5 space-y-3.5 text-xs">
       <div id="alertaDuplicidade" class="hidden p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 flex items-start gap-2"><i class="ph-bold ph-warning-octagon text-lg shrink-0"></i><span id="textoAlertaDuplicidade"></span></div>
       <div class="grid grid-cols-2 gap-3">
-        <div><label class="block font-bold text-slate-700 mb-1">Código / EAN *</label><input type="text" id="novoCod" required oninput="verificarDuplicidadeCampos()" class="w-full border border-slate-300 rounded-lg px-3 py-2 font-mono uppercase focus:ring-2 focus:ring-blue-500"></div>
+        <div><label class="block font-bold text-slate-700 mb-1">Cód. Reduzido *</label><input type="text" id="novoCod" required oninput="verificarDuplicidadeCampos()" placeholder="Interno loja" class="w-full border border-slate-300 rounded-lg px-3 py-2 font-mono uppercase focus:ring-2 focus:ring-blue-500"></div>
         <div><label class="block font-bold text-slate-700 mb-1">Indústria *</label><input list="listaIndustriasExistentes" type="text" id="novoIndustria" required placeholder="Ex: Puro Tempero" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"><datalist id="listaIndustriasExistentes"></datalist></div>
+      </div>
+      <div>
+        <label class="block font-bold text-slate-700 mb-1">Código EAN</label>
+        <div class="flex gap-1.5">
+          <input type="text" id="novoEan" inputmode="numeric" placeholder="789... digite ou escaneie" class="flex-1 border border-slate-300 rounded-lg px-3 py-2 font-mono focus:ring-2 focus:ring-blue-500" onblur="window.buscarInfoEAN?.(this.value,'novo')">
+          <button type="button" onclick="window.abrirScannerEAN?.('novo')" class="px-3 py-2 bg-slate-800 text-white rounded-lg font-bold" title="Escanear"><i class="ph-bold ph-barcode"></i></button>
+          <button type="button" onclick="window.buscarInfoEAN?.(document.getElementById('novoEan').value,'novo')" class="px-3 py-2 bg-blue-600 text-white rounded-lg font-bold" title="Buscar online"><i class="ph-bold ph-magnifying-glass"></i></button>
+        </div>
+        <p id="statusBuscaEAN" class="text-[10px] text-slate-500 mt-1 hidden"></p>
       </div>
       <div><label class="block font-bold text-slate-700 mb-1">Descrição *</label><input type="text" id="novoDesc" required oninput="verificarDuplicidadeCampos()" class="w-full border border-slate-300 rounded-lg px-3 py-2 uppercase focus:ring-2 focus:ring-blue-500"></div>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -482,6 +514,21 @@
   </div>
 </div>
 
+
+<!-- MODAL SCANNER EAN -->
+<div id="modalScannerEAN" class="fixed inset-0 z-[60] bg-slate-900/80 flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
+    <div class="px-4 py-3 border-b flex items-center justify-between bg-slate-50">
+      <h2 class="text-sm font-bold flex items-center gap-2"><i class="ph-bold ph-barcode text-lg"></i> Escanear EAN</h2>
+      <button type="button" onclick="window.fecharScannerEAN?.()" class="p-1.5 text-slate-400 hover:text-slate-600"><i class="ph-bold ph-x text-lg"></i></button>
+    </div>
+    <div class="p-3">
+      <div id="readerEAN"></div>
+      <p class="text-[11px] text-slate-500 text-center mt-2">Aponte a câmera para o código de barras</p>
+    </div>
+  </div>
+</div>
+
 <div id="toastNotification" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 max-w-md bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3">
   <div id="toastIcon" class="text-emerald-400 text-xl"><i class="ph-bold ph-check-circle"></i></div>
   <div class="text-xs"><p id="toastTitulo" class="font-bold">Notificação</p><p id="toastMsg" class="text-slate-300"></p></div>
@@ -517,7 +564,14 @@
     if (window.appState.produtos) window.safeStorageSet?.('auditoria_produtos_cache', JSON.stringify(window.appState.produtos));
   }
   function dispararAtualizacaoUI() {
-    window.renderizarAbasIndustrias?.(); window.aplicarFiltros?.(); window.atualizarEstatisticas?.();
+    try {
+      window.renderizarAbasIndustrias?.();
+      if (typeof window.aplicarFiltros === 'function') window.aplicarFiltros();
+      else if (typeof window.renderizarTabela === 'function') window.renderizarTabela(window.appState?.produtos || []);
+      window.atualizarEstatisticas?.();
+    } catch (e) {
+      console.error('[UI] dispararAtualizacaoUI', e);
+    }
   }
   function atualizarBadge(status, msg) {
     const badge = document.getElementById('badgeConexao'); if (!badge) return;
@@ -544,7 +598,15 @@
       return window.appState.produtos;
     }
     const listaRemota = [];
-    Object.keys(data).forEach(k => { if (data[k]?.cod) listaRemota.push(data[k]); });
+    Object.keys(data).forEach(k => {
+      const item = data[k];
+      if (!item || typeof item !== 'object') return;
+      // Aceita item mesmo se cod vier só na chave do Firebase
+      if (!item.cod) item.cod = k;
+      item.cod = String(item.cod);
+      if (!item.ean) item.ean = item.ean || '';
+      listaRemota.push(item);
+    });
     const mapaLocal = new Map(window.appState.produtos.map(p => [String(p.cod), p]));
     const mapaRemoto = new Map(listaRemota.map(p => [String(p.cod), p]));
     const mergeado = [];
@@ -946,10 +1008,12 @@ window.aplicarFiltros = function() {
   const fP = document.getElementById('filtroPresenca')?.value||'todos';
   const fC = document.getElementById('filtroCategoria')?.value||'todos';
   const fV = document.getElementById('filtroValidade')?.value||'todos';
-  const ind = window.appState.industriaAtiva||'todas';
-  const filtrados = (window.appState.produtos||[]).filter(p => {
+  const ind = window.appState?.industriaAtiva||'todas';
+  const base = window.appState?.produtos || [];
+  const filtrados = base.filter(p => {
+    if (!p || p.cod === undefined || p.cod === null || p.cod === '') return false;
     if (ind!=='todas' && (p.industria||'').trim().toLowerCase()!==ind.trim().toLowerCase()) return false;
-    if (busca && !`${p.cod} ${p.desc} ${p.industria||''}`.toLowerCase().includes(busca)) return false;
+    if (busca && !`${p.cod} ${p.ean||''} ${p.desc} ${p.industria||''}`.toLowerCase().includes(busca)) return false;
     const pr = p.presenca||'pendente';
     if (fP!=='todos' && pr!==fP) return false;
     if (fC==='critico' && !(p.dde>0 && p.dde<=9)) return false;
@@ -982,65 +1046,83 @@ window.resetarFiltros = function() {
   window.aplicarFiltros();
 };
 
+window.escHtml = function(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+};
+
 window.renderizarTabela = function(itens) {
-  const tbody = document.getElementById('tabelaCorpo'); if (!tbody) return;
+  const tbody = document.getElementById('tabelaCorpo');
+  if (!tbody) { console.warn('[UI] tabelaCorpo não encontrada'); return; }
   tbody.innerHTML = '';
-  const total = window.appState?.produtos?.length||0;
-  document.getElementById('statTotalGeral').innerText = total;
-  if (!itens?.length) {
-    tbody.innerHTML = `<tr><td colspan="14" class="text-center py-12 text-slate-400"><i class="ph-bold ph-folder-dashed text-4xl block mb-2"></i>Nenhuma mercadoria. Use Upload ou Nova Mercadoria.</td></tr>`;
-    document.getElementById('labelContadorExibidos').innerText = 'Exibindo 0 itens';
+  const total = (window.appState?.produtos || []).length;
+  const elTotal = document.getElementById('statTotalGeral');
+  if (elTotal) elTotal.innerText = total;
+
+  if (!itens || !itens.length) {
+    tbody.innerHTML = '<tr><td colspan="11" class="text-center py-12 text-slate-400 whitespace-normal"><i class="ph-bold ph-folder-dashed text-4xl block mb-2"></i>Nenhuma mercadoria filtrada. Total no banco: ' + total + '</td></tr>';
+    const lab = document.getElementById('labelContadorExibidos');
+    if (lab) lab.innerText = 'Exibindo 0 de ' + total + ' itens';
     return;
   }
+
+  const frag = document.createDocumentFragment();
   itens.forEach((p, idx) => {
-    const pr = p.presenca||'pendente';
-    const ct = p.contagemFisica??'';
-    const val = p.validade||'';
-    const iv = window.calcularStatusValidade(val);
-    const chk = window.appState.selecionados.has(p.cod);
-    let badge = '';
-    if (p.estoque<0) badge = '<span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">Negativo</span>';
-    else if (p.venda>0 && p.estoque===0) badge = '<span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">Venda s/ Estoque</span>';
-    else if (p.dde>0 && p.dde<=9) badge = `<span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-800">DDE ${p.dde}d</span>`;
-    let divT='-', divC='text-slate-400';
-    if (ct!=='' && !isNaN(parseInt(ct))) {
-      const d = parseInt(ct)-p.estoque;
-      if (d===0){divT='OK (0)';divC='text-emerald-600 font-bold';}
-      else if (d>0){divT=`+${d}`;divC='text-blue-600 font-bold';}
-      else {divT=`${d}`;divC='text-rose-600 font-bold';}
+    try {
+      const cod = String(p.cod ?? '');
+      const pr = p.presenca || 'pendente';
+      const ct = (p.contagemFisica === undefined || p.contagemFisica === null) ? '' : String(p.contagemFisica);
+      const val = p.validade || '';
+      const iv = window.calcularStatusValidade ? window.calcularStatusValidade(val) : { formatada: '-', status: 'sem_validade', label: '' };
+      const chk = window.appState.selecionados && window.appState.selecionados.has(cod);
+      let divT = '-', divC = 'text-slate-400';
+      if (ct !== '' && !isNaN(parseInt(ct, 10))) {
+        const d = parseInt(ct, 10) - Number(p.estoque || 0);
+        if (d === 0) { divT = '0'; divC = 'text-emerald-600 font-bold'; }
+        else if (d > 0) { divT = '+' + d; divC = 'text-blue-600 font-bold'; }
+        else { divT = String(d); divC = 'text-rose-600 font-bold'; }
+      }
+      let valHtml = '<span class="text-slate-300">—</span>';
+      if (val && iv.formatada && iv.formatada !== '-') {
+        let cls = 'bg-slate-100 text-slate-600';
+        if (iv.status === 'vencido' || iv.status === 'vence_hoje') cls = 'bg-rose-600 text-white';
+        else if (iv.status === 'vence_15') cls = 'bg-red-100 text-red-800';
+        else if (iv.status === 'vence_30') cls = 'bg-amber-100 text-amber-800';
+        else if (iv.status === 'vence_60') cls = 'bg-yellow-50 text-yellow-800';
+        else if (iv.status === 'em_dia') cls = 'bg-emerald-50 text-emerald-700';
+        valHtml = '<span class="val-dot ' + cls + '" title="' + window.escHtml(iv.label) + '">' + window.escHtml(iv.formatada) + '</span>';
+      }
+      const eanShow = String(p.ean || '').trim() || '—';
+      const desc = window.escHtml(p.desc || '');
+      const ind = window.escHtml(p.industria || '-');
+      const rowBg = chk ? 'bg-indigo-50/40' : (window.getRowBgColor ? window.getRowBgColor(p, pr) : '');
+      const tr = document.createElement('tr');
+      tr.className = 'hover:bg-slate-50/90 ' + rowBg;
+      tr.innerHTML =
+        '<td class="py-1.5 px-1.5 text-center no-print"><input type="checkbox" ' + (chk ? 'checked' : '') + ' onchange="alternarSelecaoItem(\'' + window.escHtml(cod) + '\',this.checked)" class="w-3.5 h-3.5 rounded text-brand-600"></td>' +
+        '<td class="py-1.5 px-1.5 text-center font-mono font-bold text-[11px]">' + window.escHtml(cod) + '</td>' +
+        '<td class="py-1.5 px-1.5 text-center font-mono text-[10px] text-slate-600">' + window.escHtml(eanShow) + '</td>' +
+        '<td class="py-1.5 px-1.5"><span class="desc-cell text-[11px] font-medium" title="' + desc + '">' + desc + '</span></td>' +
+        '<td class="py-1.5 px-1.5 text-[10px]"><span class="px-1.5 py-0.5 rounded font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">' + ind + '</span></td>' +
+        '<td class="py-1.5 px-1.5 text-center font-bold text-[11px] ' + (Number(p.estoque) < 0 ? 'text-rose-600' : '') + '">' + window.escHtml(p.estoque) + '</td>' +
+        '<td class="py-1.5 px-1.5 text-center">' + valHtml + '</td>' +
+        '<td class="py-1 px-1 bg-slate-50/50 border-x border-slate-200 text-center">' +
+          '<div class="inline-flex rounded-md border border-slate-200 bg-white p-0.5">' +
+            '<button type="button" onclick="alterarPresenca(\'' + window.escHtml(cod) + '\',\'sim\')" class="presenca-btn text-[10px] font-bold rounded ' + (pr === 'sim' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-100') + '">Sim</button>' +
+            '<button type="button" onclick="alterarPresenca(\'' + window.escHtml(cod) + '\',\'nao\')" class="presenca-btn text-[10px] font-bold rounded ' + (pr === 'nao' ? 'bg-rose-600 text-white' : 'text-slate-600 hover:bg-slate-100') + '">Não</button>' +
+            '<button type="button" onclick="alterarPresenca(\'' + window.escHtml(cod) + '\',\'parcial\')" class="presenca-btn text-[10px] font-bold rounded ' + (pr === 'parcial' ? 'bg-amber-500 text-white' : 'text-slate-600 hover:bg-slate-100') + '">P</button>' +
+          '</div></td>' +
+        '<td class="py-1 px-1 text-center"><input type="number" value="' + window.escHtml(ct) + '" placeholder="—" onchange="atualizarContagem(\'' + window.escHtml(cod) + '\',this.value)" class="w-14 text-center text-[11px] font-bold border border-slate-300 rounded py-0.5"></td>' +
+        '<td class="py-1.5 px-1.5 text-center text-[11px] ' + divC + '">' + divT + '</td>' +
+        '<td class="py-1 px-1 text-center no-print"><button type="button" onclick="abrirModalEditarProduto(\'' + window.escHtml(cod) + '\')" class="p-1 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded" title="Editar"><i class="ph-bold ph-gear text-sm"></i></button></td>';
+      frag.appendChild(tr);
+    } catch (err) {
+      console.error('[UI] Erro ao renderizar item', p, err);
     }
-    const tr = document.createElement('tr');
-    tr.className = `hover:bg-slate-50/90 ${chk?'bg-indigo-50/40':window.getRowBgColor(p,pr)}`;
-    tr.innerHTML = `
-      <td class="py-2.5 px-3 text-center no-print"><input type="checkbox" ${chk?'checked':''} onchange="alternarSelecaoItem('${p.cod}',this.checked)" class="w-4 h-4 rounded text-brand-600"></td>
-      <td class="py-2.5 px-3 text-center text-slate-400 font-mono">${idx+1}</td>
-      <td class="py-2.5 px-3 font-mono font-bold">${p.cod}</td>
-      <td class="py-2.5 px-3"><div class="font-medium flex flex-wrap items-center">${p.desc}${badge}</div></td>
-      <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">${p.industria||'-'}</span></td>
-      <td class="py-2.5 px-2 text-center">${p.venda||0}</td>
-      <td class="py-2.5 px-2 text-center font-bold ${p.estoque<0?'text-rose-600 bg-rose-50 rounded':''}">${p.estoque}</td>
-      <td class="py-2.5 px-2 text-center ${p.dde>0&&p.dde<=9?'text-orange-600 font-black':''}">${p.dde||0}d</td>
-      <td class="py-2 px-2 bg-slate-50/50 border-x border-slate-200 text-center">
-        <div class="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 w-full max-w-[160px]">
-          <button type="button" onclick="alterarPresenca('${p.cod}','sim')" class="presenca-btn flex-1 py-1 text-[11px] font-bold rounded ${pr==='sim'?'bg-emerald-600 text-white':'text-slate-600 hover:bg-slate-100'}"><i class="ph-bold ph-check"></i> Sim</button>
-          <button type="button" onclick="alterarPresenca('${p.cod}','nao')" class="presenca-btn flex-1 py-1 text-[11px] font-bold rounded ${pr==='nao'?'bg-rose-600 text-white':'text-slate-600 hover:bg-slate-100'}"><i class="ph-bold ph-x"></i> Não</button>
-          <button type="button" onclick="alterarPresenca('${p.cod}','parcial')" class="presenca-btn flex-1 py-1 text-[11px] font-bold rounded ${pr==='parcial'?'bg-amber-500 text-white':'text-slate-600 hover:bg-slate-100'}"><i class="ph-bold ph-warning"></i></button>
-        </div>
-      </td>
-      <td class="py-2 px-2 text-center"><input type="number" value="${ct}" placeholder="Qtd" onchange="atualizarContagem('${p.cod}',this.value)" class="w-16 text-center text-xs font-bold border border-slate-300 rounded-lg py-1"></td>
-      <td class="py-2 px-2 text-center ${divC}">${divT}</td>
-      <td class="py-2 px-2 text-center bg-pink-50/20 border-x border-slate-100">
-        <input type="date" value="${val}" onchange="atualizarValidade('${p.cod}',this.value)" class="w-28 text-[11px] border border-slate-300 rounded-lg py-1">
-        ${val?`<span class="block mt-0.5 px-1 py-0.5 rounded border text-[9px] ${iv.badgeClass}">${iv.label}</span>`:''}
-      </td>
-      <td class="py-2 px-2"><input type="text" value="${p.obs||''}" placeholder="Local..." onchange="atualizarObs('${p.cod}',this.value)" class="w-full text-xs border border-slate-200 rounded-lg py-1 px-2"></td>
-      <td class="py-2 px-2 text-center no-print">
-        <button onclick="abrirModalEditarProduto('${p.cod}')" class="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg" title="Editar"><i class="ph-bold ph-pencil-simple text-sm"></i></button>
-        <button onclick="excluirProduto('${p.cod}')" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg" title="Excluir"><i class="ph-bold ph-trash text-sm"></i></button>
-      </td>`;
-    tbody.appendChild(tr);
   });
-  document.getElementById('labelContadorExibidos').innerText = `Exibindo ${itens.length} itens`;
+  tbody.appendChild(frag);
+  const lab = document.getElementById('labelContadorExibidos');
+  if (lab) lab.innerText = 'Exibindo ' + itens.length + ' de ' + total + ' itens';
+  console.log('[UI] Tabela renderizada:', itens.length, 'itens');
 };
 
 window.getRowBgColor = (item, pr) => {
@@ -1139,6 +1221,7 @@ window.solicitarExclusaoEmLote = function() {
 window.salvarEdicaoProduto = async function(e) {
   e?.preventDefault();
   const cod = document.getElementById('editCodOriginal').value;
+  const ean = (document.getElementById('editEan')?.value || '').replace(/\D/g,'').trim();
   const desc = document.getElementById('editDesc').value.trim().toUpperCase();
   const industria = document.getElementById('editIndustria').value.trim() || 'Puro Tempero';
   const venda = parseInt(document.getElementById('editVenda').value) || 0;
@@ -1148,7 +1231,7 @@ window.salvarEdicaoProduto = async function(e) {
   if (!cod || !desc) { window.mostrarToast('Erro', 'Código e descrição são obrigatórios.', 'error'); return; }
   const prod = window.appState.produtos.find(p => p.cod === cod);
   if (!prod) { window.mostrarToast('Erro', 'Produto não encontrado.', 'error'); return; }
-  await window.salvarProdutoNoBanco({ ...prod, desc, industria, venda, estoque, dde, validade });
+  await window.salvarProdutoNoBanco({ ...prod, ean, desc, industria, venda, estoque, dde, validade });
   window.fecharModalEditarProduto();
   window.renderizarAbasIndustrias();
   window.mostrarToast('Atualizado', `"${desc}" alterado com sucesso.`);
@@ -1179,6 +1262,7 @@ window.verificarDuplicidadeCampos = function() {
 window.salvarNovoProduto = async function(e) {
   e?.preventDefault();
   const cod=document.getElementById('novoCod').value.trim();
+  const ean=(document.getElementById('novoEan')?.value||'').replace(/\D/g,'').trim();
   const desc=document.getElementById('novoDesc').value.trim().toUpperCase();
   const industria=document.getElementById('novoIndustria').value.trim()||'Puro Tempero';
   const venda=parseInt(document.getElementById('novoVenda').value)||0;
@@ -1187,7 +1271,7 @@ window.salvarNovoProduto = async function(e) {
   const validade=document.getElementById('novoValidade')?.value||'';
   const dup=window.verificarDuplicidade(cod,desc);
   if (dup.duplicado) { window.mostrarToast('Duplicidade',dup.motivo,'error'); return; }
-  await window.salvarProdutoNoBanco({ cod, desc, industria, venda, estoque, dde, validade, presenca:'pendente', contagemFisica:'', obs:'' });
+  await window.salvarProdutoNoBanco({ cod, ean, desc, industria, venda, estoque, dde, validade, presenca:'pendente', contagemFisica:'', obs:'' });
   window.fecharModalNovoProduto();
   window.renderizarAbasIndustrias();
   window.mostrarToast('Cadastrado', `"${desc}" incluído.`);
@@ -1201,14 +1285,48 @@ window.imprimirListaSimples = function() {
   setTimeout(()=>document.body.classList.remove('imprimindo-simples'),800);
 };
 window.baixarPdfListaSimples = () => window.imprimirListaSimples();
+window.obterItensFiltradosTela = function() {
+  const busca = (document.getElementById('searchInput')?.value||'').trim().toLowerCase();
+  const fP = document.getElementById('filtroPresenca')?.value||'todos';
+  const fC = document.getElementById('filtroCategoria')?.value||'todos';
+  const fV = document.getElementById('filtroValidade')?.value||'todos';
+  const ind = window.appState?.industriaAtiva||'todas';
+  return (window.appState?.produtos||[]).filter(p => {
+    if (ind!=='todas' && (p.industria||'').trim().toLowerCase()!==ind.trim().toLowerCase()) return false;
+    if (busca && !`${p.cod} ${p.ean||''} ${p.desc} ${p.industria||''}`.toLowerCase().includes(busca)) return false;
+    const pr = p.presenca||'pendente';
+    if (fP!=='todos' && pr!==fP) return false;
+    if (fC==='critico' && !(p.dde>0 && p.dde<=9)) return false;
+    if (fC==='negativo' && !(p.estoque<0 || (p.venda>0 && p.estoque===0))) return false;
+    if (fC==='sem_venda' && p.venda!==0) return false;
+    if (fC==='excesso' && p.dde<250) return false;
+    if (fC==='divergente') {
+      if (p.contagemFisica===''||p.contagemFisica===undefined) return false;
+      if (parseInt(p.contagemFisica)===p.estoque) return false;
+    }
+    if (fV!=='todos') {
+      const iv = window.calcularStatusValidade(p.validade);
+      if (fV==='vencido' && iv.status!=='vencido' && iv.status!=='vence_hoje') return false;
+      if (fV==='vence_15' && (iv.dias===null||iv.dias<0||iv.dias>15)) return false;
+      if (fV==='vence_30' && (iv.dias===null||iv.dias<0||iv.dias>30)) return false;
+      if (fV==='vence_60' && (iv.dias===null||iv.dias<0||iv.dias>60)) return false;
+      if (fV==='em_dia' && (iv.dias===null||iv.dias<=60)) return false;
+      if (fV==='com_validade' && iv.status==='sem_validade') return false;
+      if (fV==='sem_validade' && iv.status!=='sem_validade') return false;
+    }
+    return true;
+  });
+};
+
 window.atualizarConteudoListaSimples = function() {
   const tbody=document.getElementById('tabelaListaSimplesCorpo'); if(!tbody) return;
   tbody.innerHTML='';
   const ind=window.appState?.industriaAtiva||'todas';
-  const itens=(window.appState?.produtos||[]).filter(p=>ind==='todas'||(p.industria||'').trim().toLowerCase()===ind.trim().toLowerCase());
+  // Respeita filtros da tela (indústria, validade, presença, busca, riscos)
+  const itens = window.obterItensFiltradosTela ? window.obterItensFiltradosTela() : (window.appState?.produtos||[]);
   const aud=document.getElementById('auditorNome')?.value||'-';
   const dt=document.getElementById('auditorData')?.value||'-';
-  document.getElementById('lsInfoAuditor').innerText=`Auditor: ${aud} | Data: ${dt} | Aba: ${ind}`;
+  document.getElementById('lsInfoAuditor').innerText=`Auditor: ${aud} | Data: ${dt} | Aba: ${ind} | Filtros ativos · ${itens.length} itens`;
   itens.forEach((p,i)=>{
     const pr=p.presenca||'pendente';
     const iv=window.calcularStatusValidade(p.validade);
@@ -1217,9 +1335,14 @@ window.atualizarConteudoListaSimples = function() {
     else if(pr==='nao') b='<span class="px-2 py-0.5 rounded bg-rose-100 text-rose-800 font-bold text-xs">NÃO</span>';
     else if(pr==='parcial') b='<span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-xs">PARCIAL</span>';
     else b='<span class="px-2 py-0.5 rounded bg-slate-100 text-slate-500 text-xs">PENDENTE</span>';
+    let valCls='text-slate-500';
+    if(iv.status==='vencido'||iv.status==='vence_hoje') valCls='text-rose-700 font-bold';
+    else if(iv.status==='vence_15') valCls='text-red-700 font-bold';
+    else if(iv.status==='vence_30') valCls='text-amber-700 font-bold';
+    else if(iv.status==='em_dia') valCls='text-emerald-700';
     const tr=document.createElement('tr');
     tr.className=i%2?'bg-slate-50':'bg-white';
-    tr.innerHTML=`<td class="py-2 px-3 font-mono font-bold border-b text-xs">${p.cod}</td><td class="py-2 px-3 border-b text-xs">${p.desc}</td><td class="py-2 px-3 text-center font-bold border-b text-xs ${p.estoque<0?'text-rose-600':''}">${p.estoque}</td><td class="py-2 px-3 text-center border-b text-xs">${iv.formatada}</td><td class="py-2 px-3 text-center border-b">${b}</td>`;
+    tr.innerHTML=`<td class="py-2 px-3 font-mono font-bold border-b text-xs">${p.cod}</td><td class="py-2 px-3 border-b text-xs">${p.desc}</td><td class="py-2 px-3 text-center font-bold border-b text-xs ${p.estoque<0?'text-rose-600':''}">${p.estoque}</td><td class="py-2 px-3 text-center border-b text-xs ${valCls}">${iv.formatada}</td><td class="py-2 px-3 text-center border-b">${b}</td>`;
     tbody.appendChild(tr);
   });
 };
@@ -1243,7 +1366,7 @@ window.obterItensParaExportacao = function() {
     const ind = window.appState.industriaAtiva || 'todas';
     lista = lista.filter(p => {
       if (ind !== 'todas' && (p.industria || '').trim().toLowerCase() !== ind.trim().toLowerCase()) return false;
-      if (busca && !`${p.cod} ${p.desc} ${p.industria || ''}`.toLowerCase().includes(busca)) return false;
+      if (busca && !`${p.cod} ${p.ean||''} ${p.desc} ${p.industria || ''}`.toLowerCase().includes(busca)) return false;
       const pr = p.presenca || 'pendente';
       if (fP !== 'todos' && pr !== fP) return false;
       if (fC === 'critico' && !(p.dde > 0 && p.dde <= 9)) return false;
@@ -1807,6 +1930,109 @@ window.aplicarDadosImportadosIA = async function() {
   window.renderizarAbasIndustrias();
   window.aplicarFiltros();
   window.mostrarToast('Estoque sincronizado', `${atualizados} atualizados, ${adicionados} novos.`);
+};
+
+
+/* ========== EAN: busca online + scanner ========== */
+window._scannerAlvo = 'novo';
+window._html5Qr = null;
+
+window.buscarInfoEAN = async function(eanRaw, alvo) {
+  const ean = String(eanRaw || '').replace(/\D/g, '').trim();
+  const status = document.getElementById('statusBuscaEAN');
+  if (!ean || ean.length < 8) {
+    if (status) { status.classList.remove('hidden'); status.innerText = 'EAN precisa ter ao menos 8 dígitos.'; }
+    return;
+  }
+  if (status) { status.classList.remove('hidden'); status.innerText = 'Buscando produto online...'; }
+  try {
+    let nome = '';
+    // Open Food Facts
+    try {
+      const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${ean}.json`);
+      if (r.ok) {
+        const j = await r.json();
+        if (j.status === 1 && j.product) {
+          nome = j.product.product_name_pt || j.product.product_name || j.product.generic_name || '';
+          if (!nome && j.product.brands) nome = j.product.brands;
+        }
+      }
+    } catch (e) {}
+    // Fallback UPCitemdb trial
+    if (!nome) {
+      try {
+        const r2 = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${ean}`);
+        if (r2.ok) {
+          const j2 = await r2.json();
+          if (j2.items && j2.items[0]) nome = j2.items[0].title || '';
+        }
+      } catch (e) {}
+    }
+    if (nome) {
+      nome = nome.toUpperCase().trim();
+      const descId = alvo === 'edit' ? 'editDesc' : 'novoDesc';
+      const eanId = alvo === 'edit' ? 'editEan' : 'novoEan';
+      const descEl = document.getElementById(descId);
+      const eanEl = document.getElementById(eanId);
+      if (eanEl) eanEl.value = ean;
+      if (descEl && (!descEl.value || descEl.value.length < 3)) descEl.value = nome;
+      else if (descEl && confirm(`Preencher descrição com:\n${nome}?`)) descEl.value = nome;
+      if (status) status.innerText = `Encontrado: ${nome}`;
+      window.mostrarToast?.('EAN encontrado', nome);
+      window.verificarDuplicidadeCampos?.();
+    } else {
+      if (status) status.innerText = 'Produto não encontrado nas bases públicas. Digite a descrição.';
+      window.mostrarToast?.('EAN sem cadastro', 'Não achamos o nome online. Preencha manualmente.', 'info');
+    }
+  } catch (err) {
+    if (status) status.innerText = 'Falha na busca online.';
+    window.mostrarToast?.('Erro na busca', err.message || 'Sem rede', 'error');
+  }
+};
+
+window.abrirScannerEAN = async function(alvo) {
+  window._scannerAlvo = alvo || 'novo';
+  const modal = document.getElementById('modalScannerEAN');
+  if (!modal) { window.mostrarToast?.('Scanner', 'Modal não encontrado', 'error'); return; }
+  modal.classList.remove('hidden');
+  if (!window.Html5Qrcode) {
+    window.mostrarToast?.('Scanner indisponível', 'Biblioteca de câmera não carregou. Digite o EAN.', 'error');
+    return;
+  }
+  try {
+    if (window._html5Qr) {
+      try { await window._html5Qr.stop(); } catch(e) {}
+      try { await window._html5Qr.clear(); } catch(e) {}
+    }
+    window._html5Qr = new Html5Qrcode('readerEAN');
+    await window._html5Qr.start(
+      { facingMode: 'environment' },
+      { fps: 8, qrbox: { width: 260, height: 120 }, aspectRatio: 1.5 },
+      async (decoded) => {
+        const ean = String(decoded || '').replace(/\D/g, '');
+        if (!ean) return;
+        try { await window._html5Qr.stop(); } catch(e) {}
+        window.fecharScannerEAN();
+        const eanId = window._scannerAlvo === 'edit' ? 'editEan' : 'novoEan';
+        const el = document.getElementById(eanId);
+        if (el) el.value = ean;
+        window.buscarInfoEAN(ean, window._scannerAlvo);
+      },
+      () => {}
+    );
+  } catch (err) {
+    console.warn(err);
+    window.mostrarToast?.('Câmera', 'Permita o acesso à câmera ou digite o EAN.', 'error');
+  }
+};
+
+window.fecharScannerEAN = async function() {
+  document.getElementById('modalScannerEAN')?.classList.add('hidden');
+  if (window._html5Qr) {
+    try { await window._html5Qr.stop(); } catch(e) {}
+    try { await window._html5Qr.clear(); } catch(e) {}
+    window._html5Qr = null;
+  }
 };
 
 document.addEventListener('DOMContentLoaded', () => {
