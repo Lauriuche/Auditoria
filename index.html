@@ -558,13 +558,41 @@
   let listenersAtivos = false, restPollTimer = null, sdkOnline = false;
   window.appState = { produtos: [], industriaAtiva: 'todas', selecionados: new Set(), itensIAExtraidos: [], isFirebaseConnected: false, geminiApiKey: '', syncMode: 'none' };
 
+  function limparCacheLocal() {
+    try {
+      localStorage.removeItem('auditoria_produtos_cache');
+      sessionStorage.removeItem('auditoria_produtos_cache');
+      window.safeStorageSet?.('auditoria_produtos_cache', '');
+      // limpa restos de versões antigas
+      ['auditoria_cache', 'produtos_cache', 'posterus_produtos'].forEach(k => {
+        try { localStorage.removeItem(k); sessionStorage.removeItem(k); } catch (e) {}
+      });
+      console.log('[CACHE] limpo');
+    } catch (e) { console.warn('[CACHE]', e); }
+  }
   function carregarProdutosLocais() {
+    // Só usa cache se ainda não houver dados (fallback offline)
+    if (window.appState.produtos?.length) return;
     const salvo = window.safeStorageGet?.('auditoria_produtos_cache');
-    if (salvo) { try { const p = JSON.parse(salvo); if (Array.isArray(p)) { window.appState.produtos = p; return; } } catch(e){} }
+    if (salvo && salvo.length > 2) {
+      try {
+        const p = JSON.parse(salvo);
+        if (Array.isArray(p) && p.length) {
+          window.appState.produtos = p.map(x => ({ ...x, cod: String(x.cod || '') }));
+          console.log('[CACHE] fallback offline', p.length);
+          return;
+        }
+      } catch (e) {}
+    }
     window.appState.produtos = [];
   }
   function persistirLocalmente() {
-    if (window.appState.produtos) window.safeStorageSet?.('auditoria_produtos_cache', JSON.stringify(window.appState.produtos));
+    // Cache só como backup offline — nunca como fonte da verdade
+    try {
+      if (window.appState.produtos) {
+        window.safeStorageSet?.('auditoria_produtos_cache', JSON.stringify(window.appState.produtos));
+      }
+    } catch (e) {}
   }
   function dispararAtualizacaoUI() {
     try {
@@ -594,93 +622,106 @@
     }
   }
 
-  function mesclarListaRemota(data) {
+  function mesclarListaRemota(data, opcoes = {}) {
+    const forcarRemoto = opcoes.forcarRemoto !== false; // padrão: remoto manda
     if (!data) {
       if (!window.appState.produtos?.length) window.appState.produtos = [];
-      persistirLocalmente();
       return window.appState.produtos;
     }
     const listaRemota = [];
     Object.keys(data).forEach(k => {
       const item = data[k];
       if (!item || typeof item !== 'object') return;
-      // Aceita item mesmo se cod vier só na chave do Firebase
       if (!item.cod) item.cod = k;
       item.cod = String(item.cod);
-      if (!item.ean) item.ean = item.ean || '';
+      item.ean = item.ean || '';
       listaRemota.push(item);
     });
-    const mapaLocal = new Map(window.appState.produtos.map(p => [String(p.cod), p]));
-    const mapaRemoto = new Map(listaRemota.map(p => [String(p.cod), p]));
+    const mapaLocal = new Map((window.appState.produtos || []).map(p => [String(p.cod), p]));
     const mergeado = [];
+
     listaRemota.forEach(remoto => {
       const local = mapaLocal.get(String(remoto.cod));
-      if (local) {
-        const recent = local._lastLocalEdit && (Date.now() - local._lastLocalEdit < 15000);
-        // Edição local recente: prioriza TODOS os campos locais (evita sobrescrita do remoto antigo)
-        if (recent) {
-          mergeado.push({
-            ...remoto,
-            ...local,
-            cod: String(local.cod || remoto.cod),
-            _lastLocalEdit: local._lastLocalEdit
-          });
-        } else {
-          mergeado.push({
-            ...local,
-            ...remoto,
-            contagemFisica: remoto.contagemFisica ?? local.contagemFisica ?? '',
-            presenca: remoto.presenca ?? local.presenca ?? 'pendente',
-            obs: remoto.obs ?? local.obs ?? '',
-            validade: remoto.validade ?? local.validade ?? '',
-            ean: remoto.ean ?? local.ean ?? ''
-          });
-        }
-      } else mergeado.push(remoto);
+      // Protege só edição FEITA AGORA (< 4s) para não piscar a UI
+      const recent = local && local._lastLocalEdit && (Date.now() - local._lastLocalEdit < 4000);
+      if (recent && !forcarRemoto) {
+        mergeado.push({
+          ...remoto,
+          ...local,
+          cod: String(local.cod || remoto.cod),
+          _lastLocalEdit: local._lastLocalEdit
+        });
+      } else {
+        // Firebase = verdade
+        mergeado.push({
+          ...remoto,
+          cod: String(remoto.cod),
+          ean: remoto.ean || (local && local.ean) || '',
+          contagemFisica: remoto.contagemFisica ?? '',
+          presenca: remoto.presenca || 'pendente',
+          obs: remoto.obs || '',
+          validade: remoto.validade || ''
+        });
+      }
     });
-    window.appState.produtos.forEach(local => { if (!mapaRemoto.has(String(local.cod))) mergeado.push(local); });
+
+    // Itens só locais com edição muito recente (<4s) ainda não confirmada no servidor
+    mapaLocal.forEach((local, cod) => {
+      if (mergeado.some(p => String(p.cod) === cod)) return;
+      if (local._lastLocalEdit && (Date.now() - local._lastLocalEdit < 4000)) {
+        mergeado.push(local);
+      }
+    });
+
     window.appState.produtos = mergeado;
+    // Após sync online bem-sucedido: atualiza cache e remove sujeira
     persistirLocalmente();
     return mergeado;
   }
 
   async function sincronizarViaREST() {
     try {
+      const bust = '_=' + Date.now();
       const [prodRes, cfgRes] = await Promise.all([
-        fetch(`${RTDB_BASE}/auditoria_estoque/produtos.json`, { cache: 'no-store' }),
-        fetch(`${RTDB_BASE}/auditoria_estoque/config.json`, { cache: 'no-store' })
+        fetch(`${RTDB_BASE}/auditoria_estoque/produtos.json?${bust}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+        }),
+        fetch(`${RTDB_BASE}/auditoria_estoque/config.json?${bust}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+        })
       ]);
       if (!prodRes.ok) throw new Error('HTTP ' + prodRes.status);
       const data = await prodRes.json();
       if (isApplyingRemote) return true;
-      const mergeado = mesclarListaRemota(data);
+      const mergeado = mesclarListaRemota(data, { forcarRemoto: true });
       window.appState.isFirebaseConnected = true;
-      if (!sdkOnline) {
-        window.appState.syncMode = 'rest';
-        atualizarBadge('connected', `Online · ${mergeado.length} itens`);
-      }
+      window.appState.syncMode = sdkOnline ? 'sdk' : 'rest';
+      atualizarBadge('connected', `Online · ${mergeado.length} itens`);
+      limparCacheLocal();
+      persistirLocalmente();
       dispararAtualizacaoUI();
       if (cfgRes.ok) {
-        const cfg = (await cfgRes.json()) || {};
-        const keyRemota = (cfg.gemini_api_key || '').trim();
-        if (keyRemota) {
-          window.appState.geminiApiKey = keyRemota;
-          window.safeStorageSet?.('gemini_custom_api_key', keyRemota);
-          const inp = document.getElementById('inputChaveGeminiOpcional');
-          if (inp && !inp.value) inp.value = keyRemota;
-        }
+        try {
+          const cfg = (await cfgRes.json()) || {};
+          const keyRemota = (cfg.gemini_api_key || '').trim();
+          if (keyRemota) {
+            window.appState.geminiApiKey = keyRemota;
+            window.safeStorageSet?.('gemini_custom_api_key', keyRemota);
+          }
+        } catch (e) {}
       }
-      console.log('[REST] OK', mergeado.length);
+      console.log('[REST] sync OK', mergeado.length);
       return true;
     } catch (err) {
-      console.warn('[REST] falhou:', err.message);
+      console.warn('[REST] sync fail', err.message || err);
       return false;
     }
   }
-
   function iniciarPollingREST() {
     if (restPollTimer) return;
-    restPollTimer = setInterval(() => { if (!sdkOnline) sincronizarViaREST(); }, 12000);
+    restPollTimer = setInterval(() => { sincronizarViaREST(); }, 8000);
   }
 
   async function escreverProdutoREST(produto) {
@@ -729,7 +770,9 @@
         sdkOnline = true;
         window.appState.isFirebaseConnected = true;
         window.appState.syncMode = 'sdk';
-        const mergeado = mesclarListaRemota(snapshot.val());
+        const mergeado = mesclarListaRemota(snapshot.val(), { forcarRemoto: true });
+        limparCacheLocal();
+        persistirLocalmente();
         atualizarBadge('connected', `Online · ${mergeado.length}`);
         dispararAtualizacaoUI();
       } catch (e) { console.error(e); }
@@ -746,14 +789,23 @@
 
   async function inicializarRealtimeDatabase() {
     atualizarBadge('connecting', 'Conectando...');
-    carregarProdutosLocais();
+    // Limpa cache antigo para não misturar com Firebase
+    limparCacheLocal();
+    window.appState.produtos = [];
     const keyLocal = (window.safeStorageGet?.('gemini_custom_api_key') || '').trim();
     if (keyLocal) window.appState.geminiApiKey = keyLocal;
     dispararAtualizacaoUI();
 
-    // REST primeiro (funciona no Android / file:// / redes que bloqueiam WebSocket)
+    // REST primeiro = fonte da verdade (Android / file:// / WebView)
     const restOk = await sincronizarViaREST();
-    if (restOk) atualizarBadge('connected', `Online · ${window.appState.produtos.length} itens`);
+    if (restOk) {
+      atualizarBadge('connected', `Online · ${window.appState.produtos.length} itens`);
+    } else {
+      // Só aí usa cache offline
+      carregarProdutosLocais();
+      dispararAtualizacaoUI();
+      atualizarBadge('offline', 'Offline · toque p/ reconectar');
+    }
     iniciarPollingREST();
 
     try {
@@ -790,16 +842,18 @@
 
   window.reconectarFirebase = async function() {
     atualizarBadge('connecting', 'Reconectando...');
-    window.appState.isFirebaseConnected = false;
+    limparCacheLocal();
+    isApplyingRemote = false;
     sdkOnline = false;
-    if (db) { try { goOnline(db); } catch(e) {} }
     const ok = await sincronizarViaREST();
-    if (ok) window.mostrarToast?.('Conectado', `${window.appState.produtos.length} produtos sincronizados.`);
-    else {
-      window.mostrarToast?.('Sem rede', 'Não alcançou o Firebase.', 'error');
-      atualizarBadge('offline', 'Offline · toque');
+    if (ok) {
+      atualizarBadge('connected', `Online · ${window.appState.produtos.length} itens`);
+      window.mostrarToast?.('Sincronizado', window.appState.produtos.length + ' itens do Firebase.');
+    } else {
+      atualizarBadge('offline', 'Offline · toque p/ reconectar');
+      window.mostrarToast?.('Sem conexão', 'Não foi possível ler o Firebase.', 'error');
     }
-    if (!listenersAtivos && db) registrarListeners();
+    try { if (db) goOnline(db); } catch (e) {}
   };
 
   window.salvarChaveGeminiNoBanco = async function(chave) {
@@ -852,15 +906,28 @@
     let ok = false;
     isApplyingRemote = true;
     try {
-      // 1) REST primeiro (mais confiável no celular / file:// / redes restritas)
-      const res = await fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${safeKey}.json`, {
+      const res = await fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${safeKey}.json?_=${Date.now()}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
         body: JSON.stringify(payload)
       });
       if (!res.ok) throw new Error('REST HTTP ' + res.status);
-      ok = true;
+      // Confirma leitura de volta
+      try {
+        const conf = await fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${safeKey}.json?_=${Date.now()}`, { cache: 'no-store' });
+        if (conf.ok) {
+          const body = await conf.json();
+          if (body && String(body.cod) === String(produto.cod)) ok = true;
+        }
+      } catch (e) { ok = true; } // PUT ok mesmo se confirm falhar
+      if (!ok) ok = true; // PUT 200 já basta
       console.log('[SAVE] REST OK', safeKey);
+      // Espelha no SDK se disponível (tempo real para outros clients)
+      if (db) {
+        try {
+          await set(ref(db, `auditoria_estoque/produtos/${safeKey}`), payload);
+        } catch (e) { console.warn('[SAVE] SDK mirror', e.code || e.message); }
+      }
     } catch (err) {
       console.warn('[SAVE] REST falhou:', err.message || err);
       try {
@@ -870,14 +937,21 @@
           console.log('[SAVE] SDK OK', safeKey);
         }
       } catch (err2) {
-        console.error('[SAVE] SDK também falhou:', err2.code || err2.message);
-        window.mostrarToast?.('Falha ao salvar online', (err2.code || err2.message || 'Verifique a conexão'), 'error');
+        console.error('[SAVE] falhou online', err2.code || err2.message);
+        window.mostrarToast?.('Falha ao salvar online', String(err2.code || err2.message || 'Verifique a conexão'), 'error');
       }
     } finally {
-      setTimeout(() => { isApplyingRemote = false; }, 800);
+      setTimeout(() => { isApplyingRemote = false; }, 600);
+    }
+    if (ok) {
+      // remove _lastLocalEdit logo após confirmação para o próximo poll não priorizar local
+      const i2 = window.appState.produtos.findIndex(p => String(p.cod) === String(produto.cod));
+      if (i2 >= 0) delete window.appState.produtos[i2]._lastLocalEdit;
+      persistirLocalmente();
     }
     return ok;
   };
+
 
   window.excluirProduto = async function(codigo) {
     const prod = window.appState.produtos.find(p => p.cod === codigo);
