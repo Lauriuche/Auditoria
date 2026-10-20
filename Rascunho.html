@@ -125,7 +125,9 @@
     #tabelaCorpo tr,#tabelaCorpo td{white-space:nowrap;vertical-align:middle}
     #tabelaCorpo td .desc-cell{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle}
     .val-dot{display:inline-block;min-width:4.5rem;text-align:center;font-weight:700;font-size:11px;padding:3px 6px;border-radius:6px;font-variant-numeric:tabular-nums}
-    .val-date{font-variant-numeric:tabular-nums;max-width:7.5rem;cursor:pointer;border-radius:8px}
+    .val-date{font-variant-numeric:tabular-nums;min-width:5.5rem;cursor:pointer;border-radius:8px;line-height:1.2}
+    #readerEAN video{width:100%!important;border-radius:16px}
+    #readerEAN{min-height:220px}
     .val-date::-webkit-calendar-picker-indicator{opacity:0.7;cursor:pointer;filter:none}
     .val-date.bg-rose-600::-webkit-calendar-picker-indicator{filter:invert(1)}
     .kpi-compact{
@@ -628,20 +630,61 @@
 
 
 <!-- MODAL SCANNER EAN -->
-<div id="modalScannerEAN" class="fixed inset-0 z-[60] bg-slate-900/85 flex items-center justify-center p-4 hidden">
-  <div class="bg-white modal-panel max-w-md w-full overflow-hidden border border-slate-200">
-    <div class="px-4 py-3 border-b flex items-center justify-between bg-slate-50">
-      <h2 id="tituloScannerEAN" class="text-sm font-bold flex items-center gap-2"><i class="ph-bold ph-barcode text-lg"></i> Escanear EAN</h2>
-      <button type="button" onclick="window.fecharScannerEAN?.()" class="p-1.5 text-slate-400 hover:text-slate-600" title="Fechar scanner"><i class="ph-bold ph-x text-lg"></i></button>
+
+<div id="modalSeletorValidade" class="fixed inset-0 z-[70] bg-slate-900/60 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+  <div class="bg-white w-full sm:max-w-sm sm:rounded-2xl rounded-t-2xl shadow-2xl border border-slate-200 overflow-hidden">
+    <div class="px-4 py-3 border-b bg-slate-50 flex items-center justify-between">
+      <div>
+        <h2 class="text-sm font-bold text-slate-900">Data de validade</h2>
+        <p id="valPickerProduto" class="text-[11px] text-slate-500 truncate max-w-[240px]"></p>
+      </div>
+      <button type="button" onclick="window.fecharSeletorValidade()" class="p-1.5 text-slate-400 hover:text-slate-700"><i class="ph-bold ph-x text-lg"></i></button>
     </div>
-    <div class="p-3">
-      <div id="readerEAN"></div>
-      <p id="hintScannerEAN" class="text-[11px] text-slate-500 text-center mt-2">Aponte a câmera para o código de barras</p>
-      <div id="statusScannerPresenca" class="hidden mt-2 p-2.5 rounded-xl text-center text-xs font-bold"></div>
-      <div class="mt-3 flex gap-2">
-        <button type="button" onclick="window.fecharScannerEAN?.()" class="flex-1 py-2.5 text-xs font-bold rounded-xl bg-slate-900 text-white">Fechar scanner</button>
+    <div class="p-4 space-y-3">
+      <input type="hidden" id="valPickerCod">
+      <div class="grid grid-cols-3 gap-2">
+        <div>
+          <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Dia</label>
+          <select id="valPickerDia" class="w-full border border-slate-300 rounded-xl px-2 py-2.5 text-sm font-bold text-center"></select>
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Mês</label>
+          <select id="valPickerMes" class="w-full border border-slate-300 rounded-xl px-2 py-2.5 text-sm font-bold text-center"></select>
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Ano</label>
+          <select id="valPickerAno" class="w-full border border-slate-300 rounded-xl px-2 py-2.5 text-sm font-bold text-center"></select>
+        </div>
+      </div>
+      <div>
+        <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Ou digite (DD/MM/AAAA)</label>
+        <input type="text" id="valPickerTexto" inputmode="numeric" placeholder="31/12/2027" maxlength="10"
+          class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-center text-sm font-mono font-bold tracking-wider">
+      </div>
+      <div class="flex gap-2 pt-1">
+        <button type="button" onclick="window.limparSeletorValidade()" class="flex-1 py-2.5 text-xs font-bold rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-50">Limpar</button>
+        <button type="button" onclick="window.salvarSeletorValidade()" class="flex-[2] py-2.5 text-xs font-bold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700">Salvar data</button>
       </div>
     </div>
+  </div>
+</div>
+
+<div id="modalScannerEAN" class="fixed inset-0 z-[60] bg-slate-950/95 flex flex-col hidden">
+  <div class="flex items-center justify-between px-4 py-3 text-white">
+    <h2 id="tituloScannerEAN" class="text-sm font-bold flex items-center gap-2"><i class="ph-bold ph-barcode text-lg"></i> Scanner</h2>
+    <button type="button" onclick="window.fecharScannerEAN?.()" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-white/10 hover:bg-white/20">Fechar</button>
+  </div>
+  <div class="flex-1 flex flex-col items-center justify-center px-3 pb-4 min-h-0">
+    <div id="readerEAN" class="w-full max-w-lg rounded-2xl overflow-hidden bg-black"></div>
+    <p id="hintScannerEAN" class="text-[12px] text-slate-300 text-center mt-3">Aponte para o código de barras</p>
+    <div id="statusScannerPresenca" class="hidden mt-2 w-full max-w-lg p-3 rounded-xl text-center text-xs font-bold"></div>
+    <div class="mt-3 w-full max-w-lg flex gap-2">
+      <input type="text" id="inputManualScan" inputmode="numeric" placeholder="Ou digite o código e Enter"
+        class="flex-1 rounded-xl px-3 py-2.5 text-sm font-mono bg-white/10 text-white border border-white/20 placeholder:text-slate-400"
+        onkeydown="if(event.key==='Enter'){window.enviarCodigoManualScan?.();}">
+      <button type="button" onclick="window.enviarCodigoManualScan?.()" class="px-3 py-2.5 text-xs font-bold rounded-xl bg-emerald-500 text-white">OK</button>
+    </div>
+    <button type="button" onclick="window.fecharScannerEAN?.()" class="mt-4 w-full max-w-lg py-3 text-sm font-bold rounded-xl bg-white text-slate-900">Fechar scanner</button>
   </div>
 </div>
 
@@ -997,7 +1040,12 @@
     if (idx >= 0) window.appState.produtos[idx] = { ...window.appState.produtos[idx], ...produto };
     else window.appState.produtos.push(produto);
     persistirLocalmente();
-    dispararAtualizacaoUI();
+    if (!(arguments[1] && arguments[1].silencioso)) {
+      dispararAtualizacaoUI();
+    } else {
+      window.atualizarEstatisticas?.();
+      window.atualizarContadoresChips?.();
+    }
 
     const { _lastLocalEdit, ...paraSalvar } = produto;
     const payload = {
@@ -1490,9 +1538,10 @@ window.renderizarTabela = function(itens) {
       else if (iv.status === 'em_dia') valCls = 'border-emerald-300 bg-emerald-50 text-emerald-700';
       else if (!val) valCls = 'border-slate-200 bg-slate-50 text-slate-400';
       const valTitle = window.escHtml(iv.label || 'Definir validade');
-      const valHtml = '<input type="date" value="' + window.escHtml(val) + '" title="' + valTitle + '" ' +
-        'onchange="window.atualizarValidade(\'' + window.escHtml(cod) + '\', this.value)" ' +
-        'class="val-date w-[7.2rem] text-center text-[11px] rounded border px-0.5 py-0.5 ' + valCls + '">';
+      const valLabel = val ? (iv.formatada || val) : '— data —';
+      const valHtml = '<button type="button" data-cod="' + window.escHtml(cod) + '" onclick="window.abrirSeletorValidade(\'' + window.escHtml(cod) + '\')" ' +
+        'title="' + valTitle + '" class="val-date min-w-[5.5rem] text-center text-[11px] rounded-lg border px-1.5 py-1 ' + valCls + '">' +
+        window.escHtml(valLabel) + '</button>';
       const eanShow = String(p.ean || '').trim() || '—';
       const desc = window.escHtml(p.desc || '');
       const ind = window.escHtml(p.industria || '-');
@@ -1600,9 +1649,11 @@ window._iniciarCameraScanner = async function() {
       try { await window._html5Qr.clear(); } catch (e) {}
     }
     window._html5Qr = new Html5Qrcode('readerEAN');
+    const w = Math.min(window.innerWidth - 32, 400);
+    const h = Math.round(w * 0.45);
     await window._html5Qr.start(
       { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 280, height: 140 } },
+      { fps: 12, qrbox: { width: Math.floor(w * 0.85), height: Math.floor(h * 0.7) }, aspectRatio: 1.777, disableFlip: false },
       (decoded) => window._onScanDecoded(decoded),
       () => {}
     );
@@ -1659,6 +1710,7 @@ window._onScanDecoded = async function(decoded) {
   window._scannerLastCode = code;
   window._scannerLastAt = now;
   window.tocarBipScan?.('ok');
+  try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) {}
 
   const modo = window._scannerModo || 'ean';
   if (modo === 'busca') {
@@ -1753,12 +1805,132 @@ window.abrirScannerBusca = async function() {
 
 
 window.atualizarObs = (cod, t) => { const p = window.appState?.produtos?.find(x => x.cod===cod); if (p) window.salvarProdutoNoBanco({...p, obs:t}); };
+
+window._isoParaPartes = function(iso) {
+  if (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const [y, m, d] = iso.split('-');
+    return { y: +y, m: +m, d: +d };
+  }
+  const hoje = new Date();
+  return { y: hoje.getFullYear(), m: hoje.getMonth() + 1, d: hoje.getDate() };
+};
+
+window._partesParaIso = function(d, m, y) {
+  if (!d || !m || !y) return '';
+  return String(y).padStart(4, '0') + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+};
+
+window._parseDataBr = function(txt) {
+  const s = String(txt || '').trim();
+  const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if (!m) return null;
+  let d = +m[1], mo = +m[2], y = +m[3];
+  if (y < 100) y += 2000;
+  if (d < 1 || d > 31 || mo < 1 || mo > 12 || y < 2000 || y > 2100) return null;
+  return window._partesParaIso(d, mo, y);
+};
+
+window.abrirSeletorValidade = function(cod) {
+  const p = (window.appState?.produtos || []).find(x => String(x.cod) === String(cod));
+  if (!p) return;
+  const modal = document.getElementById('modalSeletorValidade');
+  const diaEl = document.getElementById('valPickerDia');
+  const mesEl = document.getElementById('valPickerMes');
+  const anoEl = document.getElementById('valPickerAno');
+  const txtEl = document.getElementById('valPickerTexto');
+  const codEl = document.getElementById('valPickerCod');
+  const nomeEl = document.getElementById('valPickerProduto');
+  if (!modal || !diaEl) return;
+
+  const anoAgora = new Date().getFullYear();
+  // Anos: 5 atrás até 5 à frente (datas longas OK)
+  if (!anoEl.options.length) {
+    for (let y = anoAgora - 5; y <= anoAgora + 5; y++) {
+      const o = document.createElement('option');
+      o.value = y; o.textContent = y;
+      anoEl.appendChild(o);
+    }
+    for (let m = 1; m <= 12; m++) {
+      const o = document.createElement('option');
+      o.value = m; o.textContent = String(m).padStart(2, '0');
+      mesEl.appendChild(o);
+    }
+    for (let d = 1; d <= 31; d++) {
+      const o = document.createElement('option');
+      o.value = d; o.textContent = String(d).padStart(2, '0');
+      diaEl.appendChild(o);
+    }
+  }
+
+  const partes = window._isoParaPartes(p.validade || '');
+  diaEl.value = partes.d;
+  mesEl.value = partes.m;
+  anoEl.value = partes.y;
+  txtEl.value = p.validade ? (String(partes.d).padStart(2,'0') + '/' + String(partes.m).padStart(2,'0') + '/' + partes.y) : '';
+  codEl.value = String(cod);
+  if (nomeEl) nomeEl.textContent = (p.cod || '') + ' · ' + (p.desc || '');
+  modal.classList.remove('hidden');
+  setTimeout(() => txtEl.focus(), 150);
+};
+
+window.fecharSeletorValidade = function() {
+  document.getElementById('modalSeletorValidade')?.classList.add('hidden');
+};
+
+window.limparSeletorValidade = async function() {
+  const cod = document.getElementById('valPickerCod')?.value;
+  if (!cod) return;
+  await window.atualizarValidade(cod, '');
+  window.fecharSeletorValidade();
+  window.mostrarToast('Validade', 'Data removida');
+  window.aplicarFiltros?.();
+};
+
+window.salvarSeletorValidade = async function() {
+  const cod = document.getElementById('valPickerCod')?.value;
+  if (!cod) return;
+  const txt = document.getElementById('valPickerTexto')?.value?.trim();
+  let iso = '';
+  if (txt) {
+    iso = window._parseDataBr(txt);
+    if (!iso) {
+      window.mostrarToast('Data inválida', 'Use DD/MM/AAAA (ex: 15/08/2027)', 'error');
+      return;
+    }
+  } else {
+    const d = +document.getElementById('valPickerDia').value;
+    const m = +document.getElementById('valPickerMes').value;
+    const y = +document.getElementById('valPickerAno').value;
+    iso = window._partesParaIso(d, m, y);
+  }
+  // valida calendário real
+  const [yy, mm, dd] = iso.split('-').map(Number);
+  const dt = new Date(yy, mm - 1, dd);
+  if (dt.getFullYear() !== yy || dt.getMonth() !== mm - 1 || dt.getDate() !== dd) {
+    window.mostrarToast('Data inválida', 'Dia/mês inexistente', 'error');
+    return;
+  }
+  await window.atualizarValidade(cod, iso);
+  window.fecharSeletorValidade();
+  const iv = window.calcularStatusValidade(iso);
+  window.mostrarToast('Validade salva', iv.formatada + ' · ' + iv.label);
+  window.aplicarFiltros?.();
+};
+
 window.atualizarValidade = async function(cod, d) {
   const p = (window.appState?.produtos || []).find(x => String(x.cod) === String(cod));
   if (!p) return;
-  // atualiza local imediato (UI responsiva) e grava
   p.validade = d || '';
-  await window.salvarProdutoNoBanco({ ...p, validade: d || '' });
+  // silencioso: não re-renderiza a tabela inteira (evita trava)
+  await window.salvarProdutoNoBanco({ ...p, validade: d || '' }, { silencioso: true });
+};
+
+window.enviarCodigoManualScan = function() {
+  const el = document.getElementById('inputManualScan');
+  const code = (el?.value || '').trim();
+  if (!code) return;
+  if (el) el.value = '';
+  window._onScanDecoded?.(code);
 };
 
 
