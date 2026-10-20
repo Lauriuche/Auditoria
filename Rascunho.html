@@ -642,28 +642,15 @@
     </div>
     <div class="p-4 space-y-3">
       <input type="hidden" id="valPickerCod">
-      <div class="grid grid-cols-3 gap-2">
-        <div>
-          <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Dia</label>
-          <select id="valPickerDia" class="w-full border border-slate-300 rounded-xl px-2 py-2.5 text-sm font-bold text-center"></select>
-        </div>
-        <div>
-          <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Mês</label>
-          <select id="valPickerMes" class="w-full border border-slate-300 rounded-xl px-2 py-2.5 text-sm font-bold text-center"></select>
-        </div>
-        <div>
-          <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Ano</label>
-          <select id="valPickerAno" class="w-full border border-slate-300 rounded-xl px-2 py-2.5 text-sm font-bold text-center"></select>
-        </div>
-      </div>
-      <div>
-        <label class="block text-[10px] font-bold uppercase text-slate-500 mb-1">Ou digite (DD/MM/AAAA)</label>
-        <input type="text" id="valPickerTexto" inputmode="numeric" placeholder="31/12/2027" maxlength="10"
-          class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-center text-sm font-mono font-bold tracking-wider">
-      </div>
+      <label class="block text-[10px] font-bold uppercase text-slate-500">Digite a data (só números)</label>
+      <input type="text" id="valPickerTexto" inputmode="numeric" placeholder="01032027 → 01/03/2027" maxlength="10"
+        class="w-full border-2 border-emerald-300 rounded-xl px-3 py-3.5 text-center text-xl font-mono font-black tracking-widest text-slate-900 focus:ring-2 focus:ring-emerald-500"
+        oninput="window.formatarDataDigitada(this)"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();window.salvarSeletorValidade();}">
+      <p class="text-[11px] text-slate-500 text-center">Ex.: <span class="font-mono font-bold">01032027</span> vira <span class="font-mono font-bold">01/03/2027</span></p>
       <div class="flex gap-2 pt-1">
         <button type="button" onclick="window.limparSeletorValidade()" class="flex-1 py-2.5 text-xs font-bold rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-50">Limpar</button>
-        <button type="button" onclick="window.salvarSeletorValidade()" class="flex-[2] py-2.5 text-xs font-bold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700">Salvar data</button>
+        <button type="button" onclick="window.salvarSeletorValidade()" class="flex-[2] py-2.5 text-xs font-bold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700">Salvar</button>
       </div>
     </div>
   </div>
@@ -1619,48 +1606,65 @@ window.abrirScannerPresenca = async function() {
   const hint = document.getElementById('hintScannerEAN');
   const st = document.getElementById('statusScannerPresenca');
   if (titulo) titulo.innerHTML = '<i class="ph-bold ph-barcode text-lg"></i> Auditoria rápida — presença';
-  if (hint) hint.innerText = 'Escaneie continuamente. O scanner permanece aberto.';
+  if (hint) hint.innerText = 'Escaneie continuamente. Digite o código se preferir.';
   if (st) { st.classList.add('hidden'); st.innerText = ''; }
   if (!modal) return;
-  modal.classList.remove('hidden');
-  await window._iniciarCameraScanner();
+  modal.classList.remove('hidden'); // mostra UI na hora
+  // câmera em seguida (sem await bloqueando paint)
+  setTimeout(() => window._iniciarCameraScanner(), 30);
 };
 
-window.fecharScannerEAN = async function() {
-  try {
-    if (window._html5Qr) {
-      try { await window._html5Qr.stop(); } catch (e) {}
-      try { await window._html5Qr.clear(); } catch (e) {}
-      window._html5Qr = null;
-    }
-  } catch (e) {}
-  document.getElementById('modalScannerEAN')?.classList.add('hidden');
-  window._scannerModo = 'ean';
-};
 
 window._iniciarCameraScanner = async function() {
   if (!window.Html5Qrcode) {
     window.mostrarToast('Scanner', 'Biblioteca de câmera não carregou.', 'error');
     return;
   }
+  // Já rodando → não reinicia (abertura instantânea)
+  if (window._html5Qr && window._scannerRunning) return;
+
+  const reader = document.getElementById('readerEAN');
+  if (reader) reader.innerHTML = '<p class="text-center text-slate-400 text-xs py-8">Abrindo câmera…</p>';
+
   try {
+    // Reutiliza instância se existir; só para se necessário
     if (window._html5Qr) {
       try { await window._html5Qr.stop(); } catch (e) {}
-      try { await window._html5Qr.clear(); } catch (e) {}
+    } else {
+      window._html5Qr = new Html5Qrcode('readerEAN');
     }
-    window._html5Qr = new Html5Qrcode('readerEAN');
-    const w = Math.min(window.innerWidth - 32, 400);
-    const h = Math.round(w * 0.45);
+    // Config leve = abre mais rápido no Android
     await window._html5Qr.start(
       { facingMode: 'environment' },
-      { fps: 12, qrbox: { width: Math.floor(w * 0.85), height: Math.floor(h * 0.7) }, aspectRatio: 1.777, disableFlip: false },
+      { fps: 8, qrbox: function(viewW, viewH) {
+          const w = Math.floor(Math.min(viewW * 0.9, 320));
+          const h = Math.floor(Math.min(viewH * 0.35, 140));
+          return { width: w, height: h };
+        }
+      },
       (decoded) => window._onScanDecoded(decoded),
       () => {}
     );
+    window._scannerRunning = true;
   } catch (err) {
-    window.mostrarToast('Câmera', 'Permita o acesso à câmera nas configurações.', 'error');
+    window._scannerRunning = false;
+    console.warn('camera', err);
+    // fallback sem facingMode estrito
+    try {
+      if (!window._html5Qr) window._html5Qr = new Html5Qrcode('readerEAN');
+      await window._html5Qr.start(
+        { facingMode: 'environment' },
+        { fps: 6 },
+        (decoded) => window._onScanDecoded(decoded),
+        () => {}
+      );
+      window._scannerRunning = true;
+    } catch (err2) {
+      window.mostrarToast('Câmera', 'Permita o acesso à câmera.', 'error');
+    }
   }
 };
+
 
 window.tocarBipScan = function(tipo) {
   try {
@@ -1811,8 +1815,7 @@ window._isoParaPartes = function(iso) {
     const [y, m, d] = iso.split('-');
     return { y: +y, m: +m, d: +d };
   }
-  const hoje = new Date();
-  return { y: hoje.getFullYear(), m: hoje.getMonth() + 1, d: hoje.getDate() };
+  return null;
 };
 
 window._partesParaIso = function(d, m, y) {
@@ -1820,57 +1823,46 @@ window._partesParaIso = function(d, m, y) {
   return String(y).padStart(4, '0') + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
 };
 
+/** Formata digitação corrida: 01032027 → 01/03/2027 */
+window.formatarDataDigitada = function(el) {
+  if (!el) return;
+  let dig = String(el.value || '').replace(/\D/g, '').slice(0, 8);
+  let out = dig;
+  if (dig.length > 4) out = dig.slice(0, 2) + '/' + dig.slice(2, 4) + '/' + dig.slice(4);
+  else if (dig.length > 2) out = dig.slice(0, 2) + '/' + dig.slice(2);
+  el.value = out;
+};
+
 window._parseDataBr = function(txt) {
-  const s = String(txt || '').trim();
-  const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
-  if (!m) return null;
-  let d = +m[1], mo = +m[2], y = +m[3];
-  if (y < 100) y += 2000;
-  if (d < 1 || d > 31 || mo < 1 || mo > 12 || y < 2000 || y > 2100) return null;
-  return window._partesParaIso(d, mo, y);
+  const dig = String(txt || '').replace(/\D/g, '');
+  if (dig.length !== 8) return null;
+  const d = +dig.slice(0, 2);
+  const m = +dig.slice(2, 4);
+  const y = +dig.slice(4, 8);
+  if (d < 1 || d > 31 || m < 1 || m > 12 || y < 2000 || y > 2100) return null;
+  const dt = new Date(y, m - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+  return window._partesParaIso(d, m, y);
 };
 
 window.abrirSeletorValidade = function(cod) {
   const p = (window.appState?.produtos || []).find(x => String(x.cod) === String(cod));
   if (!p) return;
   const modal = document.getElementById('modalSeletorValidade');
-  const diaEl = document.getElementById('valPickerDia');
-  const mesEl = document.getElementById('valPickerMes');
-  const anoEl = document.getElementById('valPickerAno');
   const txtEl = document.getElementById('valPickerTexto');
   const codEl = document.getElementById('valPickerCod');
   const nomeEl = document.getElementById('valPickerProduto');
-  if (!modal || !diaEl) return;
-
-  const anoAgora = new Date().getFullYear();
-  // Anos: 5 atrás até 5 à frente (datas longas OK)
-  if (!anoEl.options.length) {
-    for (let y = anoAgora - 5; y <= anoAgora + 5; y++) {
-      const o = document.createElement('option');
-      o.value = y; o.textContent = y;
-      anoEl.appendChild(o);
-    }
-    for (let m = 1; m <= 12; m++) {
-      const o = document.createElement('option');
-      o.value = m; o.textContent = String(m).padStart(2, '0');
-      mesEl.appendChild(o);
-    }
-    for (let d = 1; d <= 31; d++) {
-      const o = document.createElement('option');
-      o.value = d; o.textContent = String(d).padStart(2, '0');
-      diaEl.appendChild(o);
-    }
-  }
-
-  const partes = window._isoParaPartes(p.validade || '');
-  diaEl.value = partes.d;
-  mesEl.value = partes.m;
-  anoEl.value = partes.y;
-  txtEl.value = p.validade ? (String(partes.d).padStart(2,'0') + '/' + String(partes.m).padStart(2,'0') + '/' + partes.y) : '';
+  if (!modal || !txtEl) return;
   codEl.value = String(cod);
   if (nomeEl) nomeEl.textContent = (p.cod || '') + ' · ' + (p.desc || '');
+  const partes = window._isoParaPartes(p.validade || '');
+  if (partes) {
+    txtEl.value = String(partes.d).padStart(2, '0') + '/' + String(partes.m).padStart(2, '0') + '/' + partes.y;
+  } else {
+    txtEl.value = '';
+  }
   modal.classList.remove('hidden');
-  setTimeout(() => txtEl.focus(), 150);
+  setTimeout(() => { txtEl.focus(); txtEl.select(); }, 80);
 };
 
 window.fecharSeletorValidade = function() {
@@ -1889,25 +1881,14 @@ window.limparSeletorValidade = async function() {
 window.salvarSeletorValidade = async function() {
   const cod = document.getElementById('valPickerCod')?.value;
   if (!cod) return;
-  const txt = document.getElementById('valPickerTexto')?.value?.trim();
-  let iso = '';
-  if (txt) {
-    iso = window._parseDataBr(txt);
-    if (!iso) {
-      window.mostrarToast('Data inválida', 'Use DD/MM/AAAA (ex: 15/08/2027)', 'error');
-      return;
-    }
-  } else {
-    const d = +document.getElementById('valPickerDia').value;
-    const m = +document.getElementById('valPickerMes').value;
-    const y = +document.getElementById('valPickerAno').value;
-    iso = window._partesParaIso(d, m, y);
+  const txt = document.getElementById('valPickerTexto')?.value?.trim() || '';
+  if (!txt) {
+    window.mostrarToast('Data', 'Digite a data ou use Limpar', 'error');
+    return;
   }
-  // valida calendário real
-  const [yy, mm, dd] = iso.split('-').map(Number);
-  const dt = new Date(yy, mm - 1, dd);
-  if (dt.getFullYear() !== yy || dt.getMonth() !== mm - 1 || dt.getDate() !== dd) {
-    window.mostrarToast('Data inválida', 'Dia/mês inexistente', 'error');
+  const iso = window._parseDataBr(txt);
+  if (!iso) {
+    window.mostrarToast('Data inválida', 'Use 8 dígitos: DDMMAAAA (ex: 01032027)', 'error');
     return;
   }
   await window.atualizarValidade(cod, iso);
@@ -1921,7 +1902,6 @@ window.atualizarValidade = async function(cod, d) {
   const p = (window.appState?.produtos || []).find(x => String(x.cod) === String(cod));
   if (!p) return;
   p.validade = d || '';
-  // silencioso: não re-renderiza a tabela inteira (evita trava)
   await window.salvarProdutoNoBanco({ ...p, validade: d || '' }, { silencioso: true });
 };
 
