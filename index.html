@@ -125,7 +125,9 @@
     #tabelaCorpo tr,#tabelaCorpo td{white-space:nowrap;vertical-align:middle}
     #tabelaCorpo td .desc-cell{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle}
     .val-dot{display:inline-block;min-width:4.5rem;text-align:center;font-weight:700;font-size:11px;padding:3px 6px;border-radius:6px;font-variant-numeric:tabular-nums}
-    .val-date{font-variant-numeric:tabular-nums;max-width:7.5rem;cursor:pointer;border-radius:8px}
+    .val-date{font-variant-numeric:tabular-nums;min-width:5.5rem;cursor:pointer;border-radius:8px;line-height:1.2}
+    #readerEAN video{width:100%!important;border-radius:16px}
+    #readerEAN{min-height:220px}
     .val-date::-webkit-calendar-picker-indicator{opacity:0.7;cursor:pointer;filter:none}
     .val-date.bg-rose-600::-webkit-calendar-picker-indicator{filter:invert(1)}
     .kpi-compact{
@@ -203,6 +205,7 @@
       <button onclick="window.abrirModalListaSimples()" class="btn-pill inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold rounded-xl text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300"><i class="ph-bold ph-list-checks text-sm"></i><span class="hidden md:inline">Lista</span></button>
       <button onclick="window.abrirModalExportarAvancado()" class="btn-pill inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold rounded-xl text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100"><i class="ph-bold ph-export text-sm"></i><span class="hidden md:inline">Exportar</span></button>
       <button onclick="window.gerarDownloadPDF()" class="btn-pill inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold rounded-xl text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100"><i class="ph-bold ph-file-pdf text-sm"></i><span class="hidden lg:inline">PDF</span></button>
+      <button onclick="window.abrirScannerPresenca?.()" class="btn-pill inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold rounded-xl text-white bg-slate-900 hover:bg-slate-800 shadow-sm" title="Auditoria rápida por código de barras"><i class="ph-bold ph-barcode text-sm"></i><span class="hidden sm:inline">Scan presença</span></button>
       <button onclick="window.alternarModoAuditoria?.()" id="btnModoAuditoria" class="btn-pill inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold rounded-xl text-slate-700 bg-white border border-slate-200 hover:bg-slate-50" title="Modo chão de loja"><i class="ph-bold ph-storefront text-sm"></i><span class="hidden lg:inline">Modo loja</span></button>
       <button onclick="window.alternarDensidade?.()" class="btn-pill inline-flex items-center gap-1 px-2 py-2 text-xs font-semibold rounded-xl text-slate-600 hover:bg-slate-50" title="Densidade da tabela"><i class="ph-bold ph-rows text-sm"></i></button>
       <button onclick="window.solicitarLimpezaIndustria()" class="btn-pill inline-flex items-center gap-1 px-2 py-2 text-xs font-semibold rounded-xl text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-100" title="Limpar indústria"><i class="ph-bold ph-trash text-sm"></i></button>
@@ -275,7 +278,7 @@
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <select id="filtroPresenca" onchange="aplicarFiltros()" class="text-xs font-semibold border border-slate-300 rounded-lg px-2.5 py-1.5">
-          <option value="todos">Status: Todos</option><option value="pendente">Pendente</option><option value="sim">Presente (Sim)</option><option value="nao">Ruptura (Não)</option><option value="parcial">Parcial</option>
+          <option value="todos">Status: Todos</option><option value="pendente">Pendente</option><option value="sim">Presente (Sim)</option><option value="nao">Ruptura (Não)</option>
         </select>
         <select id="filtroCategoria" onchange="aplicarFiltros()" class="text-xs font-semibold border border-slate-300 rounded-lg px-2.5 py-1.5">
           <option value="todos">Todos os Riscos</option><option value="critico">DDE Crítico</option><option value="negativo">Estoque Negativo</option><option value="sem_venda">Sem Venda</option><option value="excesso">Superestocagem</option><option value="divergente">Com Divergência</option>
@@ -300,6 +303,7 @@
       <div class="flex items-center flex-wrap gap-1.5">
         <button onclick="aplicarPresencaEmLote('sim')" class="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 font-bold">Sim</button>
         <button onclick="aplicarPresencaEmLote('nao')" class="px-2 py-1 rounded bg-rose-600 hover:bg-rose-500 font-bold">Não</button>
+        <button type="button" onclick="window.compartilharSelecionadosWhatsApp?.()" class="px-2 py-1 rounded bg-green-500 hover:bg-green-400 font-bold inline-flex items-center gap-1" title="Compartilhar no WhatsApp"><i class="ph-bold ph-whatsapp-logo"></i> WhatsApp</button>
         <button onclick="abrirModalTransferenciaLote()" class="px-2 py-1 rounded bg-indigo-600 hover:bg-indigo-500 font-bold">Indústria</button>
         <button onclick="solicitarExclusaoEmLote()" class="px-2 py-1 rounded bg-rose-900/70 hover:bg-rose-700 font-bold">Excluir</button>
         <button onclick="desmarcarTodosLote()" class="text-slate-400 hover:text-white underline ml-1">Limpar</button>
@@ -373,7 +377,12 @@
         <div><label class="block font-bold text-slate-700 mb-1">Venda</label><input type="number" id="editVenda" min="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-center focus:ring-2 focus:ring-brand-500"></div>
         <div><label class="block font-bold text-slate-700 mb-1">Estoque *</label><input type="number" id="editEstoque" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-center font-bold focus:ring-2 focus:ring-brand-500"></div>
         <div><label class="block font-bold text-slate-700 mb-1">DDE</label><input type="number" id="editDde" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-center focus:ring-2 focus:ring-brand-500"></div>
-        <div><label class="block font-bold text-pink-700 mb-1">Validade</label><input type="date" id="editValidade" class="w-full border border-pink-300 rounded-lg px-2.5 py-2 text-center focus:ring-2 focus:ring-pink-500 bg-pink-50/20"></div>
+        <div><label class="block font-bold text-pink-700 mb-1">Validade</label>
+          <div class="flex gap-1.5">
+            <input type="date" id="editValidade" class="flex-1 border border-pink-300 rounded-lg px-2.5 py-2 text-center focus:ring-2 focus:ring-pink-500 bg-pink-50/20">
+            <button type="button" onclick="document.getElementById('editValidade').value='';window.mostrarToast?.('Validade','Data limpa. Salve para gravar.');" class="px-2.5 py-2 text-xs font-bold rounded-lg border border-pink-300 text-pink-700 hover:bg-pink-50" title="Limpar data">Limpar</button>
+          </div>
+        </div>
       </div>
       <div class="pt-3 border-t border-slate-200 flex justify-end gap-2">
         <button type="button" onclick="fecharModalEditarProduto()" class="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
@@ -556,7 +565,7 @@
         <div>
           <label class="block font-bold text-slate-700 mb-1">Presença na venda</label>
           <select id="expPresenca" class="w-full border border-slate-300 rounded-lg px-3 py-2" onchange="atualizarResumoExportacao()">
-            <option value="todos">Todas</option><option value="pendente">Pendente</option><option value="sim">Presente (Sim)</option><option value="nao">Ruptura (Não)</option><option value="parcial">Parcial</option>
+            <option value="todos">Todas</option><option value="pendente">Pendente</option><option value="sim">Presente (Sim)</option><option value="nao">Ruptura (Não)</option>
           </select>
         </div>
         <div>
@@ -622,16 +631,48 @@
 
 
 <!-- MODAL SCANNER EAN -->
-<div id="modalScannerEAN" class="fixed inset-0 z-[60] bg-slate-900/80 flex items-center justify-center p-4 hidden">
-  <div class="bg-white modal-panel max-w-md w-full overflow-hidden border border-slate-200">
-    <div class="px-4 py-3 border-b flex items-center justify-between bg-slate-50">
-      <h2 class="text-sm font-bold flex items-center gap-2"><i class="ph-bold ph-barcode text-lg"></i> Escanear EAN</h2>
-      <button type="button" onclick="window.fecharScannerEAN?.()" class="p-1.5 text-slate-400 hover:text-slate-600"><i class="ph-bold ph-x text-lg"></i></button>
+
+<div id="modalSeletorValidade" class="fixed inset-0 z-[70] bg-slate-900/60 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+  <div class="bg-white w-full sm:max-w-sm sm:rounded-2xl rounded-t-2xl shadow-2xl border border-slate-200 overflow-hidden">
+    <div class="px-4 py-3 border-b bg-slate-50 flex items-center justify-between">
+      <div>
+        <h2 class="text-sm font-bold text-slate-900">Data de validade</h2>
+        <p id="valPickerProduto" class="text-[11px] text-slate-500 truncate max-w-[240px]"></p>
+      </div>
+      <button type="button" onclick="window.fecharSeletorValidade()" class="p-1.5 text-slate-400 hover:text-slate-700"><i class="ph-bold ph-x text-lg"></i></button>
     </div>
-    <div class="p-3">
-      <div id="readerEAN"></div>
-      <p class="text-[11px] text-slate-500 text-center mt-2">Aponte a câmera para o código de barras</p>
+    <div class="p-4 space-y-3">
+      <input type="hidden" id="valPickerCod">
+      <label class="block text-[10px] font-bold uppercase text-slate-500">Digite a data (só números)</label>
+      <input type="text" id="valPickerTexto" inputmode="numeric" placeholder="01032027 → 01/03/2027" maxlength="10"
+        class="w-full border-2 border-emerald-300 rounded-xl px-3 py-3.5 text-center text-xl font-mono font-black tracking-widest text-slate-900 focus:ring-2 focus:ring-emerald-500"
+        oninput="window.formatarDataDigitada(this)"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();window.salvarSeletorValidade();}">
+      <p class="text-[11px] text-slate-500 text-center">Ex.: <span class="font-mono font-bold">01032027</span> vira <span class="font-mono font-bold">01/03/2027</span></p>
+      <div class="flex gap-2 pt-1">
+        <button type="button" onclick="window.limparSeletorValidade()" class="flex-1 py-2.5 text-xs font-bold rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-50">Limpar</button>
+        <button type="button" onclick="window.salvarSeletorValidade()" class="flex-[2] py-2.5 text-xs font-bold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700">Salvar</button>
+      </div>
     </div>
+  </div>
+</div>
+
+<div id="modalScannerEAN" class="fixed inset-0 z-[60] bg-slate-950/95 flex flex-col hidden">
+  <div class="flex items-center justify-between px-4 py-3 text-white">
+    <h2 id="tituloScannerEAN" class="text-sm font-bold flex items-center gap-2"><i class="ph-bold ph-barcode text-lg"></i> Scanner</h2>
+    <button type="button" onclick="window.fecharScannerEAN?.()" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-white/10 hover:bg-white/20">Fechar</button>
+  </div>
+  <div class="flex-1 flex flex-col items-center justify-center px-3 pb-4 min-h-0">
+    <div id="readerEAN" class="w-full max-w-lg rounded-2xl overflow-hidden bg-black"></div>
+    <p id="hintScannerEAN" class="text-[12px] text-slate-300 text-center mt-3">Aponte para o código de barras</p>
+    <div id="statusScannerPresenca" class="hidden mt-2 w-full max-w-lg p-3 rounded-xl text-center text-xs font-bold"></div>
+    <div class="mt-3 w-full max-w-lg flex gap-2">
+      <input type="text" id="inputManualScan" inputmode="numeric" placeholder="Ou digite o código e Enter"
+        class="flex-1 rounded-xl px-3 py-2.5 text-sm font-mono bg-white/10 text-white border border-white/20 placeholder:text-slate-400"
+        onkeydown="if(event.key==='Enter'){window.enviarCodigoManualScan?.();}">
+      <button type="button" onclick="window.enviarCodigoManualScan?.()" class="px-3 py-2.5 text-xs font-bold rounded-xl bg-emerald-500 text-white">OK</button>
+    </div>
+    <button type="button" onclick="window.fecharScannerEAN?.()" class="mt-4 w-full max-w-lg py-3 text-sm font-bold rounded-xl bg-white text-slate-900">Fechar scanner</button>
   </div>
 </div>
 
@@ -987,7 +1028,12 @@
     if (idx >= 0) window.appState.produtos[idx] = { ...window.appState.produtos[idx], ...produto };
     else window.appState.produtos.push(produto);
     persistirLocalmente();
-    dispararAtualizacaoUI();
+    if (!(arguments[1] && arguments[1].silencioso)) {
+      dispararAtualizacaoUI();
+    } else {
+      window.atualizarEstatisticas?.();
+      window.atualizarContadoresChips?.();
+    }
 
     const { _lastLocalEdit, ...paraSalvar } = produto;
     const payload = {
@@ -1421,6 +1467,7 @@ window.aplicarFiltros = function() {
     }
     return true;
   });
+  window.appState.itensExibidos = filtrados;
   window.renderizarTabela(filtrados);
 };
 
@@ -1479,9 +1526,10 @@ window.renderizarTabela = function(itens) {
       else if (iv.status === 'em_dia') valCls = 'border-emerald-300 bg-emerald-50 text-emerald-700';
       else if (!val) valCls = 'border-slate-200 bg-slate-50 text-slate-400';
       const valTitle = window.escHtml(iv.label || 'Definir validade');
-      const valHtml = '<input type="date" value="' + window.escHtml(val) + '" title="' + valTitle + '" ' +
-        'onchange="window.atualizarValidade(\'' + window.escHtml(cod) + '\', this.value)" ' +
-        'class="val-date w-[7.2rem] text-center text-[11px] rounded border px-0.5 py-0.5 ' + valCls + '">';
+      const valLabel = val ? (iv.formatada || val) : '— data —';
+      const valHtml = '<button type="button" data-cod="' + window.escHtml(cod) + '" onclick="window.abrirSeletorValidade(\'' + window.escHtml(cod) + '\')" ' +
+        'title="' + valTitle + '" class="val-date min-w-[5.5rem] text-center text-[11px] rounded-lg border px-1.5 py-1 ' + valCls + '">' +
+        window.escHtml(valLabel) + '</button>';
       const eanShow = String(p.ean || '').trim() || '—';
       const desc = window.escHtml(p.desc || '');
       const ind = window.escHtml(p.industria || '-');
@@ -1494,13 +1542,12 @@ window.renderizarTabela = function(itens) {
         '<td class="py-1.5 px-1.5 text-center font-mono text-[10px] text-slate-600">' + window.escHtml(eanShow) + '</td>' +
         '<td class="py-1.5 px-1.5"><span class="desc-cell text-[11px] font-medium" title="' + desc + '">' + desc + '</span></td>' +
         '<td class="py-1.5 px-1.5 text-[10px]"><span class="px-1.5 py-0.5 rounded font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">' + ind + '</span></td>' +
-        '<td class="py-1.5 px-1.5 text-center font-bold text-[11px] ' + (Number(p.estoque) < 0 ? 'text-rose-600' : '') + '">' + window.escHtml(p.estoque) + '</td>' +
+        '<td class="py-1 px-1 text-center"><input type="number" value="' + window.escHtml(p.estoque) + '" onchange="window.atualizarEstoqueInline(\'' + window.escHtml(cod) + '\', this.value)" class="w-14 text-center text-[11px] font-bold rounded border border-slate-200 py-0.5 ' + (Number(p.estoque) < 0 ? 'text-rose-600' : 'text-slate-800') + '"></td>' +
         '<td class="py-1.5 px-1.5 text-center">' + valHtml + '</td>' +
         '<td class="py-1 px-1 bg-slate-50/50 border-x border-slate-200 text-center">' +
           '<div class="inline-flex rounded-md border border-slate-200 bg-white p-0.5">' +
             '<button type="button" onclick="alterarPresenca(\'' + window.escHtml(cod) + '\',\'sim\')" class="presenca-btn text-[10px] font-bold rounded ' + (pr === 'sim' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-100') + '">Sim</button>' +
             '<button type="button" onclick="alterarPresenca(\'' + window.escHtml(cod) + '\',\'nao\')" class="presenca-btn text-[10px] font-bold rounded ' + (pr === 'nao' ? 'bg-rose-600 text-white' : 'text-slate-600 hover:bg-slate-100') + '">Não</button>' +
-            '<button type="button" onclick="alterarPresenca(\'' + window.escHtml(cod) + '\',\'parcial\')" class="presenca-btn text-[10px] font-bold rounded ' + (pr === 'parcial' ? 'bg-amber-500 text-white' : 'text-slate-600 hover:bg-slate-100') + '">P</button>' +
           '</div></td>' +
         '<td class="py-1 px-1 text-center"><input type="number" value="' + window.escHtml(ct) + '" placeholder="—" onchange="atualizarContagem(\'' + window.escHtml(cod) + '\',this.value)" class="w-14 text-center text-[11px] font-bold border border-slate-300 rounded py-0.5"></td>' +
         '<td class="py-1.5 px-1.5 text-center text-[11px] ' + divC + '">' + divT + '</td>' +
@@ -1527,11 +1574,12 @@ window.getRowBgColor = (item, pr) => {
 };
 
 window.alterarPresenca = function(cod, st) {
-  const p = window.appState?.produtos?.find(x => x.cod===cod); if (!p) return;
-  const final = (p.presenca||'pendente')===st ? 'pendente' : st;
+  const p = window.appState?.produtos?.find(x => String(x.cod) === String(cod)); if (!p) return;
+  // Apenas Sim / Não — toque de novo no mesmo desmarca (pendente)
+  const final = (p.presenca || 'pendente') === st ? 'pendente' : st;
   let nc = p.contagemFisica;
-  if (final==='nao' && (nc===''||nc===undefined)) nc='0';
-  window.salvarProdutoNoBanco({...p, presenca:final, contagemFisica:nc});
+  if (final === 'nao' && (nc === '' || nc === undefined)) nc = '0';
+  window.salvarProdutoNoBanco({ ...p, presenca: final, contagemFisica: nc });
 };
 window.atualizarContagem = function(cod, v) {
   const p = window.appState?.produtos?.find(x => x.cod===cod); if (!p) return;
@@ -1539,20 +1587,334 @@ window.atualizarContagem = function(cod, v) {
   if (v!=='' && (!pr||pr==='pendente')) pr = parseInt(v)>0?'sim':'nao';
   window.salvarProdutoNoBanco({...p, contagemFisica:v, presenca:pr});
 };
-window.atualizarObs = (cod, t) => { const p = window.appState?.produtos?.find(x => x.cod===cod); if (p) window.salvarProdutoNoBanco({...p, obs:t}); };
-window.atualizarValidade = async function(cod, d) {
-  const p = (window.appState?.produtos || []).find(x => String(x.cod) === String(cod));
-  if (!p) { window.mostrarToast?.('Erro', 'Produto não encontrado.', 'error'); return; }
-  const ok = await window.salvarProdutoNoBanco({ ...p, validade: d || '' });
-  const i = window.calcularStatusValidade(d);
-  if (ok) {
-    window.mostrarToast?.('Validade salva', d ? (p.desc + ': ' + i.formatada + ' (' + i.label + ')') : 'Data removida', i.dias != null && i.dias < 0 ? 'error' : 'success');
-  } else {
-    window.mostrarToast?.('Validade local', 'Não confirmou no Firebase. Toque no badge para reconectar.', 'error');
+
+window.atualizarEstoqueInline = function(cod, valor) {
+  const p = window.appState?.produtos?.find(x => String(x.cod) === String(cod));
+  if (!p) return;
+  const n = parseInt(valor, 10);
+  if (isNaN(n)) return;
+  window.salvarProdutoNoBanco({ ...p, estoque: n }, { silencioso: true });
+};
+
+window._scannerModo = 'ean'; // 'ean' | 'busca' | 'presenca'
+window._scannerLastCode = '';
+window._scannerLastAt = 0;
+
+window.abrirScannerPresenca = async function() {
+  window._scannerModo = 'presenca';
+  const modal = document.getElementById('modalScannerEAN');
+  const titulo = document.getElementById('tituloScannerEAN');
+  const hint = document.getElementById('hintScannerEAN');
+  const st = document.getElementById('statusScannerPresenca');
+  if (titulo) titulo.innerHTML = '<i class="ph-bold ph-barcode text-lg"></i> Auditoria rápida — presença';
+  if (hint) hint.innerText = 'Escaneie continuamente. Digite o código se preferir.';
+  if (st) { st.classList.add('hidden'); st.innerText = ''; }
+  if (!modal) return;
+  modal.classList.remove('hidden'); // mostra UI na hora
+  // câmera em seguida (sem await bloqueando paint)
+  setTimeout(() => window._iniciarCameraScanner(), 30);
+};
+
+
+window._iniciarCameraScanner = async function() {
+  if (!window.Html5Qrcode) {
+    window.mostrarToast('Scanner', 'Biblioteca de câmera não carregou.', 'error');
+    return;
   }
-  // Re-pinta a linha com a nova cor
+  // Já rodando → não reinicia (abertura instantânea)
+  if (window._html5Qr && window._scannerRunning) return;
+
+  const reader = document.getElementById('readerEAN');
+  if (reader) reader.innerHTML = '<p class="text-center text-slate-400 text-xs py-8">Abrindo câmera…</p>';
+
+  try {
+    // Reutiliza instância se existir; só para se necessário
+    if (window._html5Qr) {
+      try { await window._html5Qr.stop(); } catch (e) {}
+    } else {
+      window._html5Qr = new Html5Qrcode('readerEAN');
+    }
+    // Config leve = abre mais rápido no Android
+    await window._html5Qr.start(
+      { facingMode: 'environment' },
+      { fps: 8, qrbox: function(viewW, viewH) {
+          const w = Math.floor(Math.min(viewW * 0.9, 320));
+          const h = Math.floor(Math.min(viewH * 0.35, 140));
+          return { width: w, height: h };
+        }
+      },
+      (decoded) => window._onScanDecoded(decoded),
+      () => {}
+    );
+    window._scannerRunning = true;
+  } catch (err) {
+    window._scannerRunning = false;
+    console.warn('camera', err);
+    // fallback sem facingMode estrito
+    try {
+      if (!window._html5Qr) window._html5Qr = new Html5Qrcode('readerEAN');
+      await window._html5Qr.start(
+        { facingMode: 'environment' },
+        { fps: 6 },
+        (decoded) => window._onScanDecoded(decoded),
+        () => {}
+      );
+      window._scannerRunning = true;
+    } catch (err2) {
+      window.mostrarToast('Câmera', 'Permita o acesso à câmera.', 'error');
+    }
+  }
+};
+
+
+window.tocarBipScan = function(tipo) {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!window._audioCtxScan) window._audioCtxScan = new Ctx();
+    const ctx = window._audioCtxScan;
+    if (ctx.state === 'suspended') ctx.resume();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    const agora = ctx.currentTime;
+    if (tipo === 'erro') {
+      o.type = 'sine';
+      o.frequency.setValueAtTime(220, agora);
+      o.frequency.setValueAtTime(180, agora + 0.12);
+      g.gain.setValueAtTime(0.0001, agora);
+      g.gain.exponentialRampToValueAtTime(0.18, agora + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, agora + 0.28);
+      o.start(agora); o.stop(agora + 0.3);
+    } else if (tipo === 'novo') {
+      o.type = 'square';
+      o.frequency.setValueAtTime(660, agora);
+      o.frequency.setValueAtTime(880, agora + 0.1);
+      g.gain.setValueAtTime(0.0001, agora);
+      g.gain.exponentialRampToValueAtTime(0.12, agora + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, agora + 0.22);
+      o.start(agora); o.stop(agora + 0.25);
+    } else {
+      o.type = 'sine';
+      o.frequency.setValueAtTime(1200, agora);
+      o.frequency.setValueAtTime(1500, agora + 0.06);
+      g.gain.setValueAtTime(0.0001, agora);
+      g.gain.exponentialRampToValueAtTime(0.15, agora + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, agora + 0.12);
+      o.start(agora); o.stop(agora + 0.14);
+    }
+  } catch (e) { console.warn('bip', e); }
+};
+
+window._onScanDecoded = async function(decoded) {
+  const code = String(decoded || '').replace(/\s/g, '');
+  if (!code) return;
+  // debounce same code 2.2s
+  const now = Date.now();
+  if (code === window._scannerLastCode && (now - window._scannerLastAt) < 2200) return;
+  window._scannerLastCode = code;
+  window._scannerLastAt = now;
+  window.tocarBipScan?.('ok');
+  try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) {}
+
+  const modo = window._scannerModo || 'ean';
+  if (modo === 'busca') {
+    try { await window._html5Qr?.stop(); } catch (e) {}
+    window.fecharScannerEAN?.();
+    const inp = document.getElementById('searchInput');
+    if (inp) inp.value = code;
+    window.aplicarFiltros?.();
+    window.mostrarToast('Código lido', code);
+    return;
+  }
+
+  if (modo === 'presenca') {
+    await window._processarScanPresenca(code);
+    return;
+  }
+
+  // modo ean no cadastro
+  const alvo = window._scannerAlvo || 'novo';
+  const el = document.getElementById(alvo === 'edit' ? 'editEan' : 'novoEan');
+  if (el) el.value = code.replace(/\D/g, '');
+  try { await window._html5Qr?.stop(); } catch (e) {}
+  window.fecharScannerEAN?.();
+  window.buscarInfoEAN?.(code, alvo);
+};
+
+window._processarScanPresenca = async function(code) {
+  const digits = code.replace(/\D/g, '');
+  const lista = window.appState?.produtos || [];
+  const found = lista.find(p => {
+    const ean = String(p.ean || '').replace(/\D/g, '');
+    const cod = String(p.cod || '').replace(/\D/g, '');
+    return (ean && ean === digits) || (cod && cod === digits) || String(p.cod) === code || String(p.ean) === code;
+  });
+
+  const st = document.getElementById('statusScannerPresenca');
+  if (found) {
+    await window.salvarProdutoNoBanco({ ...found, presenca: 'sim' }, { silencioso: true });
+    if (st) {
+      st.classList.remove('hidden', 'bg-rose-50', 'text-rose-800', 'border-rose-200');
+      st.classList.add('bg-emerald-50', 'text-emerald-800', 'border', 'border-emerald-200');
+      st.innerHTML = '✓ Presença confirmada<br><span class="font-semibold">' + (found.cod || '') + ' · ' + (found.desc || '') + '</span>';
+    }
+    window.mostrarToast('Presença confirmada', found.desc || found.cod);
+    // scanner continua aberto
+    return;
+  }
+
+  // Não encontrado → bip de erro + abre cadastro se confirmar
+  window.tocarBipScan?.('erro');
+  if (st) {
+    st.classList.remove('hidden', 'bg-emerald-50', 'text-emerald-800', 'border-emerald-200');
+    st.classList.add('bg-rose-50', 'text-rose-800', 'border', 'border-rose-200');
+    st.innerHTML = '✗ Não está na lista<br><span class="font-mono">' + code + '</span>';
+  }
+  window.mostrarToast('Não está na lista', code, 'error');
+
+  setTimeout(() => {
+    const ok = confirm('Código ' + code + ' não está na lista.\n\nAdicionar no estoque? (abre o cadastro)');
+    if (!ok) return;
+    window.tocarBipScan?.('novo');
+    Promise.resolve(window.fecharScannerEAN?.()).finally(() => {
+      window.abrirModalNovoProduto?.();
+      setTimeout(() => {
+        const eanEl = document.getElementById('novoEan');
+        const codEl = document.getElementById('novoCod');
+        if (digits.length >= 8) {
+          if (eanEl) eanEl.value = digits;
+          window.buscarInfoEAN?.(digits, 'novo');
+        } else {
+          if (codEl) codEl.value = digits || code;
+          if (eanEl) eanEl.value = '';
+        }
+        window.verificarDuplicidadeCampos?.();
+      }, 200);
+      window.mostrarToast('Cadastro', 'Preencha e salve o produto.');
+    });
+  }, 120);
+};
+
+// Override abrirScannerBusca
+// Override abrirScannerBusca to use shared camera
+window.abrirScannerBusca = async function() {
+  window._scannerModo = 'busca';
+  const titulo = document.getElementById('tituloScannerEAN');
+  const hint = document.getElementById('hintScannerEAN');
+  if (titulo) titulo.innerHTML = '<i class="ph-bold ph-barcode text-lg"></i> Buscar por código';
+  if (hint) hint.innerText = 'Aponte para o código de barras';
+  document.getElementById('modalScannerEAN')?.classList.remove('hidden');
+  await window._iniciarCameraScanner();
+};
+
+
+window.atualizarObs = (cod, t) => { const p = window.appState?.produtos?.find(x => x.cod===cod); if (p) window.salvarProdutoNoBanco({...p, obs:t}); };
+
+window._isoParaPartes = function(iso) {
+  if (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const [y, m, d] = iso.split('-');
+    return { y: +y, m: +m, d: +d };
+  }
+  return null;
+};
+
+window._partesParaIso = function(d, m, y) {
+  if (!d || !m || !y) return '';
+  return String(y).padStart(4, '0') + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+};
+
+/** Formata digitação corrida: 01032027 → 01/03/2027 */
+window.formatarDataDigitada = function(el) {
+  if (!el) return;
+  let dig = String(el.value || '').replace(/\D/g, '').slice(0, 8);
+  let out = dig;
+  if (dig.length > 4) out = dig.slice(0, 2) + '/' + dig.slice(2, 4) + '/' + dig.slice(4);
+  else if (dig.length > 2) out = dig.slice(0, 2) + '/' + dig.slice(2);
+  el.value = out;
+};
+
+window._parseDataBr = function(txt) {
+  const dig = String(txt || '').replace(/\D/g, '');
+  if (dig.length !== 8) return null;
+  const d = +dig.slice(0, 2);
+  const m = +dig.slice(2, 4);
+  const y = +dig.slice(4, 8);
+  if (d < 1 || d > 31 || m < 1 || m > 12 || y < 2000 || y > 2100) return null;
+  const dt = new Date(y, m - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+  return window._partesParaIso(d, m, y);
+};
+
+window.abrirSeletorValidade = function(cod) {
+  const p = (window.appState?.produtos || []).find(x => String(x.cod) === String(cod));
+  if (!p) return;
+  const modal = document.getElementById('modalSeletorValidade');
+  const txtEl = document.getElementById('valPickerTexto');
+  const codEl = document.getElementById('valPickerCod');
+  const nomeEl = document.getElementById('valPickerProduto');
+  if (!modal || !txtEl) return;
+  codEl.value = String(cod);
+  if (nomeEl) nomeEl.textContent = (p.cod || '') + ' · ' + (p.desc || '');
+  const partes = window._isoParaPartes(p.validade || '');
+  if (partes) {
+    txtEl.value = String(partes.d).padStart(2, '0') + '/' + String(partes.m).padStart(2, '0') + '/' + partes.y;
+  } else {
+    txtEl.value = '';
+  }
+  modal.classList.remove('hidden');
+  setTimeout(() => { txtEl.focus(); txtEl.select(); }, 80);
+};
+
+window.fecharSeletorValidade = function() {
+  document.getElementById('modalSeletorValidade')?.classList.add('hidden');
+};
+
+window.limparSeletorValidade = async function() {
+  const cod = document.getElementById('valPickerCod')?.value;
+  if (!cod) return;
+  await window.atualizarValidade(cod, '');
+  window.fecharSeletorValidade();
+  window.mostrarToast('Validade', 'Data removida');
   window.aplicarFiltros?.();
 };
+
+window.salvarSeletorValidade = async function() {
+  const cod = document.getElementById('valPickerCod')?.value;
+  if (!cod) return;
+  const txt = document.getElementById('valPickerTexto')?.value?.trim() || '';
+  if (!txt) {
+    window.mostrarToast('Data', 'Digite a data ou use Limpar', 'error');
+    return;
+  }
+  const iso = window._parseDataBr(txt);
+  if (!iso) {
+    window.mostrarToast('Data inválida', 'Use 8 dígitos: DDMMAAAA (ex: 01032027)', 'error');
+    return;
+  }
+  await window.atualizarValidade(cod, iso);
+  window.fecharSeletorValidade();
+  const iv = window.calcularStatusValidade(iso);
+  window.mostrarToast('Validade salva', iv.formatada + ' · ' + iv.label);
+  window.aplicarFiltros?.();
+};
+
+window.atualizarValidade = async function(cod, d) {
+  const p = (window.appState?.produtos || []).find(x => String(x.cod) === String(cod));
+  if (!p) return;
+  p.validade = d || '';
+  await window.salvarProdutoNoBanco({ ...p, validade: d || '' }, { silencioso: true });
+};
+
+window.enviarCodigoManualScan = function() {
+  const el = document.getElementById('inputManualScan');
+  const code = (el?.value || '').trim();
+  if (!code) return;
+  if (el) el.value = '';
+  window._onScanDecoded?.(code);
+};
+
+
 window.marcarTodosPresentes = function() {
   const ind = window.appState?.industriaAtiva||'todas';
   (window.appState?.produtos||[]).filter(p => ind==='todas'||(p.industria||'').trim().toLowerCase()===ind.trim().toLowerCase())
@@ -1581,10 +1943,17 @@ window.atualizarEstatisticas = function() {
 
 window.alternarSelecaoItem = (c,s) => { s?window.appState.selecionados.add(c):window.appState.selecionados.delete(c); window.atualizarBarraLote(); };
 window.alternarSelecionarTodos = function(m) {
-  const ind=window.appState?.industriaAtiva||'todas';
-  (window.appState?.produtos||[]).filter(p=>ind==='todas'||(p.industria||'').trim().toLowerCase()===ind.trim().toLowerCase())
-    .forEach(p=>m?window.appState.selecionados.add(p.cod):window.appState.selecionados.delete(p.cod));
-  window.atualizarBarraLote(); window.aplicarFiltros();
+  // Seleciona somente o que está na tela (filtros + indústria + chips)
+  const lista = Array.isArray(window.appState?.itensExibidos)
+    ? window.appState.itensExibidos
+    : (window.obterItensFiltradosTela ? window.obterItensFiltradosTela() : (window.appState?.produtos || []));
+  lista.forEach(p => {
+    const cod = p.cod;
+    if (m) window.appState.selecionados.add(cod);
+    else window.appState.selecionados.delete(cod);
+  });
+  window.atualizarBarraLote();
+  window.aplicarFiltros();
 };
 window.desmarcarTodosLote = function() {
   window.appState.selecionados.clear();
@@ -1597,6 +1966,54 @@ window.atualizarBarraLote = function() {
   const t=window.appState?.selecionados?.size||0;
   c.innerText=t; t>0?b.classList.remove('hidden'):b.classList.add('hidden');
 };
+
+window.compartilharSelecionadosWhatsApp = function() {
+  const cods = Array.from(window.appState?.selecionados || []);
+  if (!cods.length) {
+    window.mostrarToast('Nada selecionado', 'Marque os produtos na lista.', 'error');
+    return;
+  }
+  const mapa = new Map((window.appState?.produtos || []).map(p => [String(p.cod), p]));
+  const linhas = [];
+  cods.forEach(cod => {
+    const p = mapa.get(String(cod));
+    if (!p) return;
+    const codR = String(p.cod || '').trim();
+    const desc = String(p.desc || '').trim();
+    const q = (p.estoque !== undefined && p.estoque !== null && p.estoque !== '') ? String(p.estoque) : '—';
+    let v = '—';
+    if (p.validade) {
+      const iv = window.calcularStatusValidade?.(p.validade);
+      v = (iv && iv.formatada && iv.formatada !== '-') ? iv.formatada : String(p.validade);
+    }
+    linhas.push('* *' + codR + ' - ' + desc + '*');
+    linhas.push('  -  *Q.:* ' + q);
+    linhas.push('  -  *V.:* ' + v);
+    linhas.push('');
+  });
+  if (!linhas.length) {
+    window.mostrarToast('Erro', 'Não foi possível montar a lista.', 'error');
+    return;
+  }
+  const texto = linhas.join('\n').trim();
+  const url = 'https://wa.me/?text=' + encodeURIComponent(texto);
+  try {
+    window.open(url, '_blank');
+  } catch (e) {
+    // fallback: copiar
+  }
+  // Também copia para a área de transferência
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(texto).then(() => {
+      window.mostrarToast('WhatsApp', cods.length + ' itens · texto copiado');
+    }).catch(() => {
+      window.mostrarToast('WhatsApp', cods.length + ' itens para enviar');
+    });
+  } else {
+    window.mostrarToast('WhatsApp', cods.length + ' itens para enviar');
+  }
+};
+
 window.aplicarPresencaEmLote = st => {
   const t=window.appState.selecionados.size;
   window.executarAcaoEmLote('presenca',st);
@@ -1766,14 +2183,7 @@ window.salvarNovoProduto = async function(e) {
   window.mostrarToast('Cadastrado', `"${desc}" incluído.`);
 };
 
-window.gerarDownloadPDF = () => window.print();
-window.imprimirListaSimples = function() {
-  window.atualizarConteudoListaSimples?.();
-  document.body.classList.add('imprimindo-simples');
-  window.print();
-  setTimeout(()=>document.body.classList.remove('imprimindo-simples'),800);
-};
-window.baixarPdfListaSimples = () => window.imprimirListaSimples();
+/* PDF/print: ver gerarDownloadPDF / imprimirListaSimples no bloco de exportação profissional */
 window.obterItensFiltradosTela = function() {
   const busca = (document.getElementById('searchInput')?.value||'').trim().toLowerCase();
   const fP = document.getElementById('filtroPresenca')?.value||'todos';
@@ -2155,36 +2565,47 @@ window.gerarHtmlRelatorioProfissional = function(itens, tituloExtra) {
 };
 
 window.baixarPdfDeHtml = async function(html, nomeArquivo) {
-  // Usa iframe oculto + html2pdf (arquivo real, não print da tela)
-  if (window.html2pdf) {
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;background:#fff;';
-    wrap.innerHTML = html;
-    document.body.appendChild(wrap);
-    try {
+  // 1) Tenta html2pdf com iframe (mais confiável que div off-screen)
+  try {
+    if (window.html2pdf) {
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = 'position:fixed;left:0;top:0;width:297mm;height:210mm;opacity:0;pointer-events:none;z-index:-1;border:0';
+      document.body.appendChild(iframe);
+      const doc = iframe.contentDocument || iframe.contentWindow.document;
+      doc.open();
+      doc.write(html);
+      doc.close();
+      await new Promise(r => setTimeout(r, 400));
+      const target = doc.body;
       await window.html2pdf().set({
         margin: [8, 8, 8, 8],
-        filename: nomeArquivo,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
+        filename: nomeArquivo || 'relatorio.pdf',
+        image: { type: 'jpeg', quality: 0.95 },
+        html2canvas: { scale: 1.5, useCORS: true, logging: false, windowWidth: 1120 },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
-        pagebreak: { mode: ['css', 'legacy'] }
-      }).from(wrap).save();
-      window.mostrarToast('PDF gerado', nomeArquivo);
-    } finally {
-      wrap.remove();
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      }).from(target).save();
+      iframe.remove();
+      window.mostrarToast('PDF gerado', nomeArquivo || 'relatorio.pdf');
+      return;
     }
-    return;
+  } catch (err) {
+    console.warn('html2pdf falhou, abrindo impressão', err);
   }
-  // Fallback: nova janela com botão de impressão (ainda documento próprio)
+  // 2) Fallback: janela de impressão com o relatório completo
   const w = window.open('', '_blank', 'noopener,noreferrer');
   if (!w) {
-    window.mostrarToast('Bloqueado', 'Permita pop-ups para gerar o PDF.', 'error');
+    window.mostrarToast('Bloqueado', 'Permita pop-ups para exportar o PDF.', 'error');
     return;
   }
+  const htmlPrint = String(html).replace(
+    '</body>',
+    '<div style="text-align:center;margin:16px" class="no-print"><button onclick="window.print()" style="padding:12px 24px;font-weight:800;background:#047857;color:#fff;border:none;border-radius:10px;font-size:14px">Salvar / Imprimir PDF</button></div></body>'
+  );
   w.document.open();
-  w.document.write(html.replace('</body>', '<div class="no-print" style="text-align:center;margin:12px"><button onclick="window.print()" style="padding:10px 20px;font-weight:700;background:#047857;color:#fff;border:none;border-radius:8px;cursor:pointer">Salvar / Imprimir PDF</button></div></body>'));
+  w.document.write(htmlPrint);
   w.document.close();
+  window.mostrarToast('Relatório aberto', 'Use Salvar/Imprimir PDF na nova aba.');
 };
 
 window.exportarPDFAvancado = async function() {
