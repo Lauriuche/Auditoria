@@ -238,9 +238,15 @@
   <div class="card-soft p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
       <div>
-        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Nome do Auditor(a)</label>
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Promotor(a)</label>
         <div class="relative"><i class="ph-bold ph-user absolute left-3 top-2.5 text-slate-400 text-sm"></i>
-          <input type="text" id="auditorNome" onchange="salvarSessaoAuditor()" placeholder="Ex: Roberto Carlos" class="input-pretty w-full pl-8 text-xs font-semibold py-2.5 pr-3">
+          <input type="text" id="auditorNome" onchange="salvarSessaoAuditor()" placeholder="Ex: Vagner Sousa" class="input-pretty w-full pl-8 text-xs font-semibold py-2.5 pr-3">
+        </div>
+      </div>
+      <div>
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Supervisora</label>
+        <div class="relative"><i class="ph-bold ph-user-circle absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+          <input type="text" id="auditorSupervisora" onchange="salvarSessaoAuditor()" placeholder="Ex: Roberta" class="input-pretty w-full pl-8 text-xs font-semibold py-2.5 pr-3">
         </div>
       </div>
       <div>
@@ -1244,6 +1250,8 @@
     const hoje = new Date().toISOString().split('T')[0];
     const di = document.getElementById('auditorData'); if (di && !di.value) di.value = hoje;
     const an = window.safeStorageGet?.('auditorNomePosterus'); if (an) document.getElementById('auditorNome').value = an;
+    const asup = window.safeStorageGet?.('auditorSupervisoraPosterus'); if (asup) { const s = document.getElementById('auditorSupervisora'); if (s) s.value = asup; }
+    const adt = window.safeStorageGet?.('auditorDataPosterus'); if (adt) { const d = document.getElementById('auditorData'); if (d) d.value = adt; }
     const obs = window.safeStorageGet?.('auditorObsPosterus'); if (obs) document.getElementById('obsGerais').value = obs;
   });
 </script>
@@ -1291,7 +1299,14 @@ window.mostrarToast = function(titulo, msg, tipo='success') {
   window.__tt = setTimeout(() => { t.classList.add('translate-y-20','opacity-0'); t.classList.remove('translate-y-0','opacity-100'); }, 3500);
 };
 
-window.salvarSessaoAuditor = () => { const el = document.getElementById('auditorNome'); if (el) window.safeStorageSet('auditorNomePosterus', el.value); };
+window.salvarSessaoAuditor = () => {
+  const el = document.getElementById('auditorNome');
+  if (el) window.safeStorageSet('auditorNomePosterus', el.value);
+  const sup = document.getElementById('auditorSupervisora');
+  if (sup) window.safeStorageSet('auditorSupervisoraPosterus', sup.value);
+  const dt = document.getElementById('auditorData');
+  if (dt) window.safeStorageSet('auditorDataPosterus', dt.value);
+};
 window.salvarObsGerais = () => { const el = document.getElementById('obsGerais'); if (el) { window.safeStorageSet('auditorObsPosterus', el.value); window.mostrarToast('Salvo','Observações registradas.'); } };
 
 window.renderizarAbasIndustrias = function() {
@@ -2037,13 +2052,21 @@ window.compartilharSelecionadosWhatsApp = function() {
     return;
   }
   const mapa = new Map((window.appState?.produtos || []).map(p => [String(p.cod), p]));
-  const aud = document.getElementById('auditorNome')?.value || '—';
-  const dt = document.getElementById('auditorData')?.value || new Date().toISOString().slice(0, 10);
+  const promotor = document.getElementById('auditorNome')?.value || '—';
+  const supervisora = document.getElementById('auditorSupervisora')?.value || '—';
+  const dtRaw = document.getElementById('auditorData')?.value || new Date().toISOString().slice(0, 10);
+  // Data no formato 19/10/26
+  let dtFmt = dtRaw;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dtRaw)) {
+    const [yy, mm, dd] = dtRaw.split('-');
+    dtFmt = dd + '/' + mm + '/' + yy.slice(2);
+  }
   const ind = window.appState?.industriaAtiva || 'todas';
   const linhas = [];
-  linhas.push('*AUDITORIA — POSTERUS GRAJAÚ*');
-  linhas.push('*Auditor:* ' + aud);
-  linhas.push('*Data:* ' + dt);
+  linhas.push('*VALIDADE— CAMINO GRAJAÚ*');
+  linhas.push('*Promotor:* ' + promotor);
+  linhas.push('*Supervisora:* ' + supervisora);
+  linhas.push('*Data:* ' + dtFmt);
   linhas.push('*Indústria:* ' + (ind === 'todas' ? 'Todas' : ind));
   linhas.push('*Itens:* ' + cods.length);
   linhas.push('——————————');
