@@ -2984,20 +2984,55 @@ window.processarArquivoSelecionado = function(e) {
 
 window.limparNumeroOCR = function(val, defaultVal = 0) {
   if (val === undefined || val === null || val === '') return defaultVal;
-  if (typeof val === 'number') return isNaN(val) ? defaultVal : Math.round(val);
+  if (typeof val === 'number') {
+    if (isNaN(val)) return defaultVal;
+    // evita 1.234 (já numérico “quebrado”) — aceita até 999999
+    return Math.round(val);
+  }
   let str = String(val).trim();
   if (!str) return defaultVal;
-  if (/^\d+\s*(G|GR|KG|ML|L|UN|PCT|CX)$/i.test(str)) return defaultVal;
-  str = str.replace(/[|¦!\[\]]/g, '').replace(/[oO]/g, '0').replace(/[lI]/g, '1').replace(/\s+/g, '');
-  // BR: 1.234,56 ou 73,00  |  US: 1,234.56
-  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(str)) str = str.replace(/\./g, '').replace(',', '.');
-  else if (str.includes(',') && !str.includes('.')) str = str.replace(',', '.');
-  else if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(str)) str = str.replace(/,/g, '');
-  const m = str.match(/-?\d+(\.\d+)?/);
+  // Peso/unidade no fim da descrição, não é estoque
+  if (/^\d+([.,]\d+)?\s*(G|GR|KG|ML|L|UN|PCT|CX|GRS?)$/i.test(str) && !/\d{4,}/.test(str.replace(/\D/g,''))) {
+    return defaultVal;
+  }
+  // limpa ruído OCR
+  str = str.replace(/[|¦!\[\]']/g, '').replace(/[oO]/g, '0').replace(/\s+/g, '');
+  // remove letras grudadas no fim (ex: 1234UN → 1234)
+  str = str.replace(/[A-Za-z]+$/g, '');
+
+  // BR milhar: 1.234 | 1.234.567 | 1.234,50 | 12.345
+  if (/^-?\d{1,3}(\.\d{3})+(,\d{1,3})?$/.test(str)) {
+    str = str.replace(/\./g, '').replace(',', '.');
+  }
+  // US milhar: 1,234 | 1,234.56
+  else if (/^-?\d{1,3}(,\d{3})+(\.\d{1,3})?$/.test(str)) {
+    str = str.replace(/,/g, '');
+  }
+  // só vírgula decimal BR: 73,00 | 1234,5
+  else if (/^-?\d+,\d{1,3}$/.test(str)) {
+    str = str.replace(',', '.');
+  }
+  // ponto com 1–2 casas → decimal; com 3 casas e total pequeno pode ser milhar mal lido
+  else if (/^-?\d+\.\d{3}$/.test(str)) {
+    // Heurística: se a parte inteira tem 1–3 dígitos e há exatamente 3 após o ponto → milhar BR
+    const parts = str.split('.');
+    if (parts[0].replace('-', '').length <= 3) {
+      str = parts[0] + parts[1]; // 1.234 → 1234
+    }
+  }
+
+  const m = str.match(/-?\d+(?:\.\d+)?/);
   if (!m) return defaultVal;
   const n = parseFloat(m[0]);
-  return isNaN(n) ? defaultVal : Math.round(n);
+  if (isNaN(n)) return defaultVal;
+  // estoque razoável (evita EAN colado virar estoque)
+  if (Math.abs(n) > 999999) return defaultVal;
+  return Math.round(n);
 };
+
+/** Regex de número de estoque (aceita milhar BR e valores > 1000) */
+window.REGEX_NUM_ESTOQUE = '-?\\d{1,3}(?:[.]\\d{3})+(?:[,]\\d{1,3})?|-?\\d{1,9}(?:[.,]\\d{1,3})?';
+
 
 /** Detecta se um token é EAN/código de barras (8–14 dígitos, tipicamente 13 e começa com 789 no BR) */
 window.ehEAN = function(s) {
@@ -3104,7 +3139,7 @@ window.extrairItensDeTextoBruto = function(texto) {
 
     // --- Padrão A (principal): COD(4-7) + EAN(8-14) + DESC + ESTOQUE(opcional)
     // Ex: 636401 7898174850322 AZEITONA VDE TIO PACO ... 73,00
-    let m = linha.match(/^(\d{4,7})\s+(\d{8,14})\s+(.+?)(?:\s+(-?\d{1,5}(?:[.,]\d{1,3})?)\s*)?$/);
+    let m = linha.match(/^(\d{4,7})\s+(\d{8,14})\s+(.+?)(?:\s+(-?\d{1,3}(?:\.\d{3})+(?:,\d{1,3})?|-?\d{1,9}(?:[.,]\d{1,3})?)\s*)?$/);
     if (m) {
       const cod = m[1];
       const ean = m[2];
@@ -3112,7 +3147,7 @@ window.extrairItensDeTextoBruto = function(texto) {
       let estoque = m[4] !== undefined ? window.limparNumeroOCR(m[4], 0) : null;
       // Se o estoque ficou grudado no final da descrição
       if (estoque === null) {
-        const me = resto.match(/^(.*?)\s+(-?\d{1,5}(?:[.,]\d{1,3})?)\s*$/);
+        const me = resto.match(/^(.*?)\s+(-?\d{1,3}(?:\.\d{3})+(?:,\d{1,3})?|-?\d{1,9}(?:[.,]\d{1,3})?)\s*$/);
         if (me && /[A-Za-z]/.test(me[1])) {
           resto = me[1].trim();
           estoque = window.limparNumeroOCR(me[2], 0);
@@ -3127,13 +3162,13 @@ window.extrairItensDeTextoBruto = function(texto) {
     }
 
     // --- Padrão B: só EAN + DESC + ESTOQUE (sem cód reduzido)
-    m = linha.match(/^(\d{8,14})\s+([A-Za-z].+?)(?:\s+(-?\d{1,5}(?:[.,]\d{1,3})?)\s*)?$/);
+    m = linha.match(/^(\d{8,14})\s+([A-Za-z].+?)(?:\s+(-?\d{1,3}(?:\.\d{3})+(?:,\d{1,3})?|-?\d{1,9}(?:[.,]\d{1,3})?)\s*)?$/);
     if (m && /[A-Za-z]{2,}/.test(m[2])) {
       resultado.push({
         cod: '',
         ean: m[1],
-        desc: m[2].replace(/\s+(-?\d{1,5}(?:[.,]\d{1,3})?)\s*$/, '').trim(),
-        estoque: window.limparNumeroOCR(m[3] || m[2].match(/(-?\d{1,5}(?:[.,]\d{1,3})?)\s*$/)?.[1], 0),
+        desc: m[2].replace(/\s+(-?\d{1,3}(?:\.\d{3})+(?:,\d{1,3})?|-?\d{1,9}(?:[.,]\d{1,3})?)\s*$/, '').trim(),
+        estoque: window.limparNumeroOCR(m[3] || m[2].match(/(-?\d{1,3}(?:\.\d{3})+(?:,\d{1,3})?|-?\d{1,9}(?:[.,]\d{1,3})?)\s*$/)?.[1], 0),
         venda: 0, dde: 0
       });
       return;
@@ -3165,7 +3200,7 @@ window.extrairItensDeTextoBruto = function(texto) {
       if (/^\d+(G|GR|KG|ML|L|UN|PCT)$/i.test(u)) break;
       const limpo = u.replace(/[oO]/g, '0').replace(/[lI]/g, '1');
       // aceita 73,00 e 1.234
-      if (/^-?\d{1,5}(?:[.,]\d{1,3})?$/.test(limpo) || /^-?\d{1,4}(?:\.\d{3})+$/.test(limpo)) {
+      if (/^-?\d{1,3}(?:\.\d{3})+(?:,\d{1,3})?|-?\d{1,9}(?:[.,]\d{1,3})?$/.test(limpo) || /^-?\d{1,4}(?:\.\d{3})+$/.test(limpo)) {
         nums.unshift(window.limparNumeroOCR(limpo, 0));
         tokens.pop();
         if (nums.length >= 3) break;
