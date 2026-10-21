@@ -1812,20 +1812,29 @@ window._onScanDecoded = async function(decoded) {
   // modo ean no cadastro
   const alvo = window._scannerAlvo || 'novo';
   const el = document.getElementById(alvo === 'edit' ? 'editEan' : 'novoEan');
-  if (el) el.value = code.replace(/\D/g, '');
+  const eanCad = window.normalizarEANScan(code.replace(/\D/g, ''));
+  if (el) el.value = eanCad;
   try { await window._html5Qr?.stop(); } catch (e) {}
   window.fecharScannerEAN?.();
-  window.buscarInfoEAN?.(code, alvo);
+  window.buscarInfoEAN?.(eanCad, alvo);
 };
 
 window._processarScanPresenca = async function(code) {
-  const digits = code.replace(/\D/g, '');
+  let digits = String(code || '').replace(/\D/g, '');
+  // Completa zero à esquerda se o leitor cortou o EAN (12 → 13, etc.)
+  const eanNorm = window.normalizarEANScan(digits);
   const lista = window.appState?.produtos || [];
   const found = lista.find(p => {
     const ean = String(p.ean || '').replace(/\D/g, '');
     const cod = String(p.cod || '').replace(/\D/g, '');
-    return (ean && ean === digits) || (cod && cod === digits) || String(p.cod) === code || String(p.ean) === code;
+    // Match EAN normalizado OU código interno (sem pad)
+    if (ean && (window.eanEquivale(ean, digits) || window.eanEquivale(ean, eanNorm))) return true;
+    if (cod && cod === digits) return true;
+    if (String(p.cod) === code || String(p.ean) === code) return true;
+    return false;
   });
+  // usa versão com zeros para cadastro / mensagens
+  digits = eanNorm || digits;
 
   const st = document.getElementById('statusScannerPresenca');
   if (found) {
@@ -3058,12 +3067,44 @@ window.REGEX_NUM_ESTOQUE = '-?\\d{1,3}(?:[.]\\d{3})+(?:[,]\\d{1,3})?|-?\\d{1,9}(
 
 
 /** Detecta se um token é EAN/código de barras (8–14 dígitos, tipicamente 13 e começa com 789 no BR) */
+/**
+ * Normaliza código de barras lido pelo scanner.
+ * Muitos leitores omitem o 0 à esquerda (13 → 12 dígitos).
+ * - 8 a 12 dígitos → completa com zeros à esquerda até 13 (EAN-13)
+ * - código interno curto (≤7) não é alterado
+ */
+window.normalizarEANScan = function(code) {
+  let d = String(code || '').replace(/\D/g, '');
+  if (!d) return '';
+  // Código reduzido da loja: não completa
+  if (d.length > 0 && d.length <= 7) return d;
+  // Já tem 13 ou 14 (EAN-13 / GTIN-14)
+  if (d.length >= 13) return d.slice(0, 14);
+  // 8–12 dígitos: zero à esquerda até 13
+  if (d.length >= 8 && d.length < 13) {
+    d = d.padStart(13, '0');
+  }
+  return d;
+};
+
+/** Compara EANs ignorando zeros à esquerda e versão com 13 dígitos */
+window.eanEquivale = function(a, b) {
+  const x = String(a || '').replace(/\D/g, '');
+  const y = String(b || '').replace(/\D/g, '');
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const nx = window.normalizarEANScan(x);
+  const ny = window.normalizarEANScan(y);
+  if (nx && ny && nx === ny) return true;
+  // sem zeros à esquerda
+  if (x.replace(/^0+/, '') === y.replace(/^0+/, '')) return true;
+  return false;
+};
+
 window.ehEAN = function(s) {
   const d = String(s || '').replace(/\D/g, '');
   if (d.length < 8 || d.length > 14) return false;
-  // Código reduzido da loja costuma ter 4–6 dígitos; EAN tem 8+
-  if (d.length >= 8) return true;
-  return false;
+  return true;
 };
 
 window.buscarProdutoCorrespondente = function(codExtraido, descExtraida, eanExtraido) {
@@ -3072,7 +3113,8 @@ window.buscarProdutoCorrespondente = function(codExtraido, descExtraida, eanExtr
   const eanLimpo = String(eanExtraido || '').replace(/[^\d]/g, '').trim();
   const descNorm = window.normalizarTexto(descExtraida);
   if (eanLimpo && eanLimpo.length >= 8) {
-    const porEan = lista.find(p => String(p.ean || '').replace(/\D/g, '') === eanLimpo);
+    const eanNorm = window.normalizarEANScan(eanLimpo);
+    const porEan = lista.find(p => window.eanEquivale(p.ean, eanLimpo) || window.eanEquivale(p.ean, eanNorm));
     if (porEan) return porEan;
   }
   if (codLimpo && codLimpo.length >= 4) {
@@ -3753,7 +3795,11 @@ window._scannerAlvo = 'novo';
 window._html5Qr = null;
 
 window.buscarInfoEAN = async function(eanRaw, alvo) {
-  const ean = String(eanRaw || '').replace(/\D/g, '').trim();
+  let ean = String(eanRaw || '').replace(/\D/g, '').trim();
+  ean = window.normalizarEANScan?.(ean) || ean;
+  // espelha no campo
+  const campo = document.getElementById(alvo === 'edit' ? 'editEan' : 'novoEan');
+  if (campo && ean) campo.value = ean;
   const status = document.getElementById('statusBuscaEAN');
   if (!ean || ean.length < 8) {
     if (status) { status.classList.remove('hidden'); status.innerText = 'EAN precisa ter ao menos 8 dígitos.'; }
