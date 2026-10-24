@@ -3028,7 +3028,7 @@ window.limparNumeroOCR = function(val, defaultVal = 0) {
     return defaultVal;
   }
   // limpa ruído OCR
-  str = str.replace(/[|¦!\[\]']/g, '').replace(/[oO]/g, '0').replace(/\s+/g, '');
+  str = str.replace(/[|¦!\[\]']/g, '').replace(/@/g, '0').replace(/[oO]/g, '0').replace(/\s+/g, '');
   // remove letras grudadas no fim (ex: 1234UN → 1234)
   str = str.replace(/[A-Za-z]+$/g, '');
 
@@ -3131,6 +3131,57 @@ window.buscarProdutoCorrespondente = function(codExtraido, descExtraida, eanExtr
   return null;
 };
 
+/** Corrige erros típicos de OCR em descrições de produto */
+window.limparDescricaoOCR = function(texto) {
+  let s = String(texto || '');
+  if (!s.trim()) return '';
+
+  // Unicode / símbolos de lixo
+  s = s.replace(/[©®™°§¶]/g, ' ')
+       .replace(/[|¦_~^`]/g, ' ')
+       .replace(/[""]/g, '')
+       .replace(/['']/g, '');
+
+  // @ e similar costumam ser "0" em pesos (25@ML → 250ML)
+  s = s.replace(/@/g, '0');
+  // Ø Ð às vezes viram O; em contexto de número → 0
+  s = s.replace(/[ØøÐ]/g, '0');
+
+  // Corrige padrões de peso/volume: 25OML, 1OG, 25O G, 1OOG
+  s = s.replace(/(\d)[Oo](\d)/g, '$10$2');           // 1O0 → 100
+  s = s.replace(/(\d)[Oo](\s*(?:ML|G|GR|KG|L|UN)\b)/gi, '$10$2'); // 25OML → 250ML, 1OG → 10G
+  s = s.replace(/(\d)\s*[Oo]\s*(ML|G|GR|KG|L|UN)\b/gi, '$10$2');
+
+  // I/l confusos em números grudados em unidade: 25IML raro; foca em O
+  s = s.replace(/(\d)[Il](\d{2,}\s*(?:ML|G)\b)/g, '$11$2');
+
+  // Remove lixo no INÍCIO antes da primeira letra (©@1925... ESP → ESP)
+  // Se começa com símbolos/dígitos longos sem sentido de cód. curto
+  s = s.replace(/^[^A-Za-zÁ-ú]+/, function(prefix) {
+    const dig = prefix.replace(/\D/g, '');
+    // se parece EAN solto no começo (8–14 dígitos), devolve vazio (será tratado fora)
+    return '';
+  });
+
+  // Espaços
+  s = s.replace(/\s+/g, ' ').trim().toUpperCase();
+
+  // Unidades grudadas: 250 ML → 250ML (opcional, só normaliza espaço antes de unidade no fim)
+  s = s.replace(/\s+(ML|G|GR|KG|L|UN|PCT|CX)\s*$/i, '$1');
+
+  // Remove caracteres ainda inválidos restantes (mantém letras, números, espaço, % . - /)
+  s = s.replace(/[^A-Z0-9ÁÉÍÓÚÂÊÔÃÕÇ\s\-%./]/gi, ' ').replace(/\s+/g, ' ').trim();
+
+  return s;
+};
+
+/** Extrai EAN que o OCR colou no início da descrição */
+window.extrairEanDoInicioDesc = function(desc) {
+  const m = String(desc || '').match(/^[\s©®@]*(\d{8,14})\s+(.+)$/);
+  if (m) return { ean: m[1], desc: m[2].trim() };
+  return null;
+};
+
 window.normalizarItensExtraidos = function(listaBruta) {
   const indPadrao = (document.getElementById('industriaPadraoImportacao')?.value || 'Puro Tempero').trim();
   const itens = []; const vistos = new Set();
@@ -3146,7 +3197,15 @@ window.normalizarItensExtraidos = function(listaBruta) {
 
     cod = String(cod).trim().replace(/^[-–:\s|¦]+|[-–:\s|¦]+$/g, '');
     ean = String(ean).replace(/\D/g, '').trim();
-    desc = String(desc).trim().toUpperCase().replace(/[|¦_~^]/g, ' ').replace(/\s+/g, ' ');
+    desc = String(desc).trim();
+
+    // EAN colado no começo da descrição (ex: ©@192505232168 ESP BOLDO...)
+    const colado = window.extrairEanDoInicioDesc(desc);
+    if (colado) {
+      if (!ean || ean.length < 8) ean = colado.ean;
+      desc = colado.desc;
+    }
+    desc = window.limparDescricaoOCR(desc);
 
     // Se "cod" veio com EAN (13 dígitos) e não há ean separado, separar
     const codDig = cod.replace(/\D/g, '');
@@ -3198,7 +3257,7 @@ window.extrairItensDeTextoBruto = function(texto) {
   const resultado = [];
 
   linhas.forEach(linhaBruta => {
-    let linha = linhaBruta.replace(/[|¦_~]/g, ' ').replace(/\t+/g, ' ').replace(/\s+/g, ' ').trim();
+    let linha = linhaBruta.replace(/[©®™]/g, ' ').replace(/@/g, '0').replace(/[|¦_~]/g, ' ').replace(/\t+/g, ' ').replace(/\s+/g, ' ').trim();
     // Pula cabeçalho
     if (/^(c[oó]digo|cod\.?|ean|descri|produto|estoque|psm|filial|total|qtd)/i.test(linha) && !/\d{5,}\s+\d{8,}/.test(linha)) return;
 
@@ -3454,7 +3513,7 @@ window.enviarParaLeitorGemini = async function(base64, mime) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
   const payload = {
     contents: [{ role: 'user', parts: [
-      { text: 'Extraia produtos de estoque desta tabela em JSON array. Layout comum: codigo_reduzido, ean (codigo de barras), descricao, estoque. Campos: cod (codigo interno/reduzido 4-7 digitos), ean (codigo de barras 8-14 digitos), desc, industria, venda, estoque, dde. Numeros no formato brasileiro (73,00 = 73). Ignore totais e cabecalhos.' },
+      { text: 'Extraia produtos de estoque desta tabela em JSON array. Corrija erros de OCR: @ costuma ser 0 (ex: 25@ML=250ML); ignore símbolos ©® no início; descrição limpa sem códigos de barras grudados. Layout comum: codigo_reduzido, ean (codigo de barras), descricao, estoque. Campos: cod (codigo interno/reduzido 4-7 digitos), ean (codigo de barras 8-14 digitos), desc, industria, venda, estoque, dde. Numeros no formato brasileiro (73,00 = 73). Ignore totais e cabecalhos.' },
       { inlineData: { mimeType: mime, data: base64 } }
     ]}],
     generationConfig: { responseMimeType: 'application/json' }
