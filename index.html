@@ -168,6 +168,7 @@
     .sk{height:12px;border-radius:6px;background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%);background-size:200% 100%;animation:sk 1.2s ease-in-out infinite}
     @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
     body.modo-auditoria .kpi-compact,
+    body.modo-auditoria #areaAuditoria > .card-soft:first-of-type,
     body.modo-auditoria .card-soft:first-of-type,
     body.modo-auditoria #obsGeraisBox,
     body.modo-auditoria .hide-auditoria{display:none!important}
@@ -180,7 +181,7 @@
     .tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:999px;font-size:9px;font-weight:800;background:#fee2e2;color:#be123c;margin-left:4px}
     .empty-state{padding:48px 24px;text-align:center;color:#94a3b8}
     .empty-state i{font-size:42px;display:block;margin-bottom:8px;opacity:.7}
-  
+
     /* Melhorias pack */
     .tabs-sticky{position:sticky;top:0;z-index:25;background:rgba(241,245,249,.95);backdrop-filter:blur(8px)}
     body.alto-contraste{--bg:#0f172a;background:#0b1220!important;color:#f8fafc}
@@ -234,87 +235,159 @@
 <div class="offline-banner no-print">⚠ Offline — alterações na fila · sincroniza ao reconectar</div>
 
 
-<main id="areaAuditoria" class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-4">
-  <div class="card-soft p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
-      <div>
-        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Promotor(a)</label>
-        <div class="relative"><i class="ph-bold ph-user absolute left-3 top-2.5 text-slate-400 text-sm"></i>
-          <input type="text" id="auditorNome" onchange="salvarSessaoAuditor()" placeholder="Ex: Vagner Sousa" class="input-pretty w-full pl-8 text-xs font-semibold py-2.5 pr-3">
+<main id="areaAuditoria" class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 space-y-3">
+  
+  <!-- 1. CARD UNIFICADO DO CROQUI (Campos + Total + Grade 4x2 de KPIs) -->
+  <div class="card-soft p-3.5 sm:p-5 space-y-3">
+    
+    <!-- Linha 1: Promotor (maior ~45%) | Supervisora (médio ~35%) | Data (menor ~20%) -->
+    <div class="grid grid-cols-12 gap-2 sm:gap-3">
+      <div class="col-span-5 sm:col-span-5">
+        <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 truncate">Promotor(a)</label>
+        <div class="relative">
+          <i class="ph-bold ph-user absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+          <input type="text" id="auditorNome" onchange="salvarSessaoAuditor()" placeholder="Ex: Vagner Sousa" class="input-pretty w-full pl-7 sm:pl-8 pr-2.5 py-2 text-xs font-semibold rounded-full">
         </div>
       </div>
-      <div>
-        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Supervisora</label>
-        <div class="relative"><i class="ph-bold ph-user-circle absolute left-3 top-2.5 text-slate-400 text-sm"></i>
-          <input type="text" id="auditorSupervisora" onchange="salvarSessaoAuditor()" placeholder="Ex: Roberta" class="input-pretty w-full pl-8 text-xs font-semibold py-2.5 pr-3">
+
+      <div class="col-span-4 sm:col-span-4">
+        <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 truncate">Supervisora</label>
+        <div class="relative">
+          <i class="ph-bold ph-user-circle absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+          <input type="text" id="auditorSupervisora" onchange="salvarSessaoAuditor()" placeholder="Ex: Roberta" class="input-pretty w-full pl-7 sm:pl-8 pr-2.5 py-2 text-xs font-semibold rounded-full">
         </div>
       </div>
-      <div>
-        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Data da Auditoria</label>
-        <div class="relative"><i class="ph-bold ph-calendar absolute left-3 top-2.5 text-slate-400 text-sm"></i>
-          <input type="date" id="auditorData" onchange="salvarSessaoAuditor()" class="input-pretty w-full pl-8 text-xs font-semibold py-2.5 pr-3">
+
+      <div class="col-span-3 sm:col-span-3">
+        <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 truncate">Data</label>
+        <div class="relative">
+          <i class="ph-bold ph-calendar absolute left-2 sm:left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none hidden sm:inline"></i>
+          <input type="date" id="auditorData" onchange="salvarSessaoAuditor()" class="input-pretty w-full px-1.5 sm:pl-7 sm:pr-2 py-2 text-[11px] sm:text-xs font-semibold rounded-lg">
         </div>
       </div>
-      <div>
-        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Tipo de Conferência</label>
-        <select id="tipoConferencia" class="w-full text-xs font-semibold border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500">
-          <option>Auditoria Preventiva de Ruptura & DDE</option>
+    </div>
+
+    <!-- Linha 2: Tipo de Conferência (~65%) | Total Itens (~35%) -->
+    <div class="grid grid-cols-12 gap-2 sm:gap-3 items-end">
+      <div class="col-span-7 sm:col-span-8">
+        <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 truncate">Tipo de Conferência</label>
+        <select id="tipoConferencia" class="input-pretty w-full text-xs font-semibold px-3 py-2 rounded-full focus:ring-2 focus:ring-brand-500">
+          <option>Auditoria Preventiva de Ruptura &amp; DDE</option>
           <option>Inventário Cíclico de Temperos</option>
           <option>Conferência de Estoque Negativo</option>
         </select>
       </div>
-    </div>
-    <div class="flex items-center gap-3 border-t sm:border-t-0 sm:border-l border-slate-200 pt-3 sm:pt-0 sm:pl-5 w-full sm:w-auto justify-end">
-      <div class="text-right"><p class="text-[11px] font-semibold text-slate-500 uppercase">Itens Totais</p><p class="text-2xl font-black text-slate-900" id="statTotalGeral">0</p></div>
-    </div>
-  </div>
 
-  <div class="grid grid-cols-4 gap-2 sm:gap-2.5">
-    <div class="kpi-compact border border-slate-200/90 flex flex-col justify-between">
-      <span class="kpi-label font-bold uppercase text-slate-500">Conferidos</span>
-      <div class="flex items-baseline justify-between gap-1"><span class="kpi-val font-black" id="statAuditados">0/0</span><span class="text-[10px] font-extrabold text-emerald-600" id="statProgresso">0%</span></div>
-      <div class="w-full bg-slate-100 rounded-full h-1 mt-1"><div id="progressBar" class="bg-emerald-500 h-1 rounded-full transition-all" style="width:0%"></div></div>
-    </div>
-    <div class="kpi-compact border border-emerald-200/70 bg-gradient-to-br from-emerald-50/80 to-white flex flex-col justify-between"><span class="kpi-label font-bold uppercase text-emerald-700">Presente</span><span class="kpi-val font-black text-emerald-700" id="statPresente">0</span></div>
-    <div class="kpi-compact border border-rose-200/70 bg-gradient-to-br from-rose-50/80 to-white flex flex-col justify-between"><span class="kpi-label font-bold uppercase text-rose-600">Ruptura</span><span class="kpi-val font-black text-rose-600" id="statAusente">0</span></div>
-    <div class="kpi-compact border border-amber-200/70 bg-gradient-to-br from-amber-50/80 to-white flex flex-col justify-between"><span class="kpi-label font-bold uppercase text-amber-700">Negativo</span><span class="kpi-val font-black text-amber-700" id="statNegativo">0</span></div>
-    <div class="kpi-compact border border-orange-200/70 bg-gradient-to-br from-orange-50/80 to-white flex flex-col justify-between"><span class="kpi-label font-bold uppercase text-orange-700">DDE &lt;10d</span><span class="kpi-val font-black text-orange-700" id="statDdeCritico">0</span></div>
-    <div class="kpi-compact border border-indigo-200/70 bg-gradient-to-br from-indigo-50/80 to-white flex flex-col justify-between"><span class="kpi-label font-bold uppercase text-indigo-700">Diverg.</span><span class="kpi-val font-black text-indigo-700" id="statDivergencias">0</span></div>
-    <div class="kpi-compact border border-pink-200/70 bg-gradient-to-br from-pink-50/80 to-white flex flex-col justify-between"><span class="kpi-label font-bold uppercase text-pink-700">Vencendo</span><span class="kpi-val font-black text-pink-700" id="statValidadeAlerta">0</span></div>
-    <div class="kpi-compact border border-slate-200/90 flex flex-col justify-center items-center text-center px-1">
-      <span class="kpi-label font-bold uppercase text-slate-500">Legenda val.</span>
-      <div class="flex flex-wrap justify-center gap-0.5 mt-0.5 text-[9px] font-bold leading-tight">
-        <span class="px-1 rounded bg-rose-600 text-white">Ven</span>
-        <span class="px-1 rounded bg-red-100 text-red-800">15d</span>
-        <span class="px-1 rounded bg-amber-100 text-amber-800">30d</span>
-        <span class="px-1 rounded bg-emerald-50 text-emerald-700">OK</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="w-full pt-2"><div class="chrome-tab-container custom-scrollbar border-b border-slate-300" id="containerAbasIndustria" class="tabs-sticky"></div></div>
-
-  <div class="bg-white table-shell rounded-b-2xl rounded-tr-2xl overflow-hidden">
-    <div class="filter-bar p-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2.5 no-print">
-      <div class="search-wrap">
-        <div class="relative flex-1 min-w-[180px]">
-          <i class="ph-bold ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input type="text" id="searchInput" oninput="aplicarFiltros()" placeholder="Buscar código, EAN, descrição..." class="input-pretty w-full pl-9 pr-3 py-2.5 text-sm font-medium">
+      <div class="col-span-5 sm:col-span-4">
+        <div class="border border-slate-200 bg-slate-50/80 rounded-xl px-3 py-1.5 flex items-center justify-between">
+          <span class="text-[10px] sm:text-[11px] font-bold uppercase text-slate-500">Total Itens</span>
+          <span class="text-lg sm:text-xl font-black text-slate-900 leading-none" id="statTotalGeral">0</span>
         </div>
-        <button type="button" class="btn-scan" onclick="window.abrirScannerBusca?.()" title="Escanear EAN / código"><i class="ph-bold ph-barcode text-lg"></i></button>
       </div>
-      <div class="flex flex-wrap items-center gap-2">
-        <select id="filtroPresenca" onchange="aplicarFiltros()" class="text-xs font-semibold border border-slate-300 rounded-lg px-2.5 py-1.5">
-          <option value="todos">Status: Todos</option><option value="pendente">Pendente</option><option value="sim">Presente (Sim)</option><option value="nao">Ruptura (Não)</option>
-        </select>
-        <select id="filtroCategoria" onchange="aplicarFiltros()" class="text-xs font-semibold border border-slate-300 rounded-lg px-2.5 py-1.5">
-          <option value="todos">Todos os Riscos</option><option value="critico">DDE Crítico</option><option value="negativo">Estoque Negativo</option><option value="sem_venda">Sem Venda</option><option value="excesso">Superestocagem</option><option value="divergente">Com Divergência</option>
-        </select>
-        <select id="filtroValidade" onchange="aplicarFiltros()" class="text-xs font-semibold border border-pink-300 rounded-lg px-2.5 py-1.5 bg-pink-50/40">
-          <option value="todos">Validade: Todas</option><option value="vencido">Vencidos</option><option value="vence_15">Vence em 15d</option><option value="vence_30">Vence em 30d</option><option value="vence_60">Vence em 60d</option><option value="em_dia">Em dia</option><option value="com_validade">Com Validade</option><option value="sem_validade">Sem Validade</option>
-        </select>
-        <button onclick="resetarFiltros()" class="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200"><i class="ph-bold ph-arrow-counter-clockwise"></i></button>
+    </div>
+
+    <!-- Linhas 3 e 4: 8 Caixas de KPIs em Grade 4x2 dentro do mesmo card -->
+    <div class="grid grid-cols-4 gap-2 sm:gap-2.5 pt-1">
+      <div class="kpi-compact border border-slate-200/90 flex flex-col justify-between">
+        <span class="kpi-label font-bold uppercase text-slate-500">Conferidos</span>
+        <div class="flex items-baseline justify-between gap-1">
+          <span class="kpi-val font-black" id="statAuditados">0/0</span>
+          <span class="text-[10px] font-extrabold text-emerald-600" id="statProgresso">0%</span>
+        </div>
+        <div class="w-full bg-slate-100 rounded-full h-1 mt-1">
+          <div id="progressBar" class="bg-emerald-500 h-1 rounded-full transition-all" style="width:0%"></div>
+        </div>
       </div>
+      <div class="kpi-compact border border-emerald-200/70 bg-gradient-to-br from-emerald-50/80 to-white flex flex-col justify-between">
+        <span class="kpi-label font-bold uppercase text-emerald-700">Presente</span>
+        <span class="kpi-val font-black text-emerald-700" id="statPresente">0</span>
+      </div>
+      <div class="kpi-compact border border-rose-200/70 bg-gradient-to-br from-rose-50/80 to-white flex flex-col justify-between">
+        <span class="kpi-label font-bold uppercase text-rose-600">Ruptura</span>
+        <span class="kpi-val font-black text-rose-600" id="statAusente">0</span>
+      </div>
+      <div class="kpi-compact border border-amber-200/70 bg-gradient-to-br from-amber-50/80 to-white flex flex-col justify-between">
+        <span class="kpi-label font-bold uppercase text-amber-700">Negativo</span>
+        <span class="kpi-val font-black text-amber-700" id="statNegativo">0</span>
+      </div>
+      <div class="kpi-compact border border-orange-200/70 bg-gradient-to-br from-orange-50/80 to-white flex flex-col justify-between">
+        <span class="kpi-label font-bold uppercase text-orange-700">DDE &lt;10d</span>
+        <span class="kpi-val font-black text-orange-700" id="statDdeCritico">0</span>
+      </div>
+      <div class="kpi-compact border border-indigo-200/70 bg-gradient-to-br from-indigo-50/80 to-white flex flex-col justify-between">
+        <span class="kpi-label font-bold uppercase text-indigo-700">Diverg.</span>
+        <span class="kpi-val font-black text-indigo-700" id="statDivergencias">0</span>
+      </div>
+      <div class="kpi-compact border border-pink-200/70 bg-gradient-to-br from-pink-50/80 to-white flex flex-col justify-between">
+        <span class="kpi-label font-bold uppercase text-pink-700">Vencendo</span>
+        <span class="kpi-val font-black text-pink-700" id="statValidadeAlerta">0</span>
+      </div>
+      <div class="kpi-compact border border-slate-200/90 flex flex-col justify-center items-center text-center px-1">
+        <span class="kpi-label font-bold uppercase text-slate-500">Legenda val.</span>
+        <div class="flex flex-wrap justify-center gap-0.5 mt-0.5 text-[9px] font-bold leading-tight">
+          <span class="px-1 rounded bg-rose-600 text-white">Ven</span>
+          <span class="px-1 rounded bg-red-100 text-red-800">15d</span>
+          <span class="px-1 rounded bg-amber-100 text-amber-800">30d</span>
+          <span class="px-1 rounded bg-emerald-50 text-emerald-700">OK</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 2. ABAS DE INDÚSTRIA -->
+  <div class="w-full pt-1">
+    <div class="chrome-tab-container custom-scrollbar border-b border-slate-300 tabs-sticky" id="containerAbasIndustria"></div>
+  </div>
+
+  <!-- 3. CONTAINER DA TABELA + BUSCA E FILTROS NA PROPORÇÃO DO CROQUI -->
+  <div class="bg-white table-shell rounded-b-2xl rounded-tr-2xl overflow-hidden">
+    <div class="filter-bar p-3 sm:p-3.5 border-b border-slate-200 space-y-2.5 no-print">
+      
+      <!-- Linha 1: Barra de Busca 100% + Leitor de Código de Barras integrado na direita -->
+      <div class="relative flex items-center w-full border border-slate-300 rounded-xl bg-white focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 overflow-hidden">
+        <i class="ph-bold ph-magnifying-glass pl-3.5 text-slate-400 text-base"></i>
+        <input type="text" id="searchInput" oninput="aplicarFiltros()" placeholder="Busca por código, EAN, descrição..." class="w-full pl-2.5 pr-3 py-2.5 text-sm font-medium bg-transparent focus:outline-none">
+        <button type="button" onclick="window.abrirScannerBusca?.()" title="Escanear EAN / código" class="mr-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold flex items-center justify-center shrink-0">
+          <i class="ph-bold ph-barcode text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Linha 2: Seletores de Filtro divididos proporcionalmente lado a lado -->
+      <div class="grid grid-cols-2 sm:grid-cols-12 gap-2 items-center">
+        <select id="filtroPresenca" onchange="aplicarFiltros()" class="col-span-1 sm:col-span-4 w-full text-xs font-semibold border border-slate-300 rounded-lg px-2.5 py-2 bg-white">
+          <option value="todos">Filtro: Status (Todos)</option>
+          <option value="pendente">Pendente</option>
+          <option value="sim">Presente (Sim)</option>
+          <option value="nao">Ruptura (Não)</option>
+        </select>
+
+        <select id="filtroCategoria" onchange="aplicarFiltros()" class="col-span-1 sm:col-span-4 w-full text-xs font-semibold border border-slate-300 rounded-lg px-2.5 py-2 bg-white">
+          <option value="todos">Todos os Riscos</option>
+          <option value="critico">DDE Crítico</option>
+          <option value="negativo">Estoque Negativo</option>
+          <option value="sem_venda">Sem Venda</option>
+          <option value="excesso">Superestocagem</option>
+          <option value="divergente">Com Divergência</option>
+        </select>
+
+        <div class="col-span-2 sm:col-span-4 flex items-center gap-1.5">
+          <select id="filtroValidade" onchange="aplicarFiltros()" class="flex-1 text-xs font-semibold border border-pink-300 rounded-lg px-2.5 py-2 bg-pink-50/40">
+            <option value="todos">Validade: Todas</option>
+            <option value="vencido">Vencidos</option>
+            <option value="vence_15">Vence em 15d</option>
+            <option value="vence_30">Vence em 30d</option>
+            <option value="vence_60">Vence em 60d</option>
+            <option value="em_dia">Em dia</option>
+            <option value="com_validade">Com Validade</option>
+            <option value="sem_validade">Sem Validade</option>
+          </select>
+          <button onclick="resetarFiltros()" title="Resetar filtros" class="p-2 text-slate-500 hover:text-slate-800 border border-slate-200 rounded-lg hover:bg-slate-100 shrink-0">
+            <i class="ph-bold ph-arrow-counter-clockwise"></i>
+          </button>
+        </div>
+      </div>
+
     </div>
     <div id="chipFiltros" class="chip-bar no-print">
       <button type="button" class="chip active" data-chip="todos" onclick="window.aplicarChipFiltro('todos')">Todos</button>
