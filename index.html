@@ -2,13 +2,17 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Auditoria de Estoque - Posterus Supermercados</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#059669">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="description" content="Auditoria de estoque e validade — Camino / Posterus Grajaú">
+  <link rel="manifest" href="data:application/manifest+json,{"name":"Auditoria Camino","short_name":"Auditoria","start_url":".","display":"standalone","background_color":"%23f1f5f9","theme_color":"%23059669","lang":"pt-BR"}">
+  <title>Auditoria de Estoque — Camino Grajaú</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -148,15 +152,7 @@
     .input-pretty:focus{outline:none;border-color:#34d399;box-shadow:0 0 0 3px rgba(16,185,129,.15)}
     .modal-panel{border-radius:20px;box-shadow:0 25px 50px -12px rgba(15,23,42,.35);border:1px solid rgba(255,255,255,.6)}
     #toastNotification{border-radius:14px!important;box-shadow:var(--shadow)!important}
-    @media print {
-      .no-print, #fabScanPresenca, #toastNotification, .offline-banner { display: none !important; }
-      html, body { background: #fff !important; color: #0f172a !important; font-size: 10px; height: auto !important; min-height: 0 !important; overflow: visible !important; }
-      #areaAuditoria, .table-shell, .overflow-x-auto { max-height: none !important; overflow: visible !important; box-shadow: none !important; }
-      thead th { position: static !important; background: #f1f5f9 !important; color: #0f172a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      tr { page-break-inside: avoid; break-inside: avoid; }
-      body.imprimindo-simples > *:not(#printContainerSimples) { display: none !important; }
-      #printContainerSimples { display: block !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
-    }
+    @media print{.no-print{display:none!important}body{background:#fff!important;font-size:10px}body.imprimindo-simples #areaAuditoria,body.imprimindo-simples header{display:none!important}}
     input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
     .custom-scrollbar::-webkit-scrollbar{width:6px;height:6px}
     .custom-scrollbar::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
@@ -178,7 +174,6 @@
     .sk{height:12px;border-radius:6px;background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%);background-size:200% 100%;animation:sk 1.2s ease-in-out infinite}
     @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
     body.modo-auditoria .kpi-compact,
-    body.modo-auditoria #areaAuditoria > .card-soft:first-of-type,
     body.modo-auditoria .card-soft:first-of-type,
     body.modo-auditoria #obsGeraisBox,
     body.modo-auditoria .hide-auditoria{display:none!important}
@@ -191,7 +186,7 @@
     .tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:999px;font-size:9px;font-weight:800;background:#fee2e2;color:#be123c;margin-left:4px}
     .empty-state{padding:48px 24px;text-align:center;color:#94a3b8}
     .empty-state i{font-size:42px;display:block;margin-bottom:8px;opacity:.7}
-
+  
     /* Melhorias pack */
     .tabs-sticky{position:sticky;top:0;z-index:25;background:rgba(241,245,249,.95);backdrop-filter:blur(8px)}
     body.alto-contraste{--bg:#0f172a;background:#0b1220!important;color:#f8fafc}
@@ -207,6 +202,73 @@
     body.is-offline .offline-banner{display:block}
     #scanContadores{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:8px}
     #scanContadores .sc{background:rgba(255,255,255,.12);color:#fff;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:800}
+
+    /* —— Pacote melhorias UI —— */
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    }
+    input, select, textarea, button {
+      font-size: 16px; /* evita zoom iOS */
+    }
+    .presenca-btn {
+      min-width: 2.75rem;
+      min-height: 2.5rem;
+      padding: 0.35rem 0.5rem !important;
+      font-size: 12px !important;
+    }
+    body.modo-loja .card-sessao-auditor,
+    body.modo-loja .bloco-filtros-avancados,
+    body.modo-loja #painelKpisDetalhe {
+      display: none !important;
+    }
+    body.modo-loja .chrome-tab-container { max-width: 100%; }
+    body.modo-loja #barraProgressoAuditoria { display: flex !important; }
+    #barraProgressoAuditoria {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      background: linear-gradient(90deg, #ecfdf5, #f0fdf4);
+      border-bottom: 1px solid #bbf7d0;
+      font-size: 12px;
+    }
+    #barraProgressoAuditoria .track {
+      flex: 1; height: 8px; background: #d1fae5; border-radius: 999px; overflow: hidden;
+    }
+    #barraProgressoAuditoria .fill {
+      height: 100%; background: linear-gradient(90deg, #059669, #10b981); border-radius: 999px;
+      transition: width .35s ease;
+    }
+    .empty-state {
+      padding: 2.5rem 1.25rem; text-align: center; color: #64748b;
+    }
+    .empty-state .ico {
+      width: 64px; height: 64px; margin: 0 auto 12px; border-radius: 20px;
+      background: #ecfdf5; color: #059669; display: flex; align-items: center; justify-content: center;
+      font-size: 28px;
+    }
+    .fab-scan {
+      position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+      z-index: 40; width: 56px; height: 56px; border-radius: 18px;
+      background: #0f172a; color: #fff; box-shadow: 0 10px 28px rgba(15,23,42,.35);
+      display: none; align-items: center; justify-content: center;
+    }
+    body.modo-loja .fab-scan { display: flex; }
+    #barraEdicaoEmLote {
+      padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    }
+    .legenda-val-sticky {
+      position: sticky; bottom: 0; z-index: 5;
+      background: rgba(255,255,255,.95); backdrop-filter: blur(8px);
+      border-top: 1px solid #e2e8f0; padding: 6px 10px;
+      font-size: 10px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+    }
+    body.hc .card-soft { border-width: 2px; }
+    .btn-encerrar {
+      background: linear-gradient(135deg, #0f172a, #1e293b); color: #fff;
+    }
+
     </style>
 
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -236,6 +298,7 @@
       <button type="button" onclick="window.ordenarPorRisco?.()" class="btn-pill inline-flex items-center gap-1 px-2 py-2 text-xs font-semibold rounded-xl text-amber-800 bg-amber-50 border border-amber-200 hover:bg-amber-100" title="Ordenar por risco"><i class="ph-bold ph-warning text-sm"></i><span class="hidden lg:inline">Risco</span></button>
       <button type="button" onclick="window.abrirModalHistorico?.()" class="btn-pill inline-flex items-center gap-1 px-2 py-2 text-xs font-semibold rounded-xl text-slate-700 bg-white border border-slate-200" title="Histórico do dia"><i class="ph-bold ph-clock-counter-clockwise text-sm"></i></button>
       <button type="button" onclick="window.alternarAltoContraste?.()" class="btn-pill inline-flex items-center gap-1 px-2 py-2 text-xs font-semibold rounded-xl text-slate-700 bg-white border border-slate-200" title="Alto contraste"><i class="ph-bold ph-sun text-sm"></i></button>
+      <button type="button" onclick="window.encerrarAuditoria?.()" class="btn-pill btn-encerrar inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold rounded-xl" title="Encerrar auditoria do dia"><i class="ph-bold ph-check-circle text-sm"></i><span class="hidden sm:inline">Encerrar</span></button>
       <button onclick="window.alternarModoAuditoria?.()" id="btnModoAuditoria" class="btn-pill inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-semibold rounded-xl text-slate-700 bg-white border border-slate-200 hover:bg-slate-50" title="Modo chão de loja"><i class="ph-bold ph-storefront text-sm"></i><span class="hidden lg:inline">Modo loja</span></button>
       <button onclick="window.alternarDensidade?.()" class="btn-pill inline-flex items-center gap-1 px-2 py-2 text-xs font-semibold rounded-xl text-slate-600 hover:bg-slate-50" title="Densidade da tabela"><i class="ph-bold ph-rows text-sm"></i></button>
       <button onclick="window.solicitarLimpezaIndustria()" class="btn-pill inline-flex items-center gap-1 px-2 py-2 text-xs font-semibold rounded-xl text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-100" title="Limpar indústria"><i class="ph-bold ph-trash text-sm"></i></button>
@@ -245,159 +308,87 @@
 <div class="offline-banner no-print">⚠ Offline — alterações na fila · sincroniza ao reconectar</div>
 
 
-<main id="areaAuditoria" class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 space-y-3">
-  
-  <!-- 1. CARD UNIFICADO DO CROQUI (Campos + Total + Grade 4x2 de KPIs) -->
-  <div class="card-soft p-3.5 sm:p-5 space-y-3">
-    
-    <!-- Linha 1: Promotor (maior ~45%) | Supervisora (médio ~35%) | Data (menor ~20%) -->
-    <div class="grid grid-cols-12 gap-2 sm:gap-3">
-      <div class="col-span-5 sm:col-span-5">
-        <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 truncate">Promotor(a)</label>
-        <div class="relative">
-          <i class="ph-bold ph-user absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-          <input type="text" id="auditorNome" onchange="salvarSessaoAuditor()" placeholder="Ex: Vagner Sousa" class="input-pretty w-full pl-7 sm:pl-8 pr-2.5 py-2 text-xs font-semibold rounded-full">
+<main id="areaAuditoria" class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-4">
+  <div class="card-soft p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
+      <div>
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Promotor(a)</label>
+        <div class="relative"><i class="ph-bold ph-user absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+          <input type="text" id="auditorNome" onchange="salvarSessaoAuditor()" placeholder="Ex: Vagner Sousa" class="input-pretty w-full pl-8 text-xs font-semibold py-2.5 pr-3">
         </div>
       </div>
-
-      <div class="col-span-4 sm:col-span-4">
-        <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 truncate">Supervisora</label>
-        <div class="relative">
-          <i class="ph-bold ph-user-circle absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-          <input type="text" id="auditorSupervisora" onchange="salvarSessaoAuditor()" placeholder="Ex: Roberta" class="input-pretty w-full pl-7 sm:pl-8 pr-2.5 py-2 text-xs font-semibold rounded-full">
+      <div>
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Supervisora</label>
+        <div class="relative"><i class="ph-bold ph-user-circle absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+          <input type="text" id="auditorSupervisora" onchange="salvarSessaoAuditor()" placeholder="Ex: Roberta" class="input-pretty w-full pl-8 text-xs font-semibold py-2.5 pr-3">
         </div>
       </div>
-
-      <div class="col-span-3 sm:col-span-3">
-        <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 truncate">Data</label>
-        <div class="relative">
-          <i class="ph-bold ph-calendar absolute left-2 sm:left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none hidden sm:inline"></i>
-          <input type="date" id="auditorData" onchange="salvarSessaoAuditor()" class="input-pretty w-full px-1.5 sm:pl-7 sm:pr-2 py-2 text-[11px] sm:text-xs font-semibold rounded-lg">
+      <div>
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Data da Auditoria</label>
+        <div class="relative"><i class="ph-bold ph-calendar absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+          <input type="date" id="auditorData" onchange="salvarSessaoAuditor()" class="input-pretty w-full pl-8 text-xs font-semibold py-2.5 pr-3">
         </div>
       </div>
-    </div>
-
-    <!-- Linha 2: Tipo de Conferência (~65%) | Total Itens (~35%) -->
-    <div class="grid grid-cols-12 gap-2 sm:gap-3 items-end">
-      <div class="col-span-7 sm:col-span-8">
-        <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 truncate">Tipo de Conferência</label>
-        <select id="tipoConferencia" class="input-pretty w-full text-xs font-semibold px-3 py-2 rounded-full focus:ring-2 focus:ring-brand-500">
-          <option>Auditoria Preventiva de Ruptura &amp; DDE</option>
+      <div>
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Tipo de Conferência</label>
+        <select id="tipoConferencia" class="w-full text-xs font-semibold border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500">
+          <option>Auditoria Preventiva de Ruptura & DDE</option>
           <option>Inventário Cíclico de Temperos</option>
           <option>Conferência de Estoque Negativo</option>
         </select>
       </div>
-
-      <div class="col-span-5 sm:col-span-4">
-        <div class="border border-slate-200 bg-slate-50/80 rounded-xl px-3 py-1.5 flex items-center justify-between">
-          <span class="text-[10px] sm:text-[11px] font-bold uppercase text-slate-500">Total Itens</span>
-          <span class="text-lg sm:text-xl font-black text-slate-900 leading-none" id="statTotalGeral">0</span>
-        </div>
-      </div>
     </div>
-
-    <!-- Linhas 3 e 4: 8 Caixas de KPIs em Grade 4x2 dentro do mesmo card -->
-    <div class="grid grid-cols-4 gap-2 sm:gap-2.5 pt-1">
-      <div class="kpi-compact border border-slate-200/90 flex flex-col justify-between">
-        <span class="kpi-label font-bold uppercase text-slate-500">Conferidos</span>
-        <div class="flex items-baseline justify-between gap-1">
-          <span class="kpi-val font-black" id="statAuditados">0/0</span>
-          <span class="text-[10px] font-extrabold text-emerald-600" id="statProgresso">0%</span>
-        </div>
-        <div class="w-full bg-slate-100 rounded-full h-1 mt-1">
-          <div id="progressBar" class="bg-emerald-500 h-1 rounded-full transition-all" style="width:0%"></div>
-        </div>
-      </div>
-      <div class="kpi-compact border border-emerald-200/70 bg-gradient-to-br from-emerald-50/80 to-white flex flex-col justify-between">
-        <span class="kpi-label font-bold uppercase text-emerald-700">Presente</span>
-        <span class="kpi-val font-black text-emerald-700" id="statPresente">0</span>
-      </div>
-      <div class="kpi-compact border border-rose-200/70 bg-gradient-to-br from-rose-50/80 to-white flex flex-col justify-between">
-        <span class="kpi-label font-bold uppercase text-rose-600">Ruptura</span>
-        <span class="kpi-val font-black text-rose-600" id="statAusente">0</span>
-      </div>
-      <div class="kpi-compact border border-amber-200/70 bg-gradient-to-br from-amber-50/80 to-white flex flex-col justify-between">
-        <span class="kpi-label font-bold uppercase text-amber-700">Negativo</span>
-        <span class="kpi-val font-black text-amber-700" id="statNegativo">0</span>
-      </div>
-      <div class="kpi-compact border border-orange-200/70 bg-gradient-to-br from-orange-50/80 to-white flex flex-col justify-between">
-        <span class="kpi-label font-bold uppercase text-orange-700">DDE &lt;10d</span>
-        <span class="kpi-val font-black text-orange-700" id="statDdeCritico">0</span>
-      </div>
-      <div class="kpi-compact border border-indigo-200/70 bg-gradient-to-br from-indigo-50/80 to-white flex flex-col justify-between">
-        <span class="kpi-label font-bold uppercase text-indigo-700">Diverg.</span>
-        <span class="kpi-val font-black text-indigo-700" id="statDivergencias">0</span>
-      </div>
-      <div class="kpi-compact border border-pink-200/70 bg-gradient-to-br from-pink-50/80 to-white flex flex-col justify-between">
-        <span class="kpi-label font-bold uppercase text-pink-700">Vencendo</span>
-        <span class="kpi-val font-black text-pink-700" id="statValidadeAlerta">0</span>
-      </div>
-      <div class="kpi-compact border border-slate-200/90 flex flex-col justify-center items-center text-center px-1">
-        <span class="kpi-label font-bold uppercase text-slate-500">Legenda val.</span>
-        <div class="flex flex-wrap justify-center gap-0.5 mt-0.5 text-[9px] font-bold leading-tight">
-          <span class="px-1 rounded bg-rose-600 text-white">Ven</span>
-          <span class="px-1 rounded bg-red-100 text-red-800">15d</span>
-          <span class="px-1 rounded bg-amber-100 text-amber-800">30d</span>
-          <span class="px-1 rounded bg-emerald-50 text-emerald-700">OK</span>
-        </div>
-      </div>
+    <div class="flex items-center gap-3 border-t sm:border-t-0 sm:border-l border-slate-200 pt-3 sm:pt-0 sm:pl-5 w-full sm:w-auto justify-end">
+      <div class="text-right"><p class="text-[11px] font-semibold text-slate-500 uppercase">Itens Totais</p><p class="text-2xl font-black text-slate-900" id="statTotalGeral">0</p></div>
     </div>
-
   </div>
 
-  <!-- 2. ABAS DE INDÚSTRIA -->
-  <div class="w-full pt-1">
-    <div class="chrome-tab-container custom-scrollbar border-b border-slate-300 tabs-sticky" id="containerAbasIndustria"></div>
+  <div class="grid grid-cols-4 gap-2 sm:gap-2.5">
+    <div class="kpi-compact border border-slate-200/90 flex flex-col justify-between">
+      <span class="kpi-label font-bold uppercase text-slate-500">Conferidos</span>
+      <div class="flex items-baseline justify-between gap-1"><span class="kpi-val font-black" id="statAuditados">0/0</span><span class="text-[10px] font-extrabold text-emerald-600" id="statProgresso">0%</span></div>
+      <div class="w-full bg-slate-100 rounded-full h-1 mt-1"><div id="progressBar" class="bg-emerald-500 h-1 rounded-full transition-all" style="width:0%"></div></div>
+    </div>
+    <div class="kpi-compact border border-emerald-200/70 bg-gradient-to-br from-emerald-50/80 to-white flex flex-col justify-between"><span class="kpi-label font-bold uppercase text-emerald-700">Presente</span><span class="kpi-val font-black text-emerald-700" id="statPresente">0</span></div>
+    <div class="kpi-compact border border-rose-200/70 bg-gradient-to-br from-rose-50/80 to-white flex flex-col justify-between"><span class="kpi-label font-bold uppercase text-rose-600">Ruptura</span><span class="kpi-val font-black text-rose-600" id="statAusente">0</span></div>
+    <div class="kpi-compact border border-amber-200/70 bg-gradient-to-br from-amber-50/80 to-white flex flex-col justify-between"><span class="kpi-label font-bold uppercase text-amber-700">Negativo</span><span class="kpi-val font-black text-amber-700" id="statNegativo">0</span></div>
+    <div class="kpi-compact border border-orange-200/70 bg-gradient-to-br from-orange-50/80 to-white flex flex-col justify-between"><span class="kpi-label font-bold uppercase text-orange-700">DDE &lt;10d</span><span class="kpi-val font-black text-orange-700" id="statDdeCritico">0</span></div>
+    <div class="kpi-compact border border-indigo-200/70 bg-gradient-to-br from-indigo-50/80 to-white flex flex-col justify-between"><span class="kpi-label font-bold uppercase text-indigo-700">Diverg.</span><span class="kpi-val font-black text-indigo-700" id="statDivergencias">0</span></div>
+    <div class="kpi-compact border border-pink-200/70 bg-gradient-to-br from-pink-50/80 to-white flex flex-col justify-between"><span class="kpi-label font-bold uppercase text-pink-700">Vencendo</span><span class="kpi-val font-black text-pink-700" id="statValidadeAlerta">0</span></div>
+    <div class="kpi-compact border border-slate-200/90 flex flex-col justify-center items-center text-center px-1">
+      <span class="kpi-label font-bold uppercase text-slate-500">Legenda val.</span>
+      <div class="flex flex-wrap justify-center gap-0.5 mt-0.5 text-[9px] font-bold leading-tight">
+        <span class="px-1 rounded bg-rose-600 text-white">Ven</span>
+        <span class="px-1 rounded bg-red-100 text-red-800">15d</span>
+        <span class="px-1 rounded bg-amber-100 text-amber-800">30d</span>
+        <span class="px-1 rounded bg-emerald-50 text-emerald-700">OK</span>
+      </div>
+    </div>
   </div>
 
-  <!-- 3. CONTAINER DA TABELA + BUSCA E FILTROS NA PROPORÇÃO DO CROQUI -->
+  <div class="w-full pt-2"><div class="chrome-tab-container custom-scrollbar border-b border-slate-300" id="containerAbasIndustria" class="tabs-sticky"></div></div>
+
   <div class="bg-white table-shell rounded-b-2xl rounded-tr-2xl overflow-hidden">
-    <div class="filter-bar p-3 sm:p-3.5 border-b border-slate-200 space-y-2.5 no-print">
-      
-      <!-- Linha 1: Barra de Busca 100% + Leitor de Código de Barras integrado na direita -->
-      <div class="relative flex items-center w-full border border-slate-300 rounded-xl bg-white focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 overflow-hidden">
-        <i class="ph-bold ph-magnifying-glass pl-3.5 text-slate-400 text-base"></i>
-        <input type="text" id="searchInput" oninput="aplicarFiltros()" placeholder="Busca por código, EAN, descrição..." class="w-full pl-2.5 pr-3 py-2.5 text-sm font-medium bg-transparent focus:outline-none">
-        <button type="button" onclick="window.abrirScannerBusca?.()" title="Escanear EAN / código" class="mr-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold flex items-center justify-center shrink-0">
-          <i class="ph-bold ph-barcode text-lg"></i>
-        </button>
-      </div>
-
-      <!-- Linha 2: Seletores de Filtro divididos proporcionalmente lado a lado -->
-      <div class="grid grid-cols-2 sm:grid-cols-12 gap-2 items-center">
-        <select id="filtroPresenca" onchange="aplicarFiltros()" class="col-span-1 sm:col-span-4 w-full text-xs font-semibold border border-slate-300 rounded-lg px-2.5 py-2 bg-white">
-          <option value="todos">Filtro: Status (Todos)</option>
-          <option value="pendente">Pendente</option>
-          <option value="sim">Presente (Sim)</option>
-          <option value="nao">Ruptura (Não)</option>
-        </select>
-
-        <select id="filtroCategoria" onchange="aplicarFiltros()" class="col-span-1 sm:col-span-4 w-full text-xs font-semibold border border-slate-300 rounded-lg px-2.5 py-2 bg-white">
-          <option value="todos">Todos os Riscos</option>
-          <option value="critico">DDE Crítico</option>
-          <option value="negativo">Estoque Negativo</option>
-          <option value="sem_venda">Sem Venda</option>
-          <option value="excesso">Superestocagem</option>
-          <option value="divergente">Com Divergência</option>
-        </select>
-
-        <div class="col-span-2 sm:col-span-4 flex items-center gap-1.5">
-          <select id="filtroValidade" onchange="aplicarFiltros()" class="flex-1 text-xs font-semibold border border-pink-300 rounded-lg px-2.5 py-2 bg-pink-50/40">
-            <option value="todos">Validade: Todas</option>
-            <option value="vencido">Vencidos</option>
-            <option value="vence_15">Vence em 15d</option>
-            <option value="vence_30">Vence em 30d</option>
-            <option value="vence_60">Vence em 60d</option>
-            <option value="em_dia">Em dia</option>
-            <option value="com_validade">Com Validade</option>
-            <option value="sem_validade">Sem Validade</option>
-          </select>
-          <button onclick="resetarFiltros()" title="Resetar filtros" class="p-2 text-slate-500 hover:text-slate-800 border border-slate-200 rounded-lg hover:bg-slate-100 shrink-0">
-            <i class="ph-bold ph-arrow-counter-clockwise"></i>
-          </button>
+    <div class="filter-bar p-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2.5 no-print">
+      <div class="search-wrap">
+        <div class="relative flex-1 min-w-[180px]">
+          <i class="ph-bold ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+          <input type="text" id="searchInput" oninput="aplicarFiltros()" placeholder="Buscar código, EAN, descrição..." class="input-pretty w-full pl-9 pr-3 py-2.5 text-sm font-medium">
         </div>
+        <button type="button" class="btn-scan" onclick="window.abrirScannerBusca?.()" title="Escanear EAN / código"><i class="ph-bold ph-barcode text-lg"></i></button>
       </div>
-
+      <div class="flex flex-wrap items-center gap-2">
+        <select id="filtroPresenca" onchange="aplicarFiltros()" class="text-xs font-semibold border border-slate-300 rounded-lg px-2.5 py-1.5">
+          <option value="todos">Status: Todos</option><option value="pendente">Pendente</option><option value="sim">Presente (Sim)</option><option value="nao">Ruptura (Não)</option>
+        </select>
+        <select id="filtroCategoria" onchange="aplicarFiltros()" class="text-xs font-semibold border border-slate-300 rounded-lg px-2.5 py-1.5">
+          <option value="todos">Todos os Riscos</option><option value="critico">DDE Crítico</option><option value="negativo">Estoque Negativo</option><option value="sem_venda">Sem Venda</option><option value="excesso">Superestocagem</option><option value="divergente">Com Divergência</option>
+        </select>
+        <select id="filtroValidade" onchange="aplicarFiltros()" class="text-xs font-semibold border border-pink-300 rounded-lg px-2.5 py-1.5 bg-pink-50/40">
+          <option value="todos">Validade: Todas</option><option value="vencido">Vencidos</option><option value="vence_15">Vence em 15d</option><option value="vence_30">Vence em 30d</option><option value="vence_60">Vence em 60d</option><option value="em_dia">Em dia</option><option value="com_validade">Com Validade</option><option value="sem_validade">Sem Validade</option>
+        </select>
+        <button onclick="resetarFiltros()" class="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200"><i class="ph-bold ph-arrow-counter-clockwise"></i></button>
+      </div>
     </div>
     <div id="chipFiltros" class="chip-bar no-print">
       <button type="button" class="chip active" data-chip="todos" onclick="window.aplicarChipFiltro('todos')">Todos</button>
@@ -408,7 +399,15 @@
       <button type="button" class="chip danger" data-chip="negativo" onclick="window.aplicarChipFiltro('negativo')">Negativo <span class="n" id="chipNNeg">0</span></button>
       <button type="button" class="chip" data-chip="divergente" onclick="window.aplicarChipFiltro('divergente')">Diverg. <span class="n" id="chipNDiv">0</span></button>
     </div>
-    <div id="barraEdicaoEmLote" class="hidden bg-slate-900 text-white px-3 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+    
+    <div id="barraProgressoAuditoria">
+      <span class="font-bold text-emerald-800 whitespace-nowrap"><i class="ph-bold ph-chart-line-up"></i> Progresso</span>
+      <div class="track"><div class="fill" id="progressoFill" style="width:0%"></div></div>
+      <span id="progressoTexto" class="font-black text-emerald-900 tabular-nums whitespace-nowrap">0%</span>
+      <button type="button" onclick="window.encerrarAuditoria?.()" class="btn-encerrar text-[11px] font-bold px-3 py-1.5 rounded-lg">Encerrar</button>
+      <button type="button" onclick="window.abrirHistoricoAuditorias?.()" class="text-[11px] font-bold px-2 py-1.5 rounded-lg border border-emerald-300 text-emerald-800 bg-white">Histórico</button>
+    </div>
+<div id="barraEdicaoEmLote" class="hidden bg-slate-900 text-white px-3 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
       <div class="flex items-center gap-2"><span id="contadorSelecionados" class="inline-flex items-center justify-center bg-brand-500 text-slate-950 font-black rounded-full w-5 h-5 text-[10px]">0</span><span class="font-semibold">selecionados</span></div>
       <div class="flex items-center flex-wrap gap-1.5">
         <button onclick="aplicarPresencaEmLote('sim')" class="btn-lote bg-emerald-600 hover:bg-emerald-500">Sim</button>
@@ -583,9 +582,9 @@
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div id="dropZone" onclick="document.getElementById('inputArquivoUpload').click()" class="border-2 border-dashed border-violet-300 hover:border-violet-500 bg-violet-50/30 rounded-2xl p-4 text-center cursor-pointer min-h-[120px] flex flex-col items-center justify-center">
-          <input type="file" id="inputArquivoUpload" accept="image/*,application/pdf,.xlsx,.xls,.csv" class="hidden" onchange="window.processarArquivoSelecionado?.(event)">
+          <input type="file" id="inputArquivoUpload" accept="image/*,application/pdf,.xlsx,.xls,.csv" multiple class="hidden" onchange="window.processarArquivoSelecionado?.(event)">
           <div class="w-10 h-10 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center mb-1.5"><i class="ph-bold ph-cloud-arrow-up text-xl"></i></div>
-          <p class="text-xs font-bold">1. Enviar Foto, PDF ou Excel</p>
+          <p class="text-xs font-bold">1. Enviar fotos, PDF ou Excel</p><p class="text-[10px] text-slate-500 mt-0.5">Pode selecionar <b>várias imagens</b> de uma vez</p>
         </div>
         <div class="border border-slate-200 bg-slate-50/60 rounded-2xl p-3">
           <div class="flex items-center justify-between mb-1">
@@ -645,7 +644,7 @@
         <p class="text-xs font-semibold text-indigo-700">POSTERUS - FILIAL 438 GRAJAÚ</p>
         <p id="lsInfoAuditor" class="text-xs text-slate-600 mb-4"></p>
         <table class="w-full text-left border-collapse">
-          <thead><tr class="bg-indigo-900 text-white text-xs"><th class="py-2 px-3">Código</th><th class="py-2 px-3">Descrição</th><th class="py-2 px-3 text-center">Estoque</th><th class="py-2 px-3 text-center">Validade</th><th class="py-2 px-3 text-center">Presença na venda</th></tr></thead>
+          <thead><tr class="bg-indigo-900 text-black text-xs"><th class="py-2 px-3">Código</th><th class="py-2 px-3">Descrição</th><th class="py-2 px-3 text-center">Estoque</th><th class="py-2 px-3 text-center">Validade</th><th class="py-2 px-3 text-center">Presença na venda</th></tr></thead>
           <tbody id="tabelaListaSimplesCorpo"></tbody>
         </table>
       </div>
@@ -735,7 +734,6 @@
         <button type="button" onclick="window.exportarPlanilhaCSVAvancado?.()" class="px-4 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg flex items-center gap-1.5"><i class="ph-bold ph-file-csv"></i> CSV</button>
         <button type="button" onclick="window.exportarExcelAvancado?.()" class="px-4 py-2 text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 hover:bg-emerald-200 rounded-lg flex items-center gap-1.5"><i class="ph-bold ph-file-xls"></i> Excel</button>
         <button type="button" onclick="window.exportarPDFAvancado?.()" class="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg flex items-center gap-1.5"><i class="ph-bold ph-file-pdf"></i> PDF profissional</button>
-        <button type="button" onclick="window.imprimirRelatorioAvancado?.()" class="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg flex items-center gap-1.5"><i class="ph-bold ph-printer"></i> Imprimir</button>
       </div>
     </div>
   </div>
@@ -2327,7 +2325,7 @@ window.exportarSelecao = function() {
   const itens = (window.appState?.produtos || []).filter(p => set.has(String(p.cod)));
   if (window.gerarHtmlRelatorioProfissional && window.baixarPdfDeHtml) {
     const html = window.gerarHtmlRelatorioProfissional(itens, 'Seleção (' + itens.length + ' itens)');
-    window.baixarPdfDeHtml(html, 'Selecao_' + new Date().toISOString().slice(0, 10) + '.pdf', itens, { titulo: 'Seleção (' + itens.length + ' itens)' });
+    window.baixarPdfDeHtml(html, 'Selecao_' + new Date().toISOString().slice(0, 10) + '.pdf');
   } else {
     window.compartilharSelecionadosWhatsApp?.();
   }
@@ -2926,11 +2924,11 @@ window.exportarExcelAvancado = function() {
   window.fecharModalExportarAvancado();
 };
 
-/** Gera HTML profissional do relatório (para impressão e visualização) */
-window.gerarHtmlRelatorioProfissional = function(itens, tituloExtra, opcoes = {}) {
+/** Gera HTML profissional do relatório (não é print da tela) */
+window.gerarHtmlRelatorioProfissional = function(itens, tituloExtra) {
   const meta = window.montarCabecalhoRelatorio();
   const resumo = window.calcularResumoItens(itens);
-  const cols = opcoes.colunas || (window.obterColunasExportacao?.() || [
+  const cols = (window.obterColunasExportacao?.() || [
     { key: 'cod', label: 'Cód.' }, { key: 'ean', label: 'EAN' }, { key: 'desc', label: 'Descrição' },
     { key: 'industria', label: 'Indústria' }, { key: 'estoque', label: 'Estoque' },
     { key: 'validade', label: 'Validade' }, { key: 'presenca', label: 'Presença' }
@@ -2938,444 +2936,153 @@ window.gerarHtmlRelatorioProfissional = function(itens, tituloExtra, opcoes = {}
 
   const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  let thead = cols.map(c => `<th>${esc(c.label)}</th>`).join('');
-  let tbody = itens.map((p, i) => {
-    const bg = i % 2 ? '#f8fafc' : '#ffffff';
+  const thead = cols.map(c => '<th>' + esc(c.label) + '</th>').join('');
+  const tbody = (itens || []).map((p, i) => {
+    const bg = i % 2 ? '#f8fafc' : '#fff';
     const cells = cols.map(c => {
       let v = window.valorCampoExportacao?.(p, c.key);
-      if (v === undefined || v === '') {
+      if (v === undefined) {
         if (c.key === 'cod') v = p.cod;
-        else if (c.key === 'ean') v = p.ean || '—';
+        else if (c.key === 'ean') v = p.ean || '';
         else if (c.key === 'desc') v = p.desc;
-        else if (c.key === 'industria') v = p.industria || '—';
-        else if (c.key === 'estoque') v = p.estoque ?? 0;
+        else if (c.key === 'industria') v = p.industria;
+        else if (c.key === 'estoque') v = p.estoque;
         else if (c.key === 'validade') v = (window.calcularStatusValidade?.(p.validade) || {}).formatada || p.validade || '—';
         else if (c.key === 'presenca') v = ({ sim: 'SIM', nao: 'NÃO', parcial: 'PARCIAL' }[p.presenca] || 'PENDENTE');
         else v = p[c.key] ?? '';
       }
-      const align = ['cod','ean','estoque','venda','dde','contagemFisica','divergencia','validade','presenca'].includes(c.key) ? 'text-align:center;' : '';
-      let colorStyle = '';
-      if (c.key === 'estoque' && Number(p.estoque) < 0) colorStyle = 'color:#e11d48;font-weight:700;';
-      if (c.key === 'presenca') {
-        if (p.presenca === 'sim') colorStyle = 'color:#047857;font-weight:700;';
-        else if (p.presenca === 'nao') colorStyle = 'color:#e11d48;font-weight:700;';
-      }
-      return `<td style="${align}${colorStyle}">${esc(v)}</td>`;
+      const align = ['estoque','venda','dde','contagem','divergencia'].includes(c.key) ? 'text-align:center' : '';
+      return '<td style="' + align + '">' + esc(v) + '</td>';
     }).join('');
-    return `<tr style="background:${bg}">${cells}</tr>`;
+    return '<tr style="background:' + bg + '">' + cells + '</tr>';
   }).join('');
 
-  const obsGerais = (document.getElementById('obsGerais')?.value || '').trim();
-  const supervisora = (document.getElementById('auditorSupervisora')?.value || '—').trim();
-
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
-<title>${esc(tituloExtra || 'Relatório de Auditoria')}</title>
-<style>
-  @page { size: A4 landscape; margin: 10mm; }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:10px;color:#0f172a;background:#fff;padding:12px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .toolbar{display:flex;justify-content:space-between;align-items:center;background:#0f172a;color:#fff;padding:10px 16px;border-radius:10px;margin-bottom:14px}
-  .toolbar button{padding:8px 16px;font-weight:800;border:none;border-radius:8px;cursor:pointer;font-size:12px;margin-left:8px}
-  .btn-print{background:#10b981;color:#fff}
-  .btn-close{background:#334155;color:#fff}
-  .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #047857;padding-bottom:10px;margin-bottom:12px}
-  .brand{font-size:16px;font-weight:800;color:#047857}
-  .sub{font-size:11px;color:#475569;margin-top:2px}
-  .meta{text-align:right;font-size:10px;color:#334155;line-height:1.5}
-  .kpis{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
-  .kpi{border:1px solid #cbd5e1;border-radius:6px;padding:5px 10px;min-width:72px;background:#f8fafc}
-  .kpi b{display:block;font-size:13px;font-weight:800}
-  .kpi span{font-size:8px;text-transform:uppercase;color:#64748b;font-weight:700}
-  table{width:100%;border-collapse:collapse;page-break-inside:auto}
-  thead{display:table-header-group}
-  tr{page-break-inside:avoid;break-inside:avoid}
-  th{background:#047857 !important;color:#ffffff !important;padding:6px 5px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.02em;border:1px solid #047857}
-  td{padding:5px;border-bottom:1px solid #e2e8f0;border-left:1px solid #f1f5f9;border-right:1px solid #f1f5f9;vertical-align:middle;font-size:9.5px}
-  .obs-box{margin-top:12px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;font-size:9.5px}
-  .assinaturas{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:28px;padding-top:10px}
-  .ass-line{border-top:1px solid #334155;text-align:center;padding-top:4px;font-size:9.5px;font-weight:700;color:#334155}
-  .foot{margin-top:14px;padding-top:8px;border-top:1px solid #cbd5e1;font-size:9px;color:#64748b;display:flex;justify-content:space-between}
-  @media print{body{padding:0}.no-print{display:none!important}}
-</style></head><body>
-<div class="toolbar no-print">
-  <div><strong>Pré-visualização de Impressão</strong> · ${resumo.total} itens</div>
-  <div>
-    <button class="btn-print" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
-    <button class="btn-close" onclick="window.close()">Fechar</button>
-  </div>
-</div>
-<div class="head">
-  <div>
-    <div class="brand">POSTERUS SUPERMERCADOS</div>
-    <div class="sub">${esc(meta.filial)}</div>
-    <div class="sub" style="font-weight:700;margin-top:4px">${esc(tituloExtra || 'Relatório de Auditoria & Presença')}</div>
-  </div>
-  <div class="meta">
-    <div><strong>Promotor(a):</strong> ${esc(meta.aud)} · <strong>Supervisora:</strong> ${esc(supervisora)}</div>
-    <div><strong>Data:</strong> ${esc(meta.dt)}</div>
-    <div><strong>Indústria:</strong> ${esc(meta.industria)}</div>
-    <div><strong>Tipo:</strong> ${esc(meta.tipo)}</div>
-  </div>
-</div>
-<div class="kpis">
-  <div class="kpi"><span>Total</span><b>${resumo.total}</b></div>
-  <div class="kpi"><span>Presentes</span><b style="color:#047857">${resumo.presente}</b></div>
-  <div class="kpi"><span>Rupturas</span><b style="color:#e11d48">${resumo.ruptura}</b></div>
-  <div class="kpi"><span>Pendentes</span><b>${resumo.pendente}</b></div>
-  <div class="kpi"><span>Vencidos</span><b style="color:#e11d48">${resumo.vencidos}</b></div>
-  <div class="kpi"><span>Val. ≤30d</span><b style="color:#db2777">${resumo.alertaVal}</b></div>
-  <div class="kpi"><span>Negativos</span><b style="color:#b45309">${resumo.negativo}</b></div>
-  <div class="kpi"><span>Divergências</span><b style="color:#4f46e5">${resumo.diverg}</b></div>
-</div>
-<table>
-  <thead><tr>${thead}</tr></thead>
-  <tbody>${tbody}</tbody>
-</table>
-${obsGerais ? `<div class="obs-box"><strong>Observações Gerais:</strong> ${esc(obsGerais)}</div>` : ''}
-<div class="assinaturas">
-  <div class="ass-line">Assinatura do Auditor (${esc(meta.aud)})</div>
-  <div class="ass-line">Visto Gerência / Supervisão (${esc(supervisora)})</div>
-</div>
-<div class="foot">
-  <span>Gerado em ${esc(meta.geradoEm)} · Sistema de Auditoria Posterus</span>
-  <span>Total: ${resumo.total} mercadorias</span>
-</div>
-</body></html>`;
+  // Sem template literal com <script> cru (quebrava o HTML da página)
+  return '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">' +
+    '<title>' + esc(tituloExtra || 'Relatório de Auditoria') + '</title>' +
+    '<style>' +
+    '*{box-sizing:border-box;margin:0;padding:0}' +
+    'body{font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:10px;color:#0f172a;padding:16px}' +
+    '.head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #047857;padding-bottom:12px;margin-bottom:14px}' +
+    '.brand{font-size:16px;font-weight:800;color:#047857}' +
+    '.sub{font-size:11px;color:#475569;margin-top:2px}' +
+    '.meta{text-align:right;font-size:10px;color:#334155;line-height:1.5}' +
+    '.kpis{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}' +
+    '.kpi{border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px;min-width:70px}' +
+    '.kpi b{display:block;font-size:14px;font-weight:800}' +
+    '.kpi span{font-size:8px;text-transform:uppercase;color:#64748b;font-weight:700}' +
+    'table{width:100%;border-collapse:collapse}' +
+    'th{background:#0f766e;color:#fff;padding:6px 5px;text-align:left;font-size:9px;text-transform:uppercase}' +
+    'td{padding:5px;border-bottom:1px solid #e2e8f0;vertical-align:middle}' +
+    '.foot{margin-top:14px;padding-top:8px;border-top:1px solid #cbd5e1;font-size:9px;color:#64748b;display:flex;justify-content:space-between}' +
+    '@media print{body{padding:0}}' +
+    '</style></head><body>' +
+    '<div class="head"><div>' +
+    '<div class="brand">POSTERUS SUPERMERCADOS</div>' +
+    '<div class="sub">' + esc(meta.filial || 'Camino Grajaú') + '</div>' +
+    '<div class="sub" style="font-weight:700;margin-top:4px">' + esc(tituloExtra || 'Relatório de Auditoria') + '</div>' +
+    '</div><div class="meta">' +
+    '<div><strong>Auditor:</strong> ' + esc(meta.aud) + '</div>' +
+    '<div><strong>Data:</strong> ' + esc(meta.dt) + '</div>' +
+    '<div><strong>Indústria:</strong> ' + esc(meta.industria) + '</div>' +
+    '<div><strong>Tipo:</strong> ' + esc(meta.tipo) + '</div>' +
+    '</div></div>' +
+    '<div class="kpis">' +
+    '<div class="kpi"><span>Total</span><b>' + resumo.total + '</b></div>' +
+    '<div class="kpi"><span>Presentes</span><b style="color:#047857">' + resumo.presente + '</b></div>' +
+    '<div class="kpi"><span>Rupturas</span><b style="color:#e11d48">' + resumo.ruptura + '</b></div>' +
+    '<div class="kpi"><span>Pendentes</span><b>' + resumo.pendente + '</b></div>' +
+    '<div class="kpi"><span>Vencidos</span><b style="color:#e11d48">' + resumo.vencidos + '</b></div>' +
+    '<div class="kpi"><span>Val. ≤30d</span><b style="color:#db2777">' + (resumo.alertaVal || 0) + '</b></div>' +
+    '<div class="kpi"><span>Negativos</span><b style="color:#b45309">' + (resumo.negativo || 0) + '</b></div>' +
+    '<div class="kpi"><span>Divergências</span><b style="color:#4f46e5">' + (resumo.diverg || 0) + '</b></div>' +
+    '</div>' +
+    '<table><thead><tr>' + thead + '</tr></thead><tbody>' + tbody + '</tbody></table>' +
+    '<div class="foot"><span>Gerado em ' + esc(meta.geradoEm || new Date().toLocaleString('pt-BR')) +
+    ' · Sistema de Auditoria</span><span>' + resumo.total + ' itens</span></div>' +
+    '<' + 'script>window.onload=function(){setTimeout(function(){try{window.print()}catch(e){}},400)};' + '<' + '/script>' +
+    '';
 };
 
-/**
- * Gera PDF vetorial nativo via jsPDF + AutoTable (NUNCA sai em branco,
- * pois desenha textos, cabeçalho, KPIs e tabela diretamente no documento PDF,
- * sem depender de captura de tela / html2canvas).
- */
-window.gerarPdfVetorial = function(itens, tituloExtra, nomeArquivo, opcoes = {}) {
-  const jspdfNS = window.jspdf;
-  const JsPDF = jspdfNS?.jsPDF || window.jsPDF;
-  if (!JsPDF) return false;
-
-  const meta = window.montarCabecalhoRelatorio();
-  const resumo = window.calcularResumoItens(itens);
-  const supervisora = (document.getElementById('auditorSupervisora')?.value || '—').trim();
-  const obsGerais = (document.getElementById('obsGerais')?.value || '').trim();
-
-  const cols = opcoes.colunas || (window.obterColunasExportacao?.() || [
-    { key: 'cod', label: 'Código' },
-    { key: 'ean', label: 'EAN' },
-    { key: 'desc', label: 'Descrição' },
-    { key: 'industria', label: 'Indústria' },
-    { key: 'estoque', label: 'Estoque' },
-    { key: 'validade', label: 'Validade' },
-    { key: 'presenca', label: 'Presença' }
-  ]);
-
-  const orientacao = opcoes.orientacao || (cols.length > 6 ? 'landscape' : 'portrait');
-  const doc = new JsPDF({ orientation: orientacao, unit: 'mm', format: 'a4' });
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-  const margin = 10;
-
-  // Faixa de cabeçalho
-  doc.setFillColor(4, 120, 87); // #047857
-  doc.rect(margin, 8, pageW - margin * 2, 18, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.text('POSTERUS SUPERMERCADOS', margin + 4, 14.5);
-
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'normal');
-  doc.text(String(meta.filial || ''), margin + 4, 19.2);
-  doc.setFont('helvetica', 'bold');
-  doc.text(String(tituloExtra || 'Relatório de Auditoria, Validade & Presença'), margin + 4, 23.5);
-
-  // Metadados à direita no cabeçalho
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  const rightX = pageW - margin - 4;
-  doc.text(`Promotor(a): ${meta.aud}  |  Supervisora: ${supervisora}`, rightX, 13.5, { align: 'right' });
-  doc.text(`Data: ${meta.dt}  |  Indústria: ${meta.industria}`, rightX, 18, { align: 'right' });
-  doc.text(`Conferência: ${meta.tipo}`, rightX, 22.5, { align: 'right' });
-
-  // Bloco de KPIs resumidos
-  const kpiList = [
-    { label: 'TOTAL', val: String(resumo.total), color: [15, 23, 42] },
-    { label: 'PRESENTES', val: String(resumo.presente), color: [4, 120, 87] },
-    { label: 'RUPTURAS', val: String(resumo.ruptura), color: [225, 29, 72] },
-    { label: 'PENDENTES', val: String(resumo.pendente), color: [100, 116, 139] },
-    { label: 'VENCIDOS', val: String(resumo.vencidos), color: [225, 29, 72] },
-    { label: 'VAL <=30D', val: String(resumo.alertaVal), color: [219, 39, 119] },
-    { label: 'NEGATIVOS', val: String(resumo.negativo), color: [180, 83, 9] },
-    { label: 'DIVERG.', val: String(resumo.diverg), color: [79, 70, 229] }
-  ];
-  const gap = 2;
-  const kpiW = (pageW - margin * 2 - gap * (kpiList.length - 1)) / kpiList.length;
-  const kpiY = 28.5;
-  kpiList.forEach((k, idx) => {
-    const x = margin + idx * (kpiW + gap);
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(203, 213, 225);
-    doc.roundedRect(x, kpiY, kpiW, 11, 1.5, 1.5, 'FD');
-    doc.setFontSize(6.5);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(100, 116, 139);
-    doc.text(k.label, x + kpiW / 2, kpiY + 4, { align: 'center' });
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(k.color[0], k.color[1], k.color[2]);
-    doc.text(k.val, x + kpiW / 2, kpiY + 9, { align: 'center' });
-  });
-
-  // Monta linhas da tabela
-  const head = [cols.map(c => c.label)];
-  const body = itens.map(p => cols.map(c => {
-    let v = window.valorCampoExportacao?.(p, c.key);
-    if (v === undefined || v === '') {
-      if (c.key === 'cod') v = p.cod;
-      else if (c.key === 'ean') v = p.ean || '—';
-      else if (c.key === 'desc') v = p.desc;
-      else if (c.key === 'industria') v = p.industria || '—';
-      else if (c.key === 'estoque') v = p.estoque ?? 0;
-      else if (c.key === 'validade') {
-        const iv = window.calcularStatusValidade?.(p.validade);
-        v = (iv && iv.formatada && iv.formatada !== '-') ? `${iv.formatada} (${iv.label})` : '—';
-      }
-      else if (c.key === 'presenca') v = ({ sim: 'SIM', nao: 'NÃO', parcial: 'PARCIAL' }[p.presenca] || 'PENDENTE');
-      else v = p[c.key] ?? '';
-    }
-    return String(v ?? '');
-  }));
-
-  if (typeof doc.autoTable === 'function') {
-    const columnStyles = {};
-    cols.forEach((c, idx) => {
-      if (['cod','ean','estoque','venda','dde','contagemFisica','divergencia','validade','presenca'].includes(c.key)) {
-        columnStyles[idx] = { halign: 'center' };
-      }
-      if (c.key === 'desc') {
-        columnStyles[idx] = { cellWidth: 'auto' };
-      }
-    });
-
-    doc.autoTable({
-      startY: 42,
-      head: head,
-      body: body,
-      margin: { left: margin, right: margin, bottom: 18 },
-      styles: {
-        font: 'helvetica',
-        fontSize: cols.length > 8 ? 7.2 : 8,
-        cellPadding: 1.8,
-        textColor: [15, 23, 42],
-        lineColor: [226, 232, 240],
-        lineWidth: 0.15,
-        overflow: 'linebreak'
-      },
-      headStyles: {
-        fillColor: [4, 120, 87],
-        textColor: [255, 255, 255],
-        fontStyle: 'bold',
-        halign: 'center',
-        fontSize: cols.length > 8 ? 7.2 : 8
-      },
-      alternateRowStyles: {
-        fillColor: [248, 250, 252]
-      },
-      columnStyles: columnStyles,
-      didParseCell: function(data) {
-        if (data.section === 'body') {
-          const colKey = cols[data.column.index]?.key;
-          const rawVal = String(data.cell.raw || '');
-          if (colKey === 'presenca') {
-            if (rawVal === 'SIM') { data.cell.styles.textColor = [4, 120, 87]; data.cell.styles.fontStyle = 'bold'; }
-            else if (rawVal === 'NÃO' || rawVal === 'NAO') { data.cell.styles.textColor = [225, 29, 72]; data.cell.styles.fontStyle = 'bold'; }
-          } else if (colKey === 'estoque' && rawVal.startsWith('-')) {
-            data.cell.styles.textColor = [225, 29, 72];
-            data.cell.styles.fontStyle = 'bold';
-          } else if (colKey === 'validade' && /VENCIDO|HOJE|15d/i.test(rawVal)) {
-            data.cell.styles.textColor = [225, 29, 72];
-            data.cell.styles.fontStyle = 'bold';
-          }
-        }
-      },
-      didDrawPage: function(data) {
-        const str = `Página ${doc.internal.getNumberOfPages()}  |  Gerado em ${meta.geradoEm} · Posterus Supermercados (Filial 438 Grajaú)`;
-        doc.setFontSize(7.5);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(100, 116, 139);
-        doc.text(str, margin, pageH - 5);
-        doc.text(`${resumo.total} itens`, pageW - margin, pageH - 5, { align: 'right' });
-      }
-    });
-
-    let finalY = (doc.lastAutoTable && doc.lastAutoTable.finalY) ? doc.lastAutoTable.finalY + 6 : 60;
-    if (obsGerais) {
-      if (finalY + 18 > pageH - 15) { doc.addPage(); finalY = 15; }
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(15, 23, 42);
-      doc.text('Observações Gerais:', margin, finalY);
-      doc.setFont('helvetica', 'normal');
-      const splitObs = doc.splitTextToSize(obsGerais, pageW - margin * 2);
-      doc.text(splitObs, margin, finalY + 4);
-      finalY += 6 + splitObs.length * 4;
-    }
-
-    if (finalY + 18 <= pageH - 12) {
-      const sigY = finalY + 12;
-      doc.setDrawColor(100, 116, 139);
-      doc.line(margin + 15, sigY, pageW / 2 - 15, sigY);
-      doc.line(pageW / 2 + 15, sigY, pageW - margin - 15, sigY);
-      doc.setFontSize(8);
-      doc.setTextColor(71, 85, 105);
-      doc.text(`Assinatura do Auditor (${meta.aud})`, (margin + pageW / 2) / 2, sigY + 4, { align: 'center' });
-      doc.text(`Visto Gerência / Supervisão (${supervisora})`, (pageW / 2 + pageW - margin) / 2, sigY + 4, { align: 'center' });
-    }
-  }
-
-  doc.save(nomeArquivo || 'Auditoria_Posterus.pdf');
-  return true;
-};
-
-/** Abre janela limpa para impressão direta (desktop e mobile) */
-window.abrirJanelaImpressao = function(html) {
-  // Tenta abrir aba dedicada de impressão
-  const w = window.open('', '_blank');
-  if (w && w.document) {
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => {
-      try { w.print(); } catch (e) {}
-    }, 350);
-    return true;
-  }
-
-  // Fallback se o navegador bloquear pop-up: imprime via container dedicado no próprio documento
-  let printBox = document.getElementById('printContainerSimples');
-  if (!printBox) {
-    printBox = document.createElement('div');
-    printBox.id = 'printContainerSimples';
-    printBox.style.display = 'none';
-    document.body.appendChild(printBox);
-  }
-  // Extrai conteúdo do body do HTML gerado
-  const styleMatch = html.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
-  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-  printBox.innerHTML = (styleMatch ? `<style>${styleMatch[1]}</style>` : '') + (bodyMatch ? bodyMatch[1] : html);
-  document.body.classList.add('imprimindo-simples');
-  setTimeout(() => {
-    window.print();
-    setTimeout(() => {
-      document.body.classList.remove('imprimindo-simples');
-      printBox.innerHTML = '';
-    }, 800);
-  }, 150);
-  return true;
-};
-
-window.baixarPdfDeHtml = async function(html, nomeArquivo, itensOpc = null, opcoes = {}) {
-  const itens = itensOpc || (window.obterItensFiltradosTela ? window.obterItensFiltradosTela() : (window.appState?.produtos || []));
-  // 1) Caminho principal: PDF vetorial via jsPDF + AutoTable (instantâneo e nunca fica em branco)
+window.baixarPdfDeHtml = async function(html, nomeArquivo) {
   try {
-    const okVetorial = window.gerarPdfVetorial(itens, opcoes.titulo || 'Relatório de Auditoria & Presença', nomeArquivo, opcoes);
-    if (okVetorial) {
-      window.mostrarToast('PDF baixado', `${nomeArquivo || 'relatorio.pdf'} (${itens.length} itens)`);
+    if (window.html2pdf) {
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = 'position:fixed;left:0;top:0;width:297mm;height:210mm;opacity:0;pointer-events:none;z-index:-1;border:0';
+      document.body.appendChild(iframe);
+      const doc = iframe.contentDocument || iframe.contentWindow.document;
+      doc.open();
+      doc.write(html);
+      doc.close();
+      await new Promise(r => setTimeout(r, 400));
+      const target = doc.body;
+      await window.html2pdf().set({
+        margin: [8, 8, 8, 8],
+        filename: nomeArquivo || 'relatorio.pdf',
+        image: { type: 'jpeg', quality: 0.95 },
+        html2canvas: { scale: 1.5, useCORS: true, logging: false, windowWidth: 1120 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      }).from(target).save();
+      iframe.remove();
+      window.mostrarToast('PDF gerado', nomeArquivo || 'relatorio.pdf');
       return;
     }
   } catch (err) {
-    console.warn('[PDF] jsPDF vetorial falhou, usando fallback:', err);
+    console.warn('html2pdf falhou, abrindo impressão', err);
   }
-
-  // 2) Fallback: abre pré-visualização limpa pronta para Salvar como PDF
-  window.abrirJanelaImpressao(html);
-  window.mostrarToast('Impressão / PDF', 'Use "Salvar como PDF" na janela aberta.');
+  const w = window.open('', '_blank', 'noopener,noreferrer');
+  if (!w) {
+    window.mostrarToast('Bloqueado', 'Permita pop-ups para exportar o PDF.', 'error');
+    return;
+  }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  window.mostrarToast('Relatório aberto', 'Use Salvar/Imprimir PDF na nova aba.');
 };
 
 window.exportarPDFAvancado = async function() {
   const itens = window.atualizarResumoExportacao();
   if (!itens.length) { window.mostrarToast('Nenhum item', 'Ajuste os filtros — zero produtos.', 'error'); return; }
   const meta = window.montarCabecalhoRelatorio();
-  const cols = window.obterColunasExportacao();
-  const nomeArq = `Auditoria_Posterus_${meta.dt}_${itens.length}itens.pdf`;
+  const html = window.gerarHtmlRelatorioProfissional(itens, 'Exportação filtrada');
   window.fecharModalExportarAvancado();
-  const html = window.gerarHtmlRelatorioProfissional(itens, 'Relatório de Auditoria (Exportação Filtrada)', { colunas: cols });
-  await window.baixarPdfDeHtml(html, nomeArq, itens, { titulo: 'Relatório de Auditoria (Exportação Filtrada)', colunas: cols });
-};
-
-window.imprimirRelatorioAvancado = function() {
-  const itens = window.atualizarResumoExportacao();
-  if (!itens.length) { window.mostrarToast('Nenhum item', 'Ajuste os filtros — zero produtos.', 'error'); return; }
-  const cols = window.obterColunasExportacao();
-  const html = window.gerarHtmlRelatorioProfissional(itens, 'Relatório de Auditoria (Exportação Filtrada)', { colunas: cols });
-  window.fecharModalExportarAvancado();
-  window.abrirJanelaImpressao(html);
+  window.mostrarToast('Gerando PDF', 'Montando relatório profissional...');
+  await window.baixarPdfDeHtml(html, `Auditoria_Posterus_${meta.dt}_${itens.length}itens.pdf`);
 };
 
 window.gerarDownloadPDF = async function() {
+  // PDF da visão atual (filtros da tela) — relatório profissional
   const itens = window.obterItensFiltradosTela
     ? window.obterItensFiltradosTela()
     : (window.appState?.produtos || []);
   if (!itens.length) { window.mostrarToast('Lista vazia', 'Nenhum produto na visão atual.', 'error'); return; }
   const meta = window.montarCabecalhoRelatorio();
-  const cols = [
-    { key: 'cod', label: 'Código' },
-    { key: 'ean', label: 'EAN' },
-    { key: 'desc', label: 'Descrição' },
-    { key: 'industria', label: 'Indústria' },
-    { key: 'estoque', label: 'Estoque' },
-    { key: 'validade', label: 'Validade' },
-    { key: 'presenca', label: 'Presença' },
-    { key: 'contagemFisica', label: 'Contagem' },
-    { key: 'divergencia', label: 'Diverg.' }
-  ];
-  const nomeArq = `Auditoria_Posterus_${meta.dt}_${itens.length}itens.pdf`;
-  const html = window.gerarHtmlRelatorioProfissional(itens, 'Visão Atual da Auditoria', { colunas: cols });
-  await window.baixarPdfDeHtml(html, nomeArq, itens, { titulo: 'Visão Atual da Auditoria', colunas: cols });
+  const html = window.gerarHtmlRelatorioProfissional(itens, 'Visão atual da auditoria');
+  window.mostrarToast('Gerando PDF', `${itens.length} itens...`);
+  await window.baixarPdfDeHtml(html, `Auditoria_Posterus_${meta.dt}_visao.pdf`);
 };
 
-window.baixarPdfListaSimples = async function() {
-  window.atualizarConteudoListaSimples?.();
-  const itens = window.obterItensFiltradosTela
-    ? window.obterItensFiltradosTela()
-    : (window.appState?.produtos || []);
-  if (!itens.length) { window.mostrarToast('Lista vazia', 'Nada para exportar com os filtros atuais.', 'error'); return; }
-  const meta = window.montarCabecalhoRelatorio();
-  const colsSimples = [
-    { key: 'cod', label: 'Código' },
-    { key: 'desc', label: 'Descrição' },
-    { key: 'estoque', label: 'Estoque' },
-    { key: 'validade', label: 'Validade' },
-    { key: 'presenca', label: 'Presença na Venda' }
-  ];
-  const nomeArq = `Lista_Simples_${meta.dt}_${itens.length}itens.pdf`;
-  const html = window.gerarHtmlRelatorioProfissional(itens, 'Lista Simples de Conferência', { colunas: colsSimples });
-  await window.baixarPdfDeHtml(html, nomeArq, itens, { titulo: 'Lista Simples de Conferência', colunas: colsSimples, orientacao: 'portrait' });
-};
-
-window.imprimirListaSimples = function() {
+window.imprimirListaSimples = async function() {
   window.atualizarConteudoListaSimples?.();
   const itens = window.obterItensFiltradosTela
     ? window.obterItensFiltradosTela()
     : (window.appState?.produtos || []);
   if (!itens.length) { window.mostrarToast('Lista vazia', 'Nada para imprimir com os filtros atuais.', 'error'); return; }
-  const colsSimples = [
-    { key: 'cod', label: 'Código' },
-    { key: 'desc', label: 'Descrição' },
-    { key: 'estoque', label: 'Estoque' },
-    { key: 'validade', label: 'Validade' },
-    { key: 'presenca', label: 'Presença na Venda' }
-  ];
-  const html = window.gerarHtmlRelatorioProfissional(itens, 'Lista Simples de Conferência', { colunas: colsSimples });
-  window.abrirJanelaImpressao(html);
+  const meta = window.montarCabecalhoRelatorio();
+  const html = window.gerarHtmlRelatorioProfissional(itens, 'Lista simples de conferência');
+  await window.baixarPdfDeHtml(html, `Lista_Simples_${meta.dt}.pdf`);
 };
+window.baixarPdfListaSimples = () => window.imprimirListaSimples();
 
 
 /* ========== UPLOAD / OCR ========== */
 
 window.processarArquivoSelecionado = function(e) {
-  if (e?.target?.files?.length) window.processarArquivo(e.target.files[0]);
+  const files = e?.target?.files;
+  if (!files || !files.length) return;
+  window.processarMultiplosArquivos(Array.from(files));
 };
 
 window.limparNumeroOCR = function(val, defaultVal = 0) {
@@ -3902,7 +3609,138 @@ window.enviarParaLeitorGemini = async function(base64, mime) {
   }
 };
 
-window.processarArquivo = async function(file) {
+
+/** Lista de indústrias conhecidas (banco + padrão) */
+window.listarIndustriasConhecidas = function() {
+  const set = new Set();
+  (window.appState?.produtos || []).forEach(p => {
+    const ind = (p.industria || '').trim();
+    if (ind) set.add(ind);
+  });
+  // comuns no mercado local
+  ['Puro Tempero', 'Sococo', 'Tio Paco', 'Tirol', 'Camino', 'Nestlé', 'Unilever', 'Bauducco', 'Pepsico', 'Coca-Cola', 'Ambev', 'Seara', 'Sadia', 'Perdigão', 'Piracanjuba', 'Itambé', 'Danone', 'Yoki', 'Kitano', 'Cepêra', 'Quero', 'Elefante', 'Bombril', 'Ypê'].forEach(x => set.add(x));
+  return Array.from(set);
+};
+
+/**
+ * Detecta indústria no texto/nome do arquivo/descrições.
+ * Retorna o nome canônico ou ''.
+ */
+window.detectarIndustriaAutomatica = function(texto, itens) {
+  const pool = window.listarIndustriasConhecidas();
+  if (!pool.length) return '';
+  const blob = (
+    String(texto || '') + ' ' +
+    (itens || []).map(i => (i.desc || '') + ' ' + (i.industria || '')).join(' ')
+  ).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  // Match explícito "indústria: X" / "fornecedor: X"
+  const m = blob.match(/(?:industria|ind[uú]stria|fornecedor|marca|fabricante)\s*[:\-]?\s*([a-z0-9][a-z0-9\s\.]{2,40})/i);
+  if (m) {
+    const cand = m[1].trim();
+    const hit = pool.find(ind => {
+      const n = ind.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      return cand.includes(n) || n.includes(cand.split(/\s+/)[0]);
+    });
+    if (hit) return hit;
+  }
+
+  // Contagem de menções de cada indústria no texto
+  let melhor = '', score = 0;
+  pool.forEach(ind => {
+    const n = ind.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (n.length < 3) return;
+    // palavra completa
+    const re = new RegExp('\\b' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+') + '\\b', 'gi');
+    const hits = (blob.match(re) || []).length;
+    // bônus se está no nome do arquivo
+    let s = hits * 3;
+    if (hits > score) { score = hits; melhor = ind; }
+  });
+  if (score > 0) return melhor;
+
+  // Fallback: maior frequência de indústria entre itens já com industria
+  const freq = {};
+  (itens || []).forEach(i => {
+    const ind = (i.industria || '').trim();
+    if (!ind) return;
+    freq[ind] = (freq[ind] || 0) + 1;
+  });
+  const ranked = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+  if (ranked.length && ranked[0][1] > 0) return ranked[0][0];
+
+  return '';
+};
+
+window.aplicarIndustriaDetectada = function(itens, industria) {
+  if (!industria) return itens || [];
+  const padraoCampo = document.getElementById('industriaPadraoImportacao');
+  if (padraoCampo && (!padraoCampo.value || padraoCampo.value === 'Puro Tempero')) {
+    padraoCampo.value = industria;
+  }
+  return (itens || []).map(it => ({
+    ...it,
+    industria: (it.industria && String(it.industria).trim() && String(it.industria).trim().toLowerCase() !== 'puro tempero')
+      ? it.industria
+      : industria
+  }));
+};
+
+/** Processa um único arquivo e devolve itens brutos (sem normalizar) */
+window.processarUmArquivoExtração = async function(file, textoStatus, idx, total) {
+  const nome = (file.name || '').toLowerCase();
+  const pref = total > 1 ? ('[' + (idx + 1) + '/' + total + '] ') : '';
+
+  if (nome.endsWith('.xlsx') || nome.endsWith('.xls') || nome.endsWith('.csv') || (file.type || '').includes('spreadsheet') || (file.type || '').includes('csv')) {
+    if (textoStatus) textoStatus.innerText = pref + 'Lendo planilha...';
+    return { itens: await window.extrairDadosDePlanilhaExcel(file), texto: file.name || '' };
+  }
+
+  let base64 = '', mime = file.type || 'image/jpeg', textoPDF = '';
+  if (file.type === 'application/pdf' || nome.endsWith('.pdf')) {
+    if (textoStatus) textoStatus.innerText = pref + 'Renderizando PDF...';
+    const r = await window.converterPdfParaImagemETexto(file);
+    base64 = r.base64; mime = 'image/jpeg'; textoPDF = r.textoExtraido || '';
+  } else if ((file.type || '').startsWith('image/') || /\.(jpg|jpeg|png|webp|bmp)$/i.test(nome)) {
+    if (textoStatus) textoStatus.innerText = pref + 'Preparando imagem...';
+    const o = await window.otimizarImagemParaBase64(file);
+    base64 = o.base64; mime = o.mimeType;
+  } else {
+    console.warn('Formato ignorado:', file.name);
+    return { itens: [], texto: '' };
+  }
+
+  let extraidos = [];
+  let textoLido = textoPDF || file.name || '';
+
+  if (textoPDF && textoPDF.trim().length > 10) {
+    if (textoStatus) textoStatus.innerText = pref + 'Lendo texto do PDF...';
+    extraidos = window.extrairItensDeTextoBruto(textoPDF);
+  }
+  if (!extraidos || !extraidos.length) {
+    if (textoStatus) textoStatus.innerText = pref + 'IA Gemini...';
+    try {
+      extraidos = await window.enviarParaLeitorGemini(base64, mime);
+    } catch (e) {
+      console.warn('Gemini:', e.message);
+    }
+  }
+  if (!extraidos || !extraidos.length) {
+    if (textoStatus) textoStatus.innerText = pref + 'OCR local...';
+    try {
+      extraidos = await Promise.race([
+        window.executarOCRLocalImagem(base64, mime, textoStatus),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('OCR timeout')), 40000))
+      ]);
+      // tesseract may return text - try capture from status if needed
+    } catch (e) {
+      console.warn('OCR:', e.message);
+    }
+  }
+  return { itens: extraidos || [], texto: textoLido + ' ' + (file.name || '') };
+};
+
+window.processarMultiplosArquivos = async function(files) {
   const statusBox = document.getElementById('statusProcessamentoIA');
   const textoStatus = document.getElementById('textoStatusIA');
   const resCont = document.getElementById('containerResultadosIA');
@@ -3910,80 +3748,48 @@ window.processarArquivo = async function(file) {
   if (statusBox) statusBox.classList.remove('hidden');
   if (resCont) resCont.classList.add('hidden');
   if (btnConf) btnConf.disabled = true;
+
   try {
-    if (!file) throw new Error('Nenhum arquivo selecionado.');
-    const nome = (file.name || '').toLowerCase();
+    if (!files || !files.length) throw new Error('Nenhum arquivo selecionado.');
+    const lista = Array.from(files);
+    const todosBrutos = [];
+    let textoGeral = '';
 
-    // Excel / CSV — caminho rápido
-    if (nome.endsWith('.xlsx') || nome.endsWith('.xls') || nome.endsWith('.csv') || (file.type || '').includes('spreadsheet') || (file.type || '').includes('csv')) {
-      if (textoStatus) textoStatus.innerText = 'Lendo planilha Excel/CSV...';
-      const itens = await window.extrairDadosDePlanilhaExcel(file);
-      const norm = window.normalizarItensExtraidos(itens);
-      if (!norm.length) throw new Error('Nenhuma linha de produto na planilha.');
-      window.appState.itensIAExtraidos = norm;
-      window.renderizarPreviewItensIA();
-      window.mostrarToast('Planilha OK', norm.length + ' produtos mapeados.');
-      return;
+    for (let i = 0; i < lista.length; i++) {
+      const r = await window.processarUmArquivoExtração(lista[i], textoStatus, i, lista.length);
+      if (r.itens && r.itens.length) todosBrutos.push(...r.itens);
+      textoGeral += ' ' + (r.texto || '') + ' ' + (lista[i].name || '');
+      // também junta descrições para detecção
+      (r.itens || []).forEach(it => { textoGeral += ' ' + (it.desc || '') + ' ' + (it.industria || ''); });
     }
 
-    let base64 = '', mime = file.type || 'image/jpeg', textoPDF = '';
-    if (file.type === 'application/pdf' || nome.endsWith('.pdf')) {
-      if (textoStatus) textoStatus.innerText = 'Renderizando PDF...';
-      const r = await window.converterPdfParaImagemETexto(file);
-      base64 = r.base64; mime = 'image/jpeg'; textoPDF = r.textoExtraido || '';
-    } else if ((file.type || '').startsWith('image/') || /\.(jpg|jpeg|png|webp|bmp)$/i.test(nome)) {
-      if (textoStatus) textoStatus.innerText = 'Preparando imagem...';
-      const o = await window.otimizarImagemParaBase64(file);
-      base64 = o.base64; mime = o.mimeType;
-    } else {
-      throw new Error('Formato não suportado. Use JPG, PNG, PDF ou Excel.');
+    let norm = window.normalizarItensExtraidos(todosBrutos);
+    if (!norm.length) throw new Error('Não foi possível ler produtos. Tente outras fotos ou Excel.');
+
+    // Detecção automática de indústria
+    if (textoStatus) textoStatus.innerText = 'Detectando indústria...';
+    const indDetectada = window.detectarIndustriaAutomatica(textoGeral, norm);
+    if (indDetectada) {
+      norm = window.aplicarIndustriaDetectada(norm, indDetectada);
+      window.mostrarToast('Indústria detectada', indDetectada);
     }
 
-    let extraidos = [];
-
-    // 1) Texto embutido no PDF (rápido)
-    if (textoPDF && textoPDF.trim().length > 10) {
-      if (textoStatus) textoStatus.innerText = 'Lendo texto do PDF...';
-      extraidos = window.extrairItensDeTextoBruto(textoPDF);
-    }
-
-    // 2) Gemini com timeout (já tem 18s)
-    if (!extraidos || !extraidos.length) {
-      if (textoStatus) textoStatus.innerText = 'Tentando IA Gemini (máx. 18s)...';
-      try {
-        extraidos = await window.enviarParaLeitorGemini(base64, mime);
-      } catch (e) {
-        console.warn('Gemini:', e.name || e.message);
-        if (textoStatus) textoStatus.innerText = 'Gemini indisponível, tentando OCR local...';
-      }
-    }
-
-    // 3) OCR local com timeout 40s
-    if (!extraidos || !extraidos.length) {
-      if (textoStatus) textoStatus.innerText = 'OCR local (pode levar alguns segundos)...';
-      try {
-        extraidos = await Promise.race([
-          window.executarOCRLocalImagem(base64, mime, textoStatus),
-          new Promise((_, rej) => setTimeout(() => rej(new Error('OCR demorou demais')), 40000))
-        ]);
-      } catch (e) {
-        console.warn('OCR:', e.message);
-      }
-    }
-
-    const norm = window.normalizarItensExtraidos(extraidos || []);
-    if (!norm.length) {
-      throw new Error('Não foi possível ler os produtos. Cole o texto na caixa ou use Excel.');
-    }
     window.appState.itensIAExtraidos = norm;
     window.renderizarPreviewItensIA();
-    window.mostrarToast('Leitura OK', norm.length + ' itens reconhecidos.');
+    const msgArq = lista.length > 1 ? lista.length + ' arquivos · ' : '';
+    window.mostrarToast('Leitura OK', msgArq + norm.length + ' itens' + (indDetectada ? ' · ' + indDetectada : ''));
   } catch (err) {
     console.error(err);
-    window.mostrarToast('Erro na leitura', err.message || 'Tente colar o texto.', 'error');
+    window.mostrarToast('Erro na leitura', err.message || 'Tente novamente.', 'error');
   } finally {
     if (statusBox) statusBox.classList.add('hidden');
+    const inp = document.getElementById('inputArquivoUpload');
+    if (inp) inp.value = '';
   }
+};
+
+window.processarArquivo = async function(file) {
+  return window.processarMultiplosArquivos([file]);
 };
 
 
@@ -4351,13 +4157,218 @@ document.addEventListener('DOMContentLoaded', () => {
     dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('border-violet-600', 'bg-violet-100/50'); });
   });
   dz.addEventListener('drop', e => {
-    const f = e.dataTransfer?.files?.[0];
-    if (f) window.processarArquivo(f);
+    const files = e.dataTransfer?.files;
+    if (files && files.length) window.processarMultiplosArquivos(Array.from(files));
   });
 });
 
 </script>
 <button type="button" id="fabScanPresenca" class="fab-scan no-print" onclick="window.abrirScannerPresenca?.()" title="Scan presença"><i class="ph-bold ph-barcode text-2xl"></i></button>
+<button type="button" class="fab-scan" onclick="window.abrirScannerPresenca?.()" title="Scan presença"><i class="ph-bold ph-barcode text-2xl"></i></button>
+
+<div id="modalHistoricoAuditorias" class="fixed inset-0 z-[80] bg-slate-900/60 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+  <div class="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[85vh] flex flex-col">
+    <div class="px-4 py-3 border-b flex items-center justify-between bg-slate-50">
+      <h2 class="text-sm font-bold">Histórico de auditorias</h2>
+      <button type="button" onclick="document.getElementById('modalHistoricoAuditorias').classList.add('hidden')" class="p-1.5 text-slate-400"><i class="ph-bold ph-x text-lg"></i></button>
+    </div>
+    <div id="listaHistoricoAuditorias" class="p-3 overflow-y-auto flex-1 text-sm space-y-2"></div>
+  </div>
+</div>
+
 <input type="file" id="inputFotoRuptura" accept="image/*" capture="environment" class="hidden" onchange="window._onFotoRuptura?.(event)">
+
+<script>
+/* ========== PACOTE MELHORIAS (sessão, progresso, HID, PWA) ========== */
+window._HIST_KEY = 'auditoriasHistoricoCamino_v1';
+
+window.atualizarProgressoAuditoria = function() {
+  const lista = window.appState?.produtos || [];
+  const ind = window.appState?.industriaAtiva;
+  const base = (!ind || ind === 'todas') ? lista : lista.filter(p => (p.industria || '') === ind);
+  const total = base.length || 0;
+  const conf = base.filter(p => {
+    const pr = p.presenca || 'pendente';
+    return pr === 'sim' || pr === 'nao';
+  }).length;
+  const pct = total ? Math.round((conf / total) * 100) : 0;
+  const fill = document.getElementById('progressoFill');
+  const txt = document.getElementById('progressoTexto');
+  const bar = document.getElementById('barraProgressoAuditoria');
+  if (fill) fill.style.width = pct + '%';
+  if (txt) txt.textContent = pct + '% · ' + conf + '/' + total;
+  if (bar) bar.style.display = 'flex';
+};
+
+window.encerrarAuditoria = async function() {
+  const lista = window.appState?.produtos || [];
+  const ind = window.appState?.industriaAtiva || 'todas';
+  const base = (!ind || ind === 'todas') ? lista : lista.filter(p => (p.industria || '') === ind);
+  const promotor = document.getElementById('auditorNome')?.value || '—';
+  const supervisora = document.getElementById('auditorSupervisora')?.value || '—';
+  const dtRaw = document.getElementById('auditorData')?.value || new Date().toISOString().slice(0, 10);
+  let dtFmt = dtRaw;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dtRaw)) {
+    const [yy, mm, dd] = dtRaw.split('-');
+    dtFmt = dd + '/' + mm + '/' + yy.slice(2);
+  }
+  const resumo = { presente: 0, ruptura: 0, pendente: 0, vencidos: 0, vencendo: 0, total: base.length };
+  base.forEach(p => {
+    const pr = p.presenca || 'pendente';
+    if (pr === 'sim') resumo.presente++;
+    else if (pr === 'nao') resumo.ruptura++;
+    else resumo.pendente++;
+    const iv = window.calcularStatusValidade?.(p.validade);
+    if (iv?.status === 'vencido') resumo.vencidos++;
+    if (iv?.status === 'vencendo' || iv?.status === 'critico' || iv?.status === 'atencao') resumo.vencendo++;
+  });
+  const conf = resumo.presente + resumo.ruptura;
+  const pct = resumo.total ? Math.round((conf / resumo.total) * 100) : 0;
+  if (!confirm('Encerrar auditoria?\n\n' + conf + '/' + resumo.total + ' conferidos (' + pct + '%)\nRupturas: ' + resumo.ruptura + '\nPendentes: ' + resumo.pendente)) return;
+  const sessao = {
+    id: Date.now(), titulo: 'VALIDADE— CAMINO GRAJAÚ', promotor, supervisora,
+    data: dtFmt, dataIso: dtRaw, industria: ind === 'todas' ? 'Todas' : ind,
+    resumo, pct, conf, criadoEm: new Date().toISOString()
+  };
+  let hist = [];
+  try { hist = JSON.parse(localStorage.getItem(window._HIST_KEY) || '[]'); } catch (e) {}
+  hist.unshift(sessao);
+  hist = hist.slice(0, 40);
+  try { localStorage.setItem(window._HIST_KEY, JSON.stringify(hist)); } catch (e) {}
+  const linhas = [
+    '*VALIDADE— CAMINO GRAJAÚ*',
+    '*Promotor:* ' + promotor,
+    '*Supervisora:* ' + supervisora,
+    '*Data:* ' + dtFmt,
+    '*Indústria:* ' + sessao.industria,
+    '*Progresso:* ' + conf + '/' + resumo.total + ' (' + pct + '%)',
+    '*Presentes:* ' + resumo.presente,
+    '*Rupturas:* ' + resumo.ruptura,
+    '*Pendentes:* ' + resumo.pendente,
+    '*Vencidos:* ' + resumo.vencidos,
+    '*Vencendo:* ' + resumo.vencendo,
+    '——————————',
+    '_Auditoria encerrada_'
+  ];
+  const texto = linhas.join('\n');
+  try { if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(texto); } catch (e) {}
+  try { window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank'); } catch (e) {}
+  window.mostrarToast('Auditoria encerrada', pct + '% · resumo no WhatsApp');
+  window.abrirHistoricoAuditorias?.();
+};
+
+window.abrirHistoricoAuditorias = function() {
+  const modal = document.getElementById('modalHistoricoAuditorias');
+  const box = document.getElementById('listaHistoricoAuditorias');
+  if (!modal || !box) return;
+  let hist = [];
+  try { hist = JSON.parse(localStorage.getItem(window._HIST_KEY) || '[]'); } catch (e) {}
+  if (!hist.length) {
+    box.innerHTML = '<div class="empty-state"><div class="ico"><i class="ph-bold ph-clock-counter-clockwise"></i></div><p class="font-bold text-slate-700">Nenhuma auditoria encerrada ainda</p></div>';
+  } else {
+    box.innerHTML = hist.map(s => {
+      const r = s.resumo || {};
+      return '<div class="border border-slate-200 rounded-xl p-3 bg-slate-50/80">' +
+        '<div class="flex justify-between gap-2"><span class="font-bold">' + (s.data || '') + '</span>' +
+        '<span class="text-emerald-700 font-black">' + (s.pct || 0) + '%</span></div>' +
+        '<div class="text-xs text-slate-600 mt-1">' + (s.promotor || '') + ' · ' + (s.industria || '') + '</div>' +
+        '<div class="text-[11px] text-slate-500 mt-1">✓' + (r.presente||0) + ' · ✗' + (r.ruptura||0) + ' · ⏳' + (r.pendente||0) + '</div></div>';
+    }).join('');
+  }
+  modal.classList.remove('hidden');
+};
+
+window._hidBuffer = '';
+window._hidTimer = null;
+window._hidInit = function() {
+  if (window._hidBound) return;
+  window._hidBound = true;
+  document.addEventListener('keydown', function(e) {
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target?.isContentEditable) return;
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    if (e.key === 'Enter') {
+      const code = (window._hidBuffer || '').trim();
+      window._hidBuffer = '';
+      if (code.length >= 4) {
+        e.preventDefault();
+        if (window._scannerModo === 'presenca' && !document.getElementById('modalScannerEAN')?.classList.contains('hidden')) {
+          window._onScanDecoded?.(code);
+        } else {
+          const busca = document.querySelector('input[placeholder*="Buscar"]');
+          if (busca) { busca.value = code; busca.dispatchEvent(new Event('input', { bubbles: true })); }
+          window._onScanDecoded?.(code);
+        }
+      }
+      return;
+    }
+    if (e.key.length === 1) {
+      window._hidBuffer += e.key;
+      clearTimeout(window._hidTimer);
+      window._hidTimer = setTimeout(function() { window._hidBuffer = ''; }, 120);
+    }
+  });
+};
+
+window.alternarModoAuditoria = function() {
+  const on = document.body.classList.toggle('modo-loja');
+  const btn = document.getElementById('btnModoAuditoria');
+  if (btn) {
+    btn.classList.toggle('bg-emerald-600', on);
+    btn.classList.toggle('text-white', on);
+    btn.classList.toggle('border-emerald-600', on);
+  }
+  try { localStorage.setItem('modoLojaCamino', on ? '1' : '0'); } catch (e) {}
+  window.mostrarToast(on ? 'Modo loja' : 'Modo completo', on ? 'Interface limpa' : 'Todos os painéis');
+  window.atualizarProgressoAuditoria?.();
+};
+
+(function() {
+  const _old = window.atualizarEstatisticas;
+  window.atualizarEstatisticas = function() {
+    if (typeof _old === 'function') _old.apply(this, arguments);
+    window.atualizarProgressoAuditoria?.();
+  };
+})();
+
+(function() {
+  const _rt = window.renderizarTabela;
+  if (typeof _rt !== 'function') return;
+  window.renderizarTabela = function(itens) {
+    _rt.apply(this, arguments);
+    const tbody = document.getElementById('tabelaCorpo');
+    if (!tbody) return;
+    if (!itens || !itens.length) {
+      tbody.innerHTML = '<tr><td colspan="12"><div class="empty-state">' +
+        '<div class="ico"><i class="ph-bold ph-package"></i></div>' +
+        '<p class="font-bold text-slate-800">Nenhum produto nesta visão</p>' +
+        '<p class="text-xs mt-1">Ajuste filtros, faça upload ou use Scan presença.</p></div></td></tr>';
+    }
+    window.atualizarProgressoAuditoria?.();
+  };
+})();
+
+window.registrarPWA = function() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    const swCode = "self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('activate',e=>e.waitUntil(clients.claim()));";
+    const blob = new Blob([swCode], { type: 'text/javascript' });
+    navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(function(){});
+  } catch (e) {}
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+  window._hidInit?.();
+  window.registrarPWA?.();
+  try { if (localStorage.getItem('modoLojaCamino') === '1') document.body.classList.add('modo-loja'); } catch (e) {}
+  setTimeout(function() { window.atualizarProgressoAuditoria?.(); }, 800);
+  window.addEventListener('online', function() {
+    window.processarFilaOffline?.();
+    document.body.classList.remove('is-offline');
+  });
+  window.addEventListener('offline', function() { document.body.classList.add('is-offline'); });
+});
+</script>
+
 </body>
 </html>
