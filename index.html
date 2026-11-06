@@ -4609,8 +4609,8 @@ html[data-tema=escuro] .kpi-compact{background:var(--card)!important}
 /* Lista enxuta: só o essencial; EAN, indústria, contagem e diverg. ficam no modo Completa */
 body:not(.v2-completo) #tabelaCorpo td:nth-child(3),body:not(.v2-completo) #tabelaCorpo td:nth-child(5),
 body:not(.v2-completo) #tabelaCorpo td:nth-child(9),body:not(.v2-completo) #tabelaCorpo td:nth-child(10),
-body:not(.v2-completo) thead th:nth-child(3),body:not(.v2-completo) thead th:nth-child(5),
-body:not(.v2-completo) thead th:nth-child(9),body:not(.v2-completo) thead th:nth-child(10){display:none}
+body:not(.v2-completo) .table-shell thead th:nth-child(3),body:not(.v2-completo) .table-shell thead th:nth-child(5),
+body:not(.v2-completo) .table-shell thead th:nth-child(9),body:not(.v2-completo) .table-shell thead th:nth-child(10){display:none}
 #v2Lista{background:var(--card);color:var(--tinta);border-color:var(--linha)!important;white-space:nowrap}
 @media(max-width:767px){
  .app-header button[onclick*="alternarDensidade"],.app-header button[onclick*="alternarAltoContraste"],.app-header button[onclick*="abrirModalHistorico"],
@@ -4633,6 +4633,20 @@ main#areaAuditoria>*+*{margin-top:.6rem!important}
 .chip-bar{padding:6px 10px!important}
 .table-shell table{min-width:880px}
 .table-shell .overflow-x-auto{-webkit-overflow-scrolling:touch}
+/* Tabela de pré-visualização do upload: colunas fixas, cada título sobre sua coluna */
+#modalUpload table{table-layout:fixed;min-width:840px}
+#modalUpload thead th{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+#modalUpload thead th.text-center{text-align:center}
+#modalUpload thead th:nth-child(1){width:44px}
+#modalUpload thead th:nth-child(2){width:90px}
+#modalUpload thead th:nth-child(3){width:140px}
+#modalUpload thead th:nth-child(5){width:130px}
+#modalUpload thead th:nth-child(6){width:96px}
+#modalUpload thead th:nth-child(7){width:104px}
+#modalUpload thead th:nth-child(8){width:66px}
+#modalUpload thead th:nth-child(9){width:88px}
+#modalUpload td{overflow:hidden}
+#modalUpload td input{min-width:0;max-width:100%}
 /* Seletor Dia / Noite / Auto */
 #v2TemaSel{display:inline-flex;background:rgba(255,255,255,.12);border-radius:999px;padding:2px;gap:2px}
 #v2TemaSel button{display:inline-flex;align-items:center;gap:4px;padding:4px 9px;font-size:11px;font-weight:700;border-radius:999px;color:#C8D0D8!important;background:none!important;border:0!important}
