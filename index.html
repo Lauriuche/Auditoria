@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="description" content="Auditoria de estoque e validade — Camino / Posterus Grajaú">
-  <link rel="manifest" href="data:application/manifest+json,{"name":"Auditoria Camino","short_name":"Auditoria","start_url":".","display":"standalone","background_color":"%23f1f5f9","theme_color":"%23059669","lang":"pt-BR"}">
+  <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Auditoria%20Camino%22%2C%22short_name%22%3A%22Auditoria%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23f1f5f9%22%2C%22theme_color%22%3A%22%23059669%22%2C%22lang%22%3A%22pt-BR%22%7D">
   <title>Auditoria de Estoque — Camino Grajaú</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
@@ -1088,11 +1088,12 @@ window.abrirModalEditarProduto = function(codigo) {
   }
   function iniciarPollingREST() {
     if (restPollTimer) return;
-    restPollTimer = setInterval(() => { sincronizarViaREST(); }, 8000);
+    // O listener onValue é realtime; polling fica apenas como fallback de conectividade.
+    restPollTimer = setInterval(() => { if (!sdkOnline) sincronizarViaREST(); }, 8000);
   }
 
   async function escreverProdutoREST(produto) {
-    const safeKey = String(produto.cod).replace(/\.|#|\$|\[|\]/g, '_');
+    const safeKey = String(produto.cod).replace(/[.#$\/\[\]]/g, '_');
     const { _lastLocalEdit, ...paraSalvar } = produto;
     const body = JSON.stringify({ ...paraSalvar, cod: String(produto.cod), atualizadoEm: new Date().toISOString() });
     const res = await fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${safeKey}.json`, {
@@ -1188,7 +1189,10 @@ window.abrirModalEditarProduto = function(codigo) {
         console.warn('[SDK] Auth', e.code);
       }
 
-      onAuthStateChanged(auth, (user) => console.log('[SDK] auth state', user?.uid || 'none'));
+      onAuthStateChanged(auth, (user) => {
+        console.log('[SDK] auth state', user?.uid || 'none');
+        if (user) window.processarFilaOffline?.();
+      });
       registrarListeners();
 
       setTimeout(async () => {
@@ -1216,6 +1220,7 @@ window.abrirModalEditarProduto = function(codigo) {
     if (ok) {
       atualizarBadge('connected', `Online · ${window.appState.produtos.length} itens`);
       window.mostrarToast?.('Sincronizado', window.appState.produtos.length + ' itens do Firebase.');
+      await window.processarFilaOffline?.();
     } else {
       atualizarBadge('offline', 'Offline · toque p/ reconectar');
       window.mostrarToast?.('Sem conexão', 'Não foi possível ler o Firebase.', 'error');
@@ -1245,7 +1250,7 @@ window.abrirModalEditarProduto = function(codigo) {
 
   window.salvarProdutoNoBanco = async function(produto) {
     if (!produto?.cod) return false;
-    const safeKey = String(produto.cod).replace(/\.|#|\$|\[|\]/g, '_');
+    const safeKey = String(produto.cod).replace(/[.#$\/\[\]]/g, '_');
     produto = { ...produto, cod: String(produto.cod), _lastLocalEdit: Date.now() };
     const idx = window.appState.produtos.findIndex(p => String(p.cod) === String(produto.cod));
     if (idx >= 0) window.appState.produtos[idx] = { ...window.appState.produtos[idx], ...produto };
@@ -1283,45 +1288,33 @@ window.abrirModalEditarProduto = function(codigo) {
     };
 
     let ok = false;
-    isApplyingRemote = true;
     try {
-      const res = await fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${safeKey}.json?_=${Date.now()}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) throw new Error('REST HTTP ' + res.status);
-      // Confirma leitura de volta
-      try {
-        const conf = await fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${safeKey}.json?_=${Date.now()}`, { cache: 'no-store' });
-        if (conf.ok) {
-          const body = await conf.json();
-          if (body && String(body.cod) === String(produto.cod)) ok = true;
-        }
-      } catch (e) { ok = true; } // PUT ok mesmo se confirm falhar
-      if (!ok) ok = true; // PUT 200 já basta
-      console.log('[SAVE] REST OK', safeKey);
-      // Espelha no SDK se disponível (tempo real para outros clients)
+      // Prioriza o SDK autenticado; REST sem token falha quando as regras exigem login.
       if (db) {
         try {
           await set(ref(db, `auditoria_estoque/produtos/${safeKey}`), payload);
-        } catch (e) { console.warn('[SAVE] SDK mirror', e.code || e.message); }
+          ok = true; // set() só resolve após ACK do Realtime Database.
+          console.log('[SAVE] SDK confirmado', safeKey);
+        } catch (sdkErr) {
+          console.warn('[SAVE] SDK falhou, tentando REST:', sdkErr.code || sdkErr.message);
+        }
+      }
+      if (!ok) {
+        const res = await fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${safeKey}.json?_=${Date.now()}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+          let detalhe = ''; try { detalhe = (await res.text()).slice(0, 240); } catch (e) {}
+          throw new Error('Firebase REST HTTP ' + res.status + (detalhe ? ': ' + detalhe : ''));
+        }
+        ok = true;
+        console.log('[SAVE] REST confirmado', safeKey);
       }
     } catch (err) {
-      console.warn('[SAVE] REST falhou:', err.message || err);
+      console.warn('[SAVE] gravação falhou:', err.message || err);
       if (!(arguments[1] && arguments[1].daFila)) window.enfileirarOffline?.(produto);
-      try {
-        if (db) {
-          await set(ref(db, `auditoria_estoque/produtos/${safeKey}`), payload);
-          ok = true;
-          console.log('[SAVE] SDK OK', safeKey);
-        }
-      } catch (err2) {
-        console.error('[SAVE] falhou online', err2.code || err2.message);
-        window.mostrarToast?.('Falha ao salvar online', String(err2.code || err2.message || 'Verifique a conexão'), 'error');
-      }
-    } finally {
-      setTimeout(() => { isApplyingRemote = false; }, 600);
+      window.mostrarToast?.('Falha ao salvar no Firebase', String(err.code || err.message || 'Verifique conexão e regras de acesso.'), 'error');
     }
     if (ok) {
       // remove _lastLocalEdit logo após confirmação para o próximo poll não priorizar local
@@ -1332,6 +1325,47 @@ window.abrirModalEditarProduto = function(codigo) {
     return ok;
   };
 
+  // Escrita multi-localização atômica; update() aguarda confirmação do Realtime Database.
+  window.salvarProdutosEmLote = async function(produtosPorChave) {
+    const entrada = produtosPorChave && typeof produtosPorChave === 'object' ? produtosPorChave : {};
+    const chaves = Object.keys(entrada);
+    if (!chaves.length) return { ok: true, salvos: 0, modo: 'vazio' };
+    const payload = {};
+    chaves.forEach(chave => {
+      const item = { ...(entrada[chave] || {}) };
+      delete item._lastLocalEdit;
+      item.cod = String(item.cod || chave);
+      item.ean = String(item.ean || '').replace(/\D/g, '');
+      item.desc = String(item.desc || '').trim();
+      item.estoque = Number(item.estoque) || 0;
+      item.atualizadoEm = item.atualizadoEm || new Date().toISOString();
+      payload[chave] = item;
+    });
+    let falhaSdk = null;
+    if (db) {
+      try {
+        await update(ref(db, 'auditoria_estoque/produtos'), payload);
+        return { ok: true, salvos: chaves.length, modo: 'sdk' };
+      } catch (err) {
+        falhaSdk = err;
+        console.warn('[UPLOAD] SDK batch falhou:', err.code || err.message);
+      }
+    }
+    try {
+      const res = await fetch(`${RTDB_BASE}/auditoria_estoque/produtos.json?_=${Date.now()}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        let detalhe = ''; try { detalhe = (await res.text()).slice(0, 240); } catch (e) {}
+        throw new Error('Firebase REST HTTP ' + res.status + (detalhe ? ': ' + detalhe : ''));
+      }
+      return { ok: true, salvos: chaves.length, modo: 'rest' };
+    } catch (restErr) {
+      const motivo = falhaSdk ? (falhaSdk.code || falhaSdk.message || '') + ' / ' : '';
+      throw new Error(motivo + (restErr.message || 'Falha no lote Firebase'));
+    }
+  };
 
   window.excluirProduto = async function(codigo) {
     const prod = window.appState.produtos.find(p => p.cod === codigo);
@@ -1340,7 +1374,7 @@ window.abrirModalEditarProduto = function(codigo) {
       window.appState.selecionados.delete(codigo);
       persistirLocalmente(); window.atualizarBarraLote?.(); dispararAtualizacaoUI();
       window.mostrarToast?.('Excluído', 'Mercadoria removida.', 'info');
-      const sk = String(codigo).replace(/[.#$\[\]]/g, '_');
+      const sk = String(codigo).replace(/[.#$\/\[\]]/g, '_');
       try {
         isApplyingRemote = true;
         if (db) await remove(ref(db, `auditoria_estoque/produtos/${sk}`));
@@ -1363,12 +1397,12 @@ window.abrirModalEditarProduto = function(codigo) {
         if (nome === 'todas') await remove(produtosRef);
         else {
           const updates = {};
-          itens.forEach(i => { updates[String(i.cod).replace(/[.#$\[\]]/g, '_')] = null; });
+          itens.forEach(i => { updates[String(i.cod).replace(/[.#$\/\[\]]/g, '_')] = null; });
           await update(produtosRef, updates);
         }
       } else {
         if (nome === 'todas') await fetch(`${RTDB_BASE}/auditoria_estoque/produtos.json`, { method: 'PUT', body: 'null' });
-        else await Promise.all(itens.map(i => fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${String(i.cod).replace(/[.#$\[\]]/g, '_')}.json`, { method: 'DELETE' })));
+        else await Promise.all(itens.map(i => fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${String(i.cod).replace(/[.#$\/\[\]]/g, '_')}.json`, { method: 'DELETE' })));
       }
     } catch(e) { console.warn(e); }
     finally { setTimeout(() => { isApplyingRemote = false; }, 500); }
@@ -1392,7 +1426,7 @@ window.abrirModalEditarProduto = function(codigo) {
       if (db && produtosRef) {
         const updates = {};
         codigos.forEach(cod => {
-          const sk = String(cod).replace(/[.#$\[\]]/g, '_');
+          const sk = String(cod).replace(/[.#$\/\[\]]/g, '_');
           const prod = window.appState.produtos.find(p => p.cod === cod);
           if (tipo === 'presenca' && prod) {
             updates[`${sk}/presenca`] = valor;
@@ -1408,7 +1442,7 @@ window.abrirModalEditarProduto = function(codigo) {
         for (const cod of codigos) {
           const prod = window.appState.produtos.find(p => p.cod === cod);
           if (tipo === 'excluir') {
-            await fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${String(cod).replace(/[.#$\[\]]/g, '_')}.json`, { method: 'DELETE' });
+            await fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${String(cod).replace(/[.#$\/\[\]]/g, '_')}.json`, { method: 'DELETE' });
           } else if (prod) {
             await escreverProdutoREST(prod);
           }
@@ -2647,11 +2681,14 @@ window.salvarEdicaoProduto = async function(e) {
 
   try {
     const ok = await window.salvarProdutoNoBanco(atualizado);
-    window.fecharModalEditarProduto();
-    window.renderizarAbasIndustrias?.();
-    window.aplicarFiltros?.();
-    if (ok) window.mostrarToast('Salvo online', '"' + desc + '" atualizado no Firebase.');
-    else window.mostrarToast('Salvo só no aparelho', 'Não confirmamos gravação no Firebase. Toque no badge para reconectar.', 'error');
+    if (ok) {
+      window.fecharModalEditarProduto();
+      window.renderizarAbasIndustrias?.();
+      window.aplicarFiltros?.();
+      window.mostrarToast(navigator.onLine ? 'Salvo online' : 'Salvo na fila offline', '"' + desc + '" ' + (navigator.onLine ? 'confirmado no Firebase.' : 'será sincronizado ao reconectar.'));
+    } else {
+      window.mostrarToast('Não foi confirmado no Firebase', 'A edição ficou na tela para você tentar novamente. Verifique conexão e permissões.', 'error');
+    }
   } catch (err) {
     console.error(err);
     window.mostrarToast('Erro ao salvar', err.message || 'Tente de novo', 'error');
@@ -2739,6 +2776,7 @@ window.verificarDuplicidadeCampos = function() {
 
 window.salvarNovoProduto = async function(e) {
   e?.preventDefault();
+  const btn = document.getElementById('btnSalvarNovoProd');
   const cod=document.getElementById('novoCod').value.trim();
   const ean=(document.getElementById('novoEan')?.value||'').replace(/\D/g,'').trim();
   const desc=document.getElementById('novoDesc').value.trim().toUpperCase();
@@ -2750,10 +2788,22 @@ window.salvarNovoProduto = async function(e) {
   const dup = window.verificarDuplicidade(cod, desc, null, ean);
   if (dup.nivel === 'bloqueio') { window.mostrarToast('Duplicidade bloqueada', dup.motivo, 'error'); return; }
   if (dup.nivel === 'alerta' && !confirm(dup.motivo + '\n\nDeseja cadastrar mesmo assim?')) return;
-  await window.salvarProdutoNoBanco({ cod, ean, desc, industria, venda, estoque, dde, validade, presenca:'pendente', contagemFisica:'', obs:'' });
-  window.fecharModalNovoProduto();
-  window.renderizarAbasIndustrias();
-  window.mostrarToast('Cadastrado', `"${desc}" incluído.`);
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Salvando...'; }
+  try {
+    const ok = await window.salvarProdutoNoBanco({ cod, ean, desc, industria, venda, estoque, dde, validade, presenca:'pendente', contagemFisica:'', obs:'' });
+    if (ok) {
+      window.fecharModalNovoProduto();
+      window.renderizarAbasIndustrias();
+      window.mostrarToast(navigator.onLine ? 'Cadastrado' : 'Cadastro na fila offline', `"${desc}" ${navigator.onLine ? 'confirmado no Firebase.' : 'será sincronizado ao reconectar.'}`);
+    } else {
+      window.mostrarToast('Não foi confirmado no Firebase', 'Cadastro mantido no formulário para você tentar novamente.', 'error');
+    }
+  } catch (err) {
+    console.error('[NOVO PRODUTO]', err);
+    window.mostrarToast('Erro ao cadastrar', err.message || 'Tente novamente.', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph-bold ph-check"></i> Cadastrar'; }
+  }
 };
 
 /* PDF/print: ver gerarDownloadPDF / imprimirListaSimples no bloco de exportação profissional */
@@ -3409,9 +3459,9 @@ window.normalizarItensExtraidos = function(listaBruta) {
 
     // Se "cod" veio com EAN (13 dígitos) e não há ean separado, separar
     const codDig = cod.replace(/\D/g, '');
-    if (!ean && codDig.length >= 8 && codDig.length <= 14) {
-      ean = codDig;
-      cod = '';
+    if (codDig.length >= 8 && codDig.length <= 14) {
+      if (!ean || ean.length < 8) ean = codDig;
+      cod = ''; // código longo deslocado de coluna é tratado como EAN, não como SKU
     }
     // Se ean veio no campo errado
     if (ean && ean.length < 8) ean = '';
@@ -3426,7 +3476,7 @@ window.normalizarItensExtraidos = function(listaBruta) {
       if (!ean && existente.ean) ean = existente.ean;
     } else {
       if (codDig.length >= 4 && codDig.length <= 7) cod = codDig;
-      else if (!cod && ean) cod = ean.slice(-6); // fallback temporário
+      else if (!cod && ean) cod = 'EAN-' + ean; // evita colisões de códigos pelo sufixo
     }
     if (!cod) cod = `S/COD-${idx + 1}`;
     if (!desc || desc.length < 2) return;
@@ -3546,7 +3596,24 @@ window.extrairDadosDePlanilhaExcel = async function(file) {
   const data = await file.arrayBuffer();
   const wb = window.XLSX.read(data, { type: 'array' });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  // O valor exibido respeita máscaras 0000000000000 e preserva zeros à esquerda do EAN.
+  const rows = [];
+  if (ws && ws['!ref']) {
+    const range = window.XLSX.utils.decode_range(ws['!ref']);
+    for (let r = range.s.r; r <= range.e.r; r++) {
+      const row = [];
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const cell = ws[window.XLSX.utils.encode_cell({ r, c })];
+        if (!cell) { row.push(''); continue; }
+        let valor = cell.w;
+        if (valor === undefined || valor === null || valor === '') {
+          try { valor = window.XLSX.utils.format_cell(cell); } catch (e) { valor = cell.v; }
+        }
+        row.push(valor === undefined || valor === null ? '' : String(valor).trim());
+      }
+      rows.push(row);
+    }
+  }
   const resultado = [];
   let col = { cod: -1, ean: -1, desc: -1, venda: -1, estoque: -1, dde: -1, industria: -1 };
   let cab = false;
@@ -3943,7 +4010,7 @@ window.renderizarPreviewItensIA = function() {
   document.getElementById('totalItensReconhecidos').innerText = itens.length;
   container.classList.remove('hidden');
   itens.forEach((item, idx) => {
-    const existe = window.buscarProdutoCorrespondente(item.cod, item.desc);
+    const existe = window.buscarProdutoCorrespondente(item.cod, item.desc, item.ean);
     if (existe && (!item.cod || String(item.cod).startsWith('S/COD'))) item.cod = existe.cod;
     if (modo === 'apenas_ajuste' && !existe && !item._autoUnchecked) { item.selecionado = false; item._autoUnchecked = true; }
     const estAnt = existe ? Number(existe.estoque || 0) : null;
@@ -3962,10 +4029,10 @@ window.renderizarPreviewItensIA = function() {
     tr.className = item.selecionado ? 'bg-white' : 'bg-slate-100 opacity-60';
     tr.innerHTML = `
       <td class="py-1.5 px-2 text-center"><input type="checkbox" ${item.selecionado ? 'checked' : ''} onchange="window.alternarItemPreviewIA(${idx}, this.checked)" class="w-4 h-4 rounded text-violet-600"></td>
-      <td class="py-1.5 px-1"><input type="text" value="${item.cod || ''}" oninput="window.editarCampoPreviewIA(${idx},'cod',this.value)" class="w-full font-mono font-bold text-xs border rounded px-1 py-1" title="Cód. reduzido"></td>
-      <td class="py-1.5 px-1"><input type="text" value="${item.ean || ''}" oninput="window.editarCampoPreviewIA(${idx},'ean',this.value)" class="w-full font-mono text-[10px] border rounded px-1 py-1 text-slate-600" title="EAN" placeholder="EAN"></td>
-      <td class="py-1.5 px-1"><input type="text" value="${item.desc || ''}" oninput="window.editarCampoPreviewIA(${idx},'desc',this.value)" class="w-full text-xs uppercase border rounded px-1 py-1"></td>
-      <td class="py-1.5 px-1"><input list="listaIndustriasExistentes" type="text" value="${item.industria || ''}" oninput="window.editarCampoPreviewIA(${idx},'industria',this.value)" class="w-full text-xs border rounded px-1 py-1"></td>
+      <td class="py-1.5 px-1"><input type="text" value="${window.escHtml(item.cod || '')}" oninput="window.editarCampoPreviewIA(${idx},'cod',this.value)" class="w-full font-mono font-bold text-xs border rounded px-1 py-1" title="Cód. reduzido"></td>
+      <td class="py-1.5 px-1"><input type="text" value="${window.escHtml(item.ean || '')}" oninput="window.editarCampoPreviewIA(${idx},'ean',this.value)" class="w-full font-mono text-[10px] border rounded px-1 py-1 text-slate-600" title="EAN" placeholder="EAN"></td>
+      <td class="py-1.5 px-1"><input type="text" value="${window.escHtml(item.desc || '')}" oninput="window.editarCampoPreviewIA(${idx},'desc',this.value)" class="w-full text-xs uppercase border rounded px-1 py-1"></td>
+      <td class="py-1.5 px-1"><input list="listaIndustriasExistentes" type="text" value="${window.escHtml(item.industria || '')}" oninput="window.editarCampoPreviewIA(${idx},'industria',this.value)" class="w-full text-xs border rounded px-1 py-1"></td>
       <td class="py-1.5 px-1 text-center font-mono bg-slate-50">${estAnt !== null ? estAnt : '<span class="text-slate-400 text-[10px]">Novo</span>'}</td>
       <td class="py-1.5 px-1 bg-violet-50/30"><input type="number" value="${item.estoque ?? 0}" oninput="window.editarCampoPreviewIA(${idx},'estoque',this.value)" class="w-full text-center font-black text-xs border border-violet-300 rounded px-1 py-1"></td>
       <td class="py-1.5 px-1 text-center text-xs">${varHtml}</td>
@@ -4035,7 +4102,7 @@ window.aplicarDadosImportadosIA = async function() {
     const desc = String(item.desc || 'SEM DESCRIÇÃO').trim().toUpperCase();
     const ean = String(item.ean || '').replace(/\D/g, '');
     const existente = window.buscarProdutoCorrespondente(cod, desc, ean);
-    const safeKey = String(existente ? existente.cod : cod).replace(/\.|#|\$|\[|\]/g, '_');
+    const safeKey = String(existente ? existente.cod : cod).replace(/[.#$\/\[\]]/g, '_');
 
     if (existente) {
       const payload = {
@@ -4090,35 +4157,24 @@ window.aplicarDadosImportadosIA = async function() {
   if (btn) btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Enviando ' + total + ' itens...';
 
   let ok = false;
+  let salvos = 0;
   try {
-    // Um único PATCH no Firebase (muito mais rápido que N puts)
-    const base = (typeof RTDB_BASE !== 'undefined' && RTDB_BASE)
-      ? RTDB_BASE
-      : 'https://banco-de-prompt-815b9-default-rtdb.firebaseio.com';
-    const res = await fetch(base + '/auditoria_estoque/produtos.json?_=' + Date.now(), {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
-      body: JSON.stringify(patchMap)
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    ok = true;
-    console.log('[UPLOAD] PATCH OK', total);
+    const resultado = await window.salvarProdutosEmLote(patchMap);
+    salvos = Number(resultado?.salvos) || 0;
+    ok = resultado?.ok === true && salvos === total;
+    console.log('[UPLOAD] lote confirmado', salvos, '/', total, resultado?.modo || '');
   } catch (err) {
-    console.warn('[UPLOAD] PATCH falhou, tentando um a um...', err);
-    // Fallback: grava em lotes de 5
+    console.warn('[UPLOAD] lote falhou; tentando gravar individualmente:', err);
     const entries = Object.entries(patchMap);
-    let done = 0;
-    for (let i = 0; i < entries.length; i += 5) {
-      const slice = entries.slice(i, i + 5);
-      await Promise.all(slice.map(async ([key, payload]) => {
-        try {
-          await window.salvarProdutoNoBanco(payload);
-          done++;
-          if (btn) btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> ' + done + '/' + total;
-        } catch (e) { console.warn(key, e); }
-      }));
+    for (let i = 0; i < entries.length; i++) {
+      const [key, payload] = entries[i];
+      try {
+        const gravado = await window.salvarProdutoNoBanco(payload, { silencioso: true });
+        if (gravado === true) salvos++;
+      } catch (e) { console.warn('[UPLOAD] falha individual', key, e); }
+      if (btn) btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> ' + (i + 1) + '/' + total;
     }
-    ok = done > 0;
+    ok = salvos === total;
   }
 
   if (typeof window.persistirLocalmente === 'function') {
@@ -4128,17 +4184,19 @@ window.aplicarDadosImportadosIA = async function() {
     localStorage.setItem('auditoria_produtos_cache', JSON.stringify(window.appState.produtos || []));
   } catch (e) {}
 
-  window.fecharModalUpload();
   window.renderizarAbasIndustrias?.();
   window.aplicarFiltros?.();
   window.atualizarEstatisticas?.();
 
   if (ok) {
-    window.mostrarToast('Estoque sincronizado', atualizados + ' atualizados, ' + adicionados + ' novos · online');
-    // Força re-leitura do Firebase
-    setTimeout(() => window.reconectarFirebase?.(), 500);
+    window.fecharModalUpload();
+    const mensagem = navigator.onLine
+      ? `${atualizados} atualizados, ${adicionados} novos · ${salvos} gravados no Firebase`
+      : `${atualizados} atualizados, ${adicionados} novos · ${salvos} na fila offline`;
+    window.mostrarToast(navigator.onLine ? 'Estoque sincronizado' : 'Importação na fila offline', mensagem, navigator.onLine ? 'success' : 'info');
+    if (navigator.onLine) setTimeout(() => window.reconectarFirebase?.(), 500);
   } else {
-    window.mostrarToast('Falha no envio', 'Não conseguiu gravar no Firebase. Toque no badge e tente de novo.', 'error');
+    window.mostrarToast('Upload incompleto', `${salvos} de ${total} produtos confirmados. A prévia foi mantida; verifique conexão/permissões e tente novamente.`, 'error');
   }
   if (btn) {
     btn.disabled = false;
