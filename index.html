@@ -493,11 +493,12 @@ window.abrirModalEditarProduto = function(codigo) {
       <div class="flex items-center flex-wrap gap-1.5">
         <button onclick="aplicarPresencaEmLote('sim')" class="btn-lote bg-emerald-600 hover:bg-emerald-500">Sim</button>
         <button onclick="aplicarPresencaEmLote('nao')" class="btn-lote bg-rose-600 hover:bg-rose-500">Não</button>
+        <button type="button" onclick="window.limparPresencaEmLote?.()" class="btn-lote bg-amber-500 hover:bg-amber-400 text-slate-900" title="Tira o Sim/Não e apaga a contagem dos selecionados (nova auditoria)"><i class="ph-bold ph-eraser"></i> Limpar</button>
         <button type="button" onclick="window.compartilharSelecionadosWhatsApp?.()" class="btn-lote bg-green-500 hover:bg-green-400" title="WhatsApp"><i class="ph-bold ph-whatsapp-logo"></i></button>
         <button type="button" onclick="window.exportarSelecao?.()" class="btn-lote bg-sky-600 hover:bg-sky-500" title="Exportar seleção"><i class="ph-bold ph-export"></i></button>
         <button onclick="abrirModalTransferenciaLote()" class="btn-lote bg-indigo-600 hover:bg-indigo-500">Ind.</button>
         <button onclick="solicitarExclusaoEmLote()" class="btn-lote bg-rose-900/80 hover:bg-rose-700">Excluir</button>
-        <button onclick="desmarcarTodosLote()" class="btn-lote bg-slate-700">Limpar</button>
+        <button onclick="desmarcarTodosLote()" class="btn-lote bg-slate-700" title="Desmarca a seleção (não altera os itens)">Desmarcar</button>
         <button type="button" onclick="window.desfazerUltimaExclusao?.()" class="btn-lote bg-slate-600" title="Ctrl+Z">↩</button>
       </div>
     </div>
@@ -4674,7 +4675,22 @@ main#areaAuditoria>*+*{margin-top:.6rem!important}
     b.onclick=W.alternarListaV2;f.parentNode.insertBefore(b,f.nextSibling);aplicarLista();
   }
 
-/* ---------- Painel de resumo (somente leitura do appState) ---------- */
+/* ---------- Limpar Sim/Não dos selecionados (nova auditoria) ---------- */
+  W.limparPresencaEmLote=function(){
+    var sel=W.appState&&W.appState.selecionados;
+    var cods=sel?Array.from(sel):[];
+    if(!cods.length){if(W.mostrarToast)W.mostrarToast('Nada selecionado','Marque os itens para limpar.','error');return}
+    var lista=W.appState.produtos||[];
+    var itens=lista.filter(function(p){return cods.indexOf(p.cod)>-1||cods.indexOf(String(p.cod))>-1});
+    var marcados=itens.filter(function(p){var c=p.contagemFisica;return (p.presenca&&p.presenca!=='pendente')||(c!==''&&c!=null)}).length;
+    if(!marcados){if(W.mostrarToast)W.mostrarToast('Já está limpo','Os selecionados não têm Sim/Não nem contagem.','info');return}
+    if(!confirm('Limpar '+marcados+' item(ns)?\n\nO Sim/Não volta para pendente e a contagem física é apagada.\nIsso não pode ser desfeito.'))return;
+    itens.forEach(function(p){p.contagemFisica=''});
+    W.executarAcaoEmLote('presenca','pendente');
+    if(W.mostrarToast)W.mostrarToast('Limpo',marcados+' item(ns) prontos para nova auditoria.');
+  };
+
+  /* ---------- Painel de resumo (somente leitura do appState) ---------- */
   function montarPainel(){
     if($('v2Painel'))return;
     var kpi=document.querySelector('#areaAuditoria > .grid.grid-cols-4');
