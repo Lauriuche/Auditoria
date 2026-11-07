@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="description" content="Auditoria de estoque e validade — Camino / Posterus Grajaú">
-  <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Auditoria%20Camino%22%2C%22short_name%22%3A%22Auditoria%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23f1f5f9%22%2C%22theme_color%22%3A%22%23059669%22%2C%22lang%22%3A%22pt-BR%22%7D">
+  <link rel="manifest" href="data:application/manifest+json,{"name":"Auditoria Camino","short_name":"Auditoria","start_url":".","display":"standalone","background_color":"%23f1f5f9","theme_color":"%23059669","lang":"pt-BR"}">
   <title>Auditoria de Estoque — Camino Grajaú</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
@@ -901,9 +901,8 @@ window.abrirModalEditarProduto = function(codigo) {
 </div>
 
 <script type="module">
-  import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-  import { getDatabase, ref, set, update, remove, onValue, goOnline } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+  /* SDK carregado sob demanda: se o Google bloquear o script, o sistema continua funcionando via REST/SSE */
+  let initializeApp, getApps, getAuth, signInAnonymously, getDatabase, ref, set, update, remove, onValue, goOnline;
 
   const firebaseConfig = {
     apiKey: "AIzaSyCo0_0sfWJat4zG7mjdSNE7nsy5xie4SSI",
@@ -916,549 +915,368 @@ window.abrirModalEditarProduto = function(codigo) {
     measurementId: "G-LKLKL0GSYZ"
   };
 
+  /* ===== Sincronização v3 =====
+     • Escrita: REST (PUT/PATCH/DELETE) com tempo limite — nunca trava a tela.
+     • Leitura em tempo real: SDK (onValue) + reserva por stream SSE + conferência a cada 15 s.
+     • Só redesenha a tela quando o banco realmente mudou; não atrapalha quem está digitando. */
   const RTDB_BASE = firebaseConfig.databaseURL;
-  let db = null, auth = null, produtosRef = null, configRef = null, isApplyingRemote = false;
-  let listenersAtivos = false, restPollTimer = null, sdkOnline = false;
+  const URL_PROD = RTDB_BASE + '/auditoria_estoque/produtos';
+  window.RTDB_BASE = RTDB_BASE;
+  let db = null, produtosRef = null, configRef = null;
+  let sdkOnline = false, sse = null, sseTimer = null, pollTimer = null;
+  let ultimoTxt = null, cacheRemoto = {}, uiTimer = null, persistTimer = null, uiTentativas = 0;
+  const escritasPendentes = new Set();   // cods com gravação em andamento
+  const removendo = new Map();           // cod -> instante da exclusão local
   window.appState = { produtos: [], industriaAtiva: 'todas', selecionados: new Set(), itensIAExtraidos: [], isFirebaseConnected: false, geminiApiKey: '', syncMode: 'none' };
 
-  function limparCacheLocal() {
-    try {
-      localStorage.removeItem('auditoria_produtos_cache');
-      sessionStorage.removeItem('auditoria_produtos_cache');
-      window.safeStorageSet?.('auditoria_produtos_cache', '');
-      // limpa restos de versões antigas
-      ['auditoria_cache', 'produtos_cache', 'posterus_produtos'].forEach(k => {
-        try { localStorage.removeItem(k); sessionStorage.removeItem(k); } catch (e) {}
-      });
-      console.log('[CACHE] limpo');
-    } catch (e) { console.warn('[CACHE]', e); }
+  const chaveSegura = c => String(c).replace(/[.#$\[\]\/]/g, '_');
+  const comTimeout = (p, ms, msg) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(msg || 'Tempo esgotado')), ms))]);
+  async function http(url, opcoes = {}, ms = 15000) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms);
+    try { return await fetch(url, { ...opcoes, signal: ctrl.signal }); }
+    finally { clearTimeout(t); }
   }
-  function carregarProdutosLocais() {
-    // Só usa cache se ainda não houver dados (fallback offline)
-    if (window.appState.produtos?.length) return;
-    const salvo = window.safeStorageGet?.('auditoria_produtos_cache');
-    if (salvo && salvo.length > 2) {
-      try {
-        const p = JSON.parse(salvo);
-        if (Array.isArray(p) && p.length) {
-          window.appState.produtos = p.map(x => ({ ...x, cod: String(x.cod || '') }));
-          console.log('[CACHE] fallback offline', p.length);
-          return;
-        }
-      } catch (e) {}
-    }
-    window.appState.produtos = [];
+  function erroLegivel(e) {
+    const m = String(e && (e.message || e.code) || e);
+    if (/40[13]|PERMISSION/i.test(m)) return 'Permissão negada: abra o Firebase > Realtime Database > Regras e libere leitura/escrita.';
+    if (/abort|Tempo/i.test(m)) return 'Conexão lenta: tempo esgotado.';
+    return m;
   }
+
+  /* ---------- cache local (só reserva offline) ---------- */
   function persistirLocalmente() {
-    // Cache só como backup offline — nunca como fonte da verdade
-    try {
-      if (window.appState.produtos) {
-        window.safeStorageSet?.('auditoria_produtos_cache', JSON.stringify(window.appState.produtos));
-      }
-    } catch (e) {}
+    clearTimeout(persistTimer);
+    persistTimer = setTimeout(() => {
+      try {
+        const leve = (window.appState.produtos || []).map(({ fotoRuptura, _lastLocalEdit, ...r }) => r);
+        window.safeStorageSet?.('auditoria_produtos_cache', JSON.stringify(leve));
+      } catch (e) {}
+    }, 800);
   }
-  function dispararAtualizacaoUI() {
+  window.persistirLocalmente = persistirLocalmente;
+  function carregarProdutosLocais() {
+    try {
+      const salvo = window.safeStorageGet?.('auditoria_produtos_cache');
+      if (!salvo || salvo.length < 3) return false;
+      const p = JSON.parse(salvo);
+      if (!Array.isArray(p) || !p.length) return false;
+      window.appState.produtos = p.map(x => ({ ...x, cod: String(x.cod || '') }));
+      return true;
+    } catch (e) { return false; }
+  }
+
+  /* ---------- interface ---------- */
+  function renderAgora() {
     try {
       window.renderizarAbasIndustrias?.();
       if (typeof window.aplicarFiltros === 'function') window.aplicarFiltros();
-      else if (typeof window.renderizarTabela === 'function') window.renderizarTabela(window.appState?.produtos || []);
+      else window.renderizarTabela?.(window.appState?.produtos || []);
       window.atualizarEstatisticas?.();
       if (!window._alertaValidadeShown && (window.appState?.produtos || []).length) {
         window._alertaValidadeShown = true;
         window.mostrarAlertaValidadeInicial?.();
       }
-    } catch (e) {
-      console.error('[UI] dispararAtualizacaoUI', e);
-    }
+    } catch (e) { console.error('[UI]', e); }
+  }
+  const dispararAtualizacaoUI = renderAgora;
+  function agendarUI() {
+    clearTimeout(uiTimer);
+    uiTimer = setTimeout(function tentar() {
+      const a = document.activeElement;
+      const digitando = a && /INPUT|TEXTAREA|SELECT/.test(a.tagName) && a.closest && a.closest('#tabelaCorpo');
+      if (digitando && uiTentativas < 4) { uiTentativas++; uiTimer = setTimeout(tentar, 1200); return; }
+      uiTentativas = 0; renderAgora();
+    }, 120);
   }
   function atualizarBadge(status, msg) {
     const badge = document.getElementById('badgeConexao'); if (!badge) return;
     const base = 'cursor-pointer inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ';
-    if (status === 'connected') {
-      badge.className = base + 'bg-emerald-100 text-emerald-800';
-      badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> ${msg||'Online'}`;
-    } else if (status === 'connecting') {
-      badge.className = base + 'bg-amber-100 text-amber-800';
-      badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> ${msg||'Conectando...'}`;
-    } else if (status === 'error') {
-      badge.className = base + 'bg-rose-100 text-rose-800';
-      badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> ${msg||'Erro'}`;
-    } else {
-      badge.className = base + 'bg-slate-200 text-slate-700';
-      badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> ${msg||'Offline · toque'}`;
-    }
+    const cores = { connected: ['bg-emerald-100 text-emerald-800', 'bg-emerald-500 animate-pulse', 'Online'],
+      connecting: ['bg-amber-100 text-amber-800', 'bg-amber-500 animate-pulse', 'Conectando...'],
+      error: ['bg-rose-100 text-rose-800', 'bg-rose-500', 'Erro'],
+      offline: ['bg-slate-200 text-slate-700', 'bg-slate-400', 'Offline · toque'] };
+    const c = cores[status] || cores.offline;
+    badge.className = base + c[0];
+    badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${c[1]}"></span> ${msg || c[2]}`;
   }
+  window._atualizarBadge = atualizarBadge;
 
-  function mesclarListaRemota(data, opcoes = {}) {
-    const forcarRemoto = opcoes.forcarRemoto !== false; // padrão: remoto manda
-    if (!data) {
-      if (!window.appState.produtos?.length) window.appState.produtos = [];
-      return window.appState.produtos;
-    }
-    const listaRemota = [];
-    Object.keys(data).forEach(k => {
-      const item = data[k];
-      if (!item || typeof item !== 'object') return;
-      if (!item.cod) item.cod = k;
-      item.cod = String(item.cod);
-      item.ean = item.ean || '';
-      listaRemota.push(item);
+  /* ---------- aplicar dados do banco ---------- */
+  function mesclarListaRemota(data) {
+    const local = new Map((window.appState.produtos || []).map(p => [String(p.cod), p]));
+    const agora = Date.now();
+    const fila = new Set((window._filaOffline || []).map(x => String(x.cod)));
+    const protegido = (cod, l) => escritasPendentes.has(cod) || fila.has(cod) || (l && l._lastLocalEdit && agora - l._lastLocalEdit < 6000);
+    const vistos = new Set(), saida = [];
+    Object.keys(data || {}).forEach(k => {
+      const r = data[k];
+      if (!r || typeof r !== 'object') return;
+      const cod = String(r.cod || k);
+      if (removendo.has(cod) && agora - removendo.get(cod) < 10000) return;
+      vistos.add(cod);
+      const l = local.get(cod);
+      if (l && protegido(cod, l)) { saida.push(l); return; }
+      saida.push({ ...r, cod, ean: r.ean || (l && l.ean) || '', contagemFisica: r.contagemFisica ?? '', presenca: r.presenca || 'pendente', obs: r.obs || '', validade: r.validade || '' });
     });
-    const mapaLocal = new Map((window.appState.produtos || []).map(p => [String(p.cod), p]));
-    const mergeado = [];
-
-    listaRemota.forEach(remoto => {
-      const local = mapaLocal.get(String(remoto.cod));
-      // Protege só edição FEITA AGORA (< 4s) para não piscar a UI
-      const recent = local && local._lastLocalEdit && (Date.now() - local._lastLocalEdit < 4000);
-      if (recent && !forcarRemoto) {
-        mergeado.push({
-          ...remoto,
-          ...local,
-          cod: String(local.cod || remoto.cod),
-          _lastLocalEdit: local._lastLocalEdit
-        });
-      } else {
-        // Firebase = verdade
-        mergeado.push({
-          ...remoto,
-          cod: String(remoto.cod),
-          ean: remoto.ean || (local && local.ean) || '',
-          contagemFisica: remoto.contagemFisica ?? '',
-          presenca: remoto.presenca || 'pendente',
-          obs: remoto.obs || '',
-          validade: remoto.validade || ''
-        });
-      }
-    });
-
-    // Itens só locais com edição muito recente (<4s) ainda não confirmada no servidor
-    mapaLocal.forEach((local, cod) => {
-      if (mergeado.some(p => String(p.cod) === cod)) return;
-      if (local._lastLocalEdit && (Date.now() - local._lastLocalEdit < 4000)) {
-        mergeado.push(local);
-      }
-    });
-
-    window.appState.produtos = mergeado;
-    // Após sync online bem-sucedido: atualiza cache e remove sujeira
+    local.forEach((l, cod) => { if (!vistos.has(cod) && protegido(cod, l)) saida.push(l); });
+    removendo.forEach((t, c) => { if (agora - t > 10000) removendo.delete(c); });
+    window.appState.produtos = saida;
+    return saida;
+  }
+  function aplicarRemoto(data, origem, forcar) {
+    const txt = JSON.stringify(data || null);
+    if (!forcar && txt === ultimoTxt) return false;
+    ultimoTxt = txt;
+    const lista = mesclarListaRemota(data);
+    window.appState.isFirebaseConnected = true;
+    window.appState.syncMode = origem;
+    atualizarBadge('connected', (origem === 'sdk' ? 'Tempo real' : 'Online') + ' · ' + lista.length + ' itens');
     persistirLocalmente();
-    return mergeado;
+    window.registrarSyncMeta?.();
+    agendarUI();
+    return true;
   }
 
-  async function sincronizarViaREST() {
+  /* ---------- leitura: REST, SSE, polling ---------- */
+  async function sincronizarViaREST(forcar) {
     try {
-      const bust = '_=' + Date.now();
-      const [prodRes, cfgRes] = await Promise.all([
-        fetch(`${RTDB_BASE}/auditoria_estoque/produtos.json?${bust}`, {
-          cache: 'no-store',
-          headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-        }),
-        fetch(`${RTDB_BASE}/auditoria_estoque/config.json?${bust}`, {
-          cache: 'no-store',
-          headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
-        })
+      const [pr, cr] = await Promise.all([
+        http(`${URL_PROD}.json?_=${Date.now()}`, { cache: 'no-store' }),
+        http(`${RTDB_BASE}/auditoria_estoque/config.json?_=${Date.now()}`, { cache: 'no-store' }).catch(() => null)
       ]);
-      if (!prodRes.ok) throw new Error('HTTP ' + prodRes.status);
-      const data = await prodRes.json();
-      if (isApplyingRemote) return true;
-      const mergeado = mesclarListaRemota(data, { forcarRemoto: true });
-      window.appState.isFirebaseConnected = true;
-      window.appState.syncMode = sdkOnline ? 'sdk' : 'rest';
-      atualizarBadge('connected', `Online · ${mergeado.length} itens`);
-      limparCacheLocal();
-      persistirLocalmente();
-      dispararAtualizacaoUI();
-      if (cfgRes.ok) {
+      if (!pr.ok) throw new Error('HTTP ' + pr.status);
+      const data = await pr.json();
+      cacheRemoto = data || {};
+      aplicarRemoto(data, sdkOnline ? 'sdk' : 'rest', forcar);
+      if (cr && cr.ok) {
         try {
-          const cfg = (await cfgRes.json()) || {};
-          const keyRemota = (cfg.gemini_api_key || '').trim();
-          if (keyRemota) {
-            window.appState.geminiApiKey = keyRemota;
-            window.safeStorageSet?.('gemini_custom_api_key', keyRemota);
-          }
+          const k = ((await cr.json()) || {}).gemini_api_key;
+          if (k && String(k).trim()) { window.appState.geminiApiKey = String(k).trim(); window.safeStorageSet?.('gemini_custom_api_key', window.appState.geminiApiKey); }
         } catch (e) {}
       }
-      console.log('[REST] sync OK', mergeado.length);
       return true;
-    } catch (err) {
-      console.warn('[REST] sync fail', err.message || err);
-      return false;
-    }
+    } catch (e) { console.warn('[REST] leitura', e.message || e); return false; }
   }
-  function iniciarPollingREST() {
-    if (restPollTimer) return;
-    // O listener onValue é realtime; polling fica apenas como fallback de conectividade.
-    restPollTimer = setInterval(() => { if (!sdkOnline) sincronizarViaREST(); }, 8000);
+  function definirCaminho(obj, partes, valor) {
+    if (!partes.length) return valor;
+    const o = (obj && typeof obj === 'object') ? obj : {};
+    const k = partes[0];
+    if (partes.length === 1) { if (valor === null || valor === undefined) delete o[k]; else o[k] = valor; }
+    else { o[k] = definirCaminho(o[k], partes.slice(1), valor); if (o[k] === null || (typeof o[k] === 'object' && !Object.keys(o[k]).length)) delete o[k]; }
+    return o;
   }
-
-  async function escreverProdutoREST(produto) {
-    const safeKey = String(produto.cod).replace(/[.#$\/\[\]]/g, '_');
-    const { _lastLocalEdit, ...paraSalvar } = produto;
-    const body = JSON.stringify({ ...paraSalvar, cod: String(produto.cod), atualizadoEm: new Date().toISOString() });
-    const res = await fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${safeKey}.json`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body
-    });
-    if (!res.ok) throw new Error('REST write ' + res.status);
+  function iniciarSSE() {
+    if (sse || sdkOnline || typeof EventSource === 'undefined') return;
+    try {
+      sse = new EventSource(`${URL_PROD}.json`);
+      const tratar = (ev, patch) => {
+        try {
+          const m = JSON.parse(ev.data); if (!m) return;
+          const partes = String(m.path || '/').split('/').filter(Boolean);
+          if (patch) Object.keys(m.data || {}).forEach(k => { cacheRemoto = definirCaminho(cacheRemoto, partes.concat(k.split('/')), m.data[k]) || {}; });
+          else cacheRemoto = partes.length ? (definirCaminho(cacheRemoto, partes, m.data) || {}) : (m.data || {});
+          aplicarRemoto(cacheRemoto, 'sse');
+        } catch (e) { console.warn('[SSE]', e); }
+      };
+      sse.addEventListener('put', e => tratar(e, false));
+      sse.addEventListener('patch', e => tratar(e, true));
+      sse.onerror = () => { pararSSE(); if (!sdkOnline) sseTimer = setTimeout(iniciarSSE, 5000); };
+    } catch (e) { sse = null; }
   }
+  function pararSSE() { clearTimeout(sseTimer); if (sse) { try { sse.close(); } catch (e) {} sse = null; } }
+  function iniciarPolling() { if (!pollTimer) pollTimer = setInterval(() => { if (!document.hidden) sincronizarViaREST(); }, 15000); }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) sincronizarViaREST(); });
+  window.addEventListener('online', () => { sincronizarViaREST(true); if (!sdkOnline) iniciarSSE(); });
 
   function registrarListeners() {
-    if (!db || listenersAtivos) return;
-    listenersAtivos = true;
+    if (!db || produtosRef) return;
     produtosRef = ref(db, 'auditoria_estoque/produtos');
     configRef = ref(db, 'auditoria_estoque/config');
-
-    onValue(ref(db, '.info/connected'), (snap) => {
-      const online = snap.val() === true;
-      console.log('[SDK] connected=', online);
-      sdkOnline = online === true;
-      if (online) {
-        window.appState.isFirebaseConnected = true;
-        window.appState.syncMode = 'sdk';
-        atualizarBadge('connected', 'Realtime online');
-      }
+    onValue(ref(db, '.info/connected'), s => {
+      sdkOnline = s.val() === true;
+      if (sdkOnline) { pararSSE(); window.appState.syncMode = 'sdk'; }
+      else if (!sse) setTimeout(() => { if (!sdkOnline) iniciarSSE(); }, 3000);
     });
-
-    onValue(configRef, (snap) => {
+    onValue(configRef, s => {
       try {
-        const cfg = snap.val() || {};
-        const keyRemota = (cfg.gemini_api_key || '').trim();
-        if (keyRemota) {
-          window.appState.geminiApiKey = keyRemota;
-          window.safeStorageSet?.('gemini_custom_api_key', keyRemota);
-          const inp = document.getElementById('inputChaveGeminiOpcional');
-          if (inp && !inp.value) inp.value = keyRemota;
-        }
+        const k = String((s.val() || {}).gemini_api_key || '').trim();
+        if (k) { window.appState.geminiApiKey = k; window.safeStorageSet?.('gemini_custom_api_key', k); const i = document.getElementById('inputChaveGeminiOpcional'); if (i && !i.value) i.value = k; }
       } catch (e) {}
-    }, (err) => console.warn('[SDK] config', err.code));
-
-    onValue(produtosRef, (snapshot) => {
-      if (isApplyingRemote) return;
-      try {
-        sdkOnline = true;
-        window.appState.isFirebaseConnected = true;
-        window.appState.syncMode = 'sdk';
-        const mergeado = mesclarListaRemota(snapshot.val(), { forcarRemoto: true });
-        limparCacheLocal();
-        persistirLocalmente();
-        atualizarBadge('connected', `Online · ${mergeado.length}`);
-        dispararAtualizacaoUI();
-      } catch (e) { console.error(e); }
-    }, (error) => {
-      console.error('[SDK] produtos', error.code, error.message);
-      if (error.code === 'PERMISSION_DENIED') {
-        atualizarBadge('error', 'Sem permissão (regras)');
-        window.mostrarToast?.('Permissão negada', 'Firebase → Realtime Database → Regras com read/write true', 'error');
-      }
-      sincronizarViaREST();
-      iniciarPollingREST();
+    }, e => console.warn('[SDK] config', e.code));
+    onValue(produtosRef, s => { sdkOnline = true; cacheRemoto = s.val() || {}; aplicarRemoto(s.val(), 'sdk'); }, e => {
+      console.error('[SDK] produtos', e.code);
+      if (e.code === 'PERMISSION_DENIED') { atualizarBadge('error', 'Sem permissão (regras)'); window.mostrarToast?.('Permissão negada', erroLegivel(e), 'error'); }
+      iniciarSSE();
     });
   }
 
   async function inicializarRealtimeDatabase() {
     atualizarBadge('connecting', 'Conectando...');
-    // Limpa cache antigo para não misturar com Firebase
-    limparCacheLocal();
-    window.appState.produtos = [];
-    const keyLocal = (window.safeStorageGet?.('gemini_custom_api_key') || '').trim();
-    if (keyLocal) window.appState.geminiApiKey = keyLocal;
-    dispararAtualizacaoUI();
-
-    // REST primeiro = fonte da verdade (Android / file:// / WebView)
-    const restOk = await sincronizarViaREST();
-    if (restOk) {
-      atualizarBadge('connected', `Online · ${window.appState.produtos.length} itens`);
-    } else {
-      // Só aí usa cache offline
-      carregarProdutosLocais();
-      dispararAtualizacaoUI();
-      atualizarBadge('offline', 'Offline · toque p/ reconectar');
-    }
-    iniciarPollingREST();
-
+    const k = (window.safeStorageGet?.('gemini_custom_api_key') || '').trim(); if (k) window.appState.geminiApiKey = k;
+    if (carregarProdutosLocais()) { renderAgora(); atualizarBadge('connecting', 'Sincronizando · ' + window.appState.produtos.length + ' itens'); }
+    const ok = await sincronizarViaREST(true);
+    if (!ok) atualizarBadge('offline', 'Offline · toque p/ reconectar');
+    iniciarPolling();
     try {
+      const V = 'https://www.gstatic.com/firebasejs/11.6.1/';
+      const [m1, m2, m3] = await comTimeout(Promise.all([import(V + 'firebase-app.js'), import(V + 'firebase-auth.js'), import(V + 'firebase-database.js')]), 12000, 'SDK não carregou');
+      ({ initializeApp, getApps } = m1); ({ getAuth, signInAnonymously } = m2);
+      ({ getDatabase, ref, set, update, remove, onValue, goOnline } = m3);
       const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-      auth = getAuth(app);
       db = getDatabase(app);
       try { goOnline(db); } catch (e) {}
-
-      try {
-        await signInAnonymously(auth);
-        console.log('[SDK] Auth OK', auth.currentUser?.uid);
-      } catch (e) {
-        console.warn('[SDK] Auth', e.code);
-      }
-
-      onAuthStateChanged(auth, (user) => {
-        console.log('[SDK] auth state', user?.uid || 'none');
-        if (user) window.processarFilaOffline?.();
-      });
+      signInAnonymously(getAuth(app)).catch(e => console.warn('[SDK] auth', e.code));
       registrarListeners();
-
-      setTimeout(async () => {
-        if (!sdkOnline) {
-          const ok = await sincronizarViaREST();
-          if (ok) atualizarBadge('connected', `Online · ${window.appState.produtos.length} itens`);
-          else if (!window.appState.isFirebaseConnected) atualizarBadge('offline', 'Offline · toque');
-        }
-      }, 6000);
-    } catch (err) {
-      console.error('[SDK] init', err);
-      if (!window.appState.isFirebaseConnected) {
-        const ok = await sincronizarViaREST();
-        atualizarBadge(ok ? 'connected' : 'error', ok ? `Online · ${window.appState.produtos.length}` : 'Falha de rede');
-      }
-    }
+    } catch (e) { console.warn('[SDK] init', e); }
+    setTimeout(() => { if (!sdkOnline) iniciarSSE(); }, 3500);
   }
 
   window.reconectarFirebase = async function() {
     atualizarBadge('connecting', 'Reconectando...');
-    limparCacheLocal();
-    isApplyingRemote = false;
-    sdkOnline = false;
-    const ok = await sincronizarViaREST();
-    if (ok) {
-      atualizarBadge('connected', `Online · ${window.appState.produtos.length} itens`);
-      window.mostrarToast?.('Sincronizado', window.appState.produtos.length + ' itens do Firebase.');
-      await window.processarFilaOffline?.();
-    } else {
-      atualizarBadge('offline', 'Offline · toque p/ reconectar');
-      window.mostrarToast?.('Sem conexão', 'Não foi possível ler o Firebase.', 'error');
-    }
+    pararSSE();
+    const ok = await sincronizarViaREST(true);
+    if (ok) { atualizarBadge('connected', 'Online · ' + window.appState.produtos.length + ' itens'); window.mostrarToast?.('Sincronizado', window.appState.produtos.length + ' itens do Firebase.'); }
+    else { atualizarBadge('offline', 'Offline · toque p/ reconectar'); window.mostrarToast?.('Sem conexão', 'Não foi possível ler o Firebase.', 'error'); }
     try { if (db) goOnline(db); } catch (e) {}
+    if (!sdkOnline) iniciarSSE();
   };
+
+  /* ---------- escrita ---------- */
+  async function gravarRaiz(metodo, caminho, corpo) {
+    const res = await http(`${RTDB_BASE}/auditoria_estoque/${caminho}.json`, { method: metodo, headers: { 'Content-Type': 'application/json' }, body: corpo === undefined ? undefined : JSON.stringify(corpo) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+  }
+  async function gravarComReserva(metodo, caminho, corpo, aplicarSDK) {
+    try { await gravarRaiz(metodo, caminho, corpo); return true; }
+    catch (e) {
+      if (!db || !/40[13]/.test(String(e.message))) throw e;
+      await comTimeout(aplicarSDK(), 8000, 'Tempo esgotado no SDK'); return true;
+    }
+  }
 
   window.salvarChaveGeminiNoBanco = async function(chave) {
     const key = String(chave || '').trim();
-    window.appState.geminiApiKey = key;
-    window.safeStorageSet?.('gemini_custom_api_key', key);
+    window.appState.geminiApiKey = key; window.safeStorageSet?.('gemini_custom_api_key', key);
     try {
-      if (db) {
-        await set(ref(db, 'auditoria_estoque/config/gemini_api_key'), key || null);
-      } else {
-        const res = await fetch(`${RTDB_BASE}/auditoria_estoque/config/gemini_api_key.json`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(key || null)
-        });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-      }
+      await gravarComReserva('PUT', 'config/gemini_api_key', key || null, () => set(ref(db, 'auditoria_estoque/config/gemini_api_key'), key || null));
       window.mostrarToast?.(key ? 'Chave Gemini salva no banco' : 'Chave removida', key ? 'Sincronizada no Firebase.' : 'Removida.', 'success');
-    } catch (err) {
-      console.warn(err);
-      window.mostrarToast?.('Erro ao salvar chave', err.message || 'Ficou só local.', 'error');
-    }
+    } catch (err) { window.mostrarToast?.('Erro ao salvar chave', erroLegivel(err), 'error'); }
   };
 
-  window.salvarProdutoNoBanco = async function(produto) {
-    if (!produto?.cod) return false;
-    const safeKey = String(produto.cod).replace(/[.#$\/\[\]]/g, '_');
-    produto = { ...produto, cod: String(produto.cod), _lastLocalEdit: Date.now() };
-    const idx = window.appState.produtos.findIndex(p => String(p.cod) === String(produto.cod));
-    if (idx >= 0) window.appState.produtos[idx] = { ...window.appState.produtos[idx], ...produto };
-    else window.appState.produtos.push(produto);
+  window.salvarProdutoNoBanco = async function(produto, opcoes) {
+    opcoes = opcoes || {};
+    if (!produto || produto.cod === undefined || produto.cod === '') return false;
+    const cod = String(produto.cod);
+    produto = { ...produto, cod, _lastLocalEdit: Date.now() };
+    const lista = window.appState.produtos;
+    const idx = lista.findIndex(p => String(p.cod) === cod);
+    if (idx >= 0) lista[idx] = { ...lista[idx], ...produto }; else lista.push(produto);
     persistirLocalmente();
-    if (!(arguments[1] && arguments[1].silencioso)) {
-      dispararAtualizacaoUI();
-    } else {
-      window.atualizarEstatisticas?.();
-      window.atualizarContadoresChips?.();
-    }
-    // Offline: enfileira e sai (UI já atualizada)
-    if (!navigator.onLine && !(arguments[1] && arguments[1].daFila)) {
+    if (!opcoes.silencioso) renderAgora(); else { window.atualizarEstatisticas?.(); window.atualizarContadoresChips?.(); }
+
+    if (!navigator.onLine && !opcoes.daFila) {
       window.enfileirarOffline?.(produto);
       window.mostrarToast?.('Offline', 'Salvo na fila · sincroniza depois', 'info');
       return true;
     }
-
-    const { _lastLocalEdit, ...paraSalvar } = produto;
+    const limpo = {};
+    Object.keys(produto).forEach(k => { if (k[0] !== '_' && produto[k] !== undefined) limpo[k] = produto[k]; });
     const payload = {
-      ...paraSalvar,
-      cod: String(produto.cod),
-      ean: produto.ean || '',
-      desc: produto.desc || '',
-      industria: produto.industria || '',
-      venda: Number(produto.venda) || 0,
-      estoque: Number(produto.estoque) || 0,
-      dde: Number(produto.dde) || 0,
+      ...limpo, cod,
+      ean: produto.ean || '', desc: produto.desc || '', industria: produto.industria || '',
+      venda: Number(produto.venda) || 0, estoque: Number(produto.estoque) || 0, dde: Number(produto.dde) || 0,
       validade: window.obterValidadePrincipal?.(produto) || produto.validade || '',
       lotes: Array.isArray(produto.lotes) ? produto.lotes : [],
-      presenca: produto.presenca || 'pendente',
-      contagemFisica: produto.contagemFisica ?? '',
-      obs: produto.obs || '',
+      presenca: produto.presenca || 'pendente', contagemFisica: produto.contagemFisica ?? '', obs: produto.obs || '',
       atualizadoEm: new Date().toISOString()
     };
-
-    let ok = false;
+    escritasPendentes.add(cod);
     try {
-      // Prioriza o SDK autenticado; REST sem token falha quando as regras exigem login.
-      if (db) {
-        try {
-          await set(ref(db, `auditoria_estoque/produtos/${safeKey}`), payload);
-          ok = true; // set() só resolve após ACK do Realtime Database.
-          console.log('[SAVE] SDK confirmado', safeKey);
-        } catch (sdkErr) {
-          console.warn('[SAVE] SDK falhou, tentando REST:', sdkErr.code || sdkErr.message);
-        }
-      }
-      if (!ok) {
-        const res = await fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${safeKey}.json?_=${Date.now()}`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
-          body: JSON.stringify(payload)
-        });
-        if (!res.ok) {
-          let detalhe = ''; try { detalhe = (await res.text()).slice(0, 240); } catch (e) {}
-          throw new Error('Firebase REST HTTP ' + res.status + (detalhe ? ': ' + detalhe : ''));
-        }
-        ok = true;
-        console.log('[SAVE] REST confirmado', safeKey);
-      }
+      const sk = chaveSegura(cod);
+      await gravarComReserva('PUT', 'produtos/' + sk, payload, () => set(ref(db, 'auditoria_estoque/produtos/' + sk), payload));
+      return true;
     } catch (err) {
-      console.warn('[SAVE] gravação falhou:', err.message || err);
-      if (!(arguments[1] && arguments[1].daFila)) window.enfileirarOffline?.(produto);
-      window.mostrarToast?.('Falha ao salvar no Firebase', String(err.code || err.message || 'Verifique conexão e regras de acesso.'), 'error');
-    }
-    if (ok) {
-      // remove _lastLocalEdit logo após confirmação para o próximo poll não priorizar local
-      const i2 = window.appState.produtos.findIndex(p => String(p.cod) === String(produto.cod));
-      if (i2 >= 0) delete window.appState.produtos[i2]._lastLocalEdit;
-      persistirLocalmente();
-    }
-    return ok;
-  };
-
-  // Escrita multi-localização atômica; update() aguarda confirmação do Realtime Database.
-  window.salvarProdutosEmLote = async function(produtosPorChave) {
-    const entrada = produtosPorChave && typeof produtosPorChave === 'object' ? produtosPorChave : {};
-    const chaves = Object.keys(entrada);
-    if (!chaves.length) return { ok: true, salvos: 0, modo: 'vazio' };
-    const payload = {};
-    chaves.forEach(chave => {
-      const item = { ...(entrada[chave] || {}) };
-      delete item._lastLocalEdit;
-      item.cod = String(item.cod || chave);
-      item.ean = String(item.ean || '').replace(/\D/g, '');
-      item.desc = String(item.desc || '').trim();
-      item.estoque = Number(item.estoque) || 0;
-      item.atualizadoEm = item.atualizadoEm || new Date().toISOString();
-      payload[chave] = item;
-    });
-    let falhaSdk = null;
-    if (db) {
-      try {
-        await update(ref(db, 'auditoria_estoque/produtos'), payload);
-        return { ok: true, salvos: chaves.length, modo: 'sdk' };
-      } catch (err) {
-        falhaSdk = err;
-        console.warn('[UPLOAD] SDK batch falhou:', err.code || err.message);
-      }
-    }
-    try {
-      const res = await fetch(`${RTDB_BASE}/auditoria_estoque/produtos.json?_=${Date.now()}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) {
-        let detalhe = ''; try { detalhe = (await res.text()).slice(0, 240); } catch (e) {}
-        throw new Error('Firebase REST HTTP ' + res.status + (detalhe ? ': ' + detalhe : ''));
-      }
-      return { ok: true, salvos: chaves.length, modo: 'rest' };
-    } catch (restErr) {
-      const motivo = falhaSdk ? (falhaSdk.code || falhaSdk.message || '') + ' / ' : '';
-      throw new Error(motivo + (restErr.message || 'Falha no lote Firebase'));
+      console.warn('[SAVE]', err);
+      if (!opcoes.daFila) window.enfileirarOffline?.(produto);
+      window.mostrarToast?.('Não gravou no Firebase', erroLegivel(err) + ' Ficou na fila.', 'error');
+      return false;
+    } finally {
+      setTimeout(() => escritasPendentes.delete(cod), 2500);
     }
   };
 
   window.excluirProduto = async function(codigo) {
-    const prod = window.appState.produtos.find(p => p.cod === codigo);
-    window.confirmDialog('Remover?', `Excluir "${prod?.desc || codigo}"?`, async () => {
-      window.appState.produtos = window.appState.produtos.filter(p => p.cod !== codigo);
-      window.appState.selecionados.delete(codigo);
-      persistirLocalmente(); window.atualizarBarraLote?.(); dispararAtualizacaoUI();
+    const cod = String(codigo);
+    const prod = window.appState.produtos.find(p => String(p.cod) === cod);
+    window.confirmDialog('Remover?', `Excluir "${prod?.desc || cod}"?`, async () => {
+      window.appState.produtos = window.appState.produtos.filter(p => String(p.cod) !== cod);
+      window.appState.selecionados.delete(cod);
+      removendo.set(cod, Date.now());
+      persistirLocalmente(); window.atualizarBarraLote?.(); renderAgora();
       window.mostrarToast?.('Excluído', 'Mercadoria removida.', 'info');
-      const sk = String(codigo).replace(/[.#$\/\[\]]/g, '_');
-      try {
-        isApplyingRemote = true;
-        if (db) await remove(ref(db, `auditoria_estoque/produtos/${sk}`));
-        else await fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${sk}.json`, { method: 'DELETE' });
-      } catch(e) {
-        try { await fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${sk}.json`, { method: 'DELETE' }); } catch(e2) {}
-      } finally { setTimeout(() => { isApplyingRemote = false; }, 500); }
+      const sk = chaveSegura(cod);
+      try { await gravarComReserva('DELETE', 'produtos/' + sk, undefined, () => remove(ref(db, 'auditoria_estoque/produtos/' + sk))); }
+      catch (e) { window.mostrarToast?.('Exclusão não confirmada', erroLegivel(e), 'error'); removendo.delete(cod); }
     });
   };
 
   window.limparIndustriaNoBanco = async function(nome) {
-    const itens = window.appState.produtos.filter(p => nome === 'todas' || (p.industria||'').trim().toLowerCase() === nome.trim().toLowerCase());
+    const alvo = String(nome).trim().toLowerCase();
+    const todas = nome === 'todas';
+    const itens = window.appState.produtos.filter(p => todas || (p.industria || '').trim().toLowerCase() === alvo);
     if (!itens.length) return;
-    window.appState.produtos = window.appState.produtos.filter(p => nome !== 'todas' && (p.industria||'').trim().toLowerCase() !== nome.trim().toLowerCase());
-    window.appState.selecionados.clear(); persistirLocalmente(); window.atualizarBarraLote?.(); dispararAtualizacaoUI();
+    const agora = Date.now();
+    itens.forEach(i => removendo.set(String(i.cod), agora));
+    window.appState.produtos = window.appState.produtos.filter(p => !itens.includes(p));
+    window.appState.selecionados.clear(); persistirLocalmente(); window.atualizarBarraLote?.(); renderAgora();
     window.mostrarToast?.('Limpeza', `Indústria "${nome}" limpa.`, 'info');
     try {
-      isApplyingRemote = true;
-      if (db && produtosRef) {
-        if (nome === 'todas') await remove(produtosRef);
-        else {
-          const updates = {};
-          itens.forEach(i => { updates[String(i.cod).replace(/[.#$\/\[\]]/g, '_')] = null; });
-          await update(produtosRef, updates);
-        }
-      } else {
-        if (nome === 'todas') await fetch(`${RTDB_BASE}/auditoria_estoque/produtos.json`, { method: 'PUT', body: 'null' });
-        else await Promise.all(itens.map(i => fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${String(i.cod).replace(/[.#$\/\[\]]/g, '_')}.json`, { method: 'DELETE' })));
+      if (todas) await gravarComReserva('PUT', 'produtos', null, () => remove(produtosRef));
+      else {
+        const up = {}; itens.forEach(i => { up[chaveSegura(i.cod)] = null; });
+        await gravarComReserva('PATCH', 'produtos', up, () => update(produtosRef, up));
       }
-    } catch(e) { console.warn(e); }
-    finally { setTimeout(() => { isApplyingRemote = false; }, 500); }
+    } catch (e) { window.mostrarToast?.('Limpeza não confirmada', erroLegivel(e), 'error'); }
   };
 
   window.executarAcaoEmLote = async function(tipo, valor) {
-    const codigos = Array.from(window.appState.selecionados); if (!codigos.length) return;
-    codigos.forEach(cod => {
-      const prod = window.appState.produtos.find(p => p.cod === cod); if (!prod) return;
-      prod._lastLocalEdit = Date.now();
+    const codigos = Array.from(window.appState.selecionados).map(String); if (!codigos.length) return;
+    const set_ = new Set(codigos), agora = Date.now(), up = {}, tocados = [];
+    window.appState.produtos.forEach(prod => {
+      const cod = String(prod.cod); if (!set_.has(cod)) return;
+      const sk = chaveSegura(cod);
+      if (tipo === 'excluir') { up[sk] = null; removendo.set(cod, agora); return; }
+      prod._lastLocalEdit = agora; tocados.push(cod);
       if (tipo === 'presenca') {
         let nc = prod.contagemFisica;
         if (valor === 'nao' && (nc === '' || nc === undefined)) nc = '0';
         prod.presenca = valor; prod.contagemFisica = nc;
-      } else if (tipo === 'trocarIndustria') prod.industria = valor;
-      else if (tipo === 'excluir') window.appState.produtos = window.appState.produtos.filter(p => p.cod !== cod);
-    });
-    persistirLocalmente(); window.appState.selecionados.clear(); window.atualizarBarraLote?.(); dispararAtualizacaoUI();
-    try {
-      isApplyingRemote = true;
-      if (db && produtosRef) {
-        const updates = {};
-        codigos.forEach(cod => {
-          const sk = String(cod).replace(/[.#$\/\[\]]/g, '_');
-          const prod = window.appState.produtos.find(p => p.cod === cod);
-          if (tipo === 'presenca' && prod) {
-            updates[`${sk}/presenca`] = valor;
-            updates[`${sk}/contagemFisica`] = prod.contagemFisica;
-            updates[`${sk}/atualizadoEm`] = new Date().toISOString();
-          } else if (tipo === 'trocarIndustria' && prod) {
-            updates[`${sk}/industria`] = valor;
-            updates[`${sk}/atualizadoEm`] = new Date().toISOString();
-          } else if (tipo === 'excluir') updates[sk] = null;
-        });
-        await update(produtosRef, updates);
-      } else {
-        for (const cod of codigos) {
-          const prod = window.appState.produtos.find(p => p.cod === cod);
-          if (tipo === 'excluir') {
-            await fetch(`${RTDB_BASE}/auditoria_estoque/produtos/${String(cod).replace(/[.#$\/\[\]]/g, '_')}.json`, { method: 'DELETE' });
-          } else if (prod) {
-            await escreverProdutoREST(prod);
-          }
-        }
+        up[sk + '/presenca'] = valor; up[sk + '/contagemFisica'] = nc ?? ''; up[sk + '/atualizadoEm'] = new Date().toISOString();
+      } else if (tipo === 'trocarIndustria') {
+        prod.industria = valor; up[sk + '/industria'] = valor; up[sk + '/atualizadoEm'] = new Date().toISOString();
       }
-    } catch(e) { console.warn(e); }
-    finally { setTimeout(() => { isApplyingRemote = false; }, 500); }
+    });
+    if (tipo === 'excluir') window.appState.produtos = window.appState.produtos.filter(p => !set_.has(String(p.cod)));
+    tocados.forEach(c => escritasPendentes.add(c));
+    persistirLocalmente(); window.appState.selecionados.clear(); window.atualizarBarraLote?.(); renderAgora();
+    try {
+      const chaves = Object.keys(up), TAM = 600;
+      for (let i = 0; i < chaves.length; i += TAM) {
+        const fatia = {}; chaves.slice(i, i + TAM).forEach(k => { fatia[k] = up[k]; });
+        await gravarComReserva('PATCH', 'produtos', fatia, () => update(produtosRef, fatia));
+      }
+    } catch (e) {
+      window.mostrarToast?.('Alteração em lote não confirmada', erroLegivel(e), 'error');
+      tocados.forEach(c => { const p = window.appState.produtos.find(x => String(x.cod) === c); if (p) window.enfileirarOffline?.(p); });
+    } finally { setTimeout(() => tocados.forEach(c => escritasPendentes.delete(c)), 2500); }
   };
 
   window.addEventListener('DOMContentLoaded', () => {
     inicializarRealtimeDatabase();
-    const hoje = window.hojeLocalISO();
-    const di = document.getElementById('auditorData'); if (di && !di.value) di.value = hoje;
+    const di = document.getElementById('auditorData'); if (di) di.value = window.hojeLocalISO();
     const an = window.safeStorageGet?.('auditorNomePosterus'); if (an) document.getElementById('auditorNome').value = an;
     const asup = window.safeStorageGet?.('auditorSupervisoraPosterus'); if (asup) { const s = document.getElementById('auditorSupervisora'); if (s) s.value = asup; }
-    const adt = window.safeStorageGet?.('auditorDataPosterus'); if (adt) { const d = document.getElementById('auditorData'); if (d) d.value = adt; }
     const obs = window.safeStorageGet?.('auditorObsPosterus'); if (obs) document.getElementById('obsGerais').value = obs;
   });
 </script>
@@ -2681,14 +2499,11 @@ window.salvarEdicaoProduto = async function(e) {
 
   try {
     const ok = await window.salvarProdutoNoBanco(atualizado);
-    if (ok) {
-      window.fecharModalEditarProduto();
-      window.renderizarAbasIndustrias?.();
-      window.aplicarFiltros?.();
-      window.mostrarToast(navigator.onLine ? 'Salvo online' : 'Salvo na fila offline', '"' + desc + '" ' + (navigator.onLine ? 'confirmado no Firebase.' : 'será sincronizado ao reconectar.'));
-    } else {
-      window.mostrarToast('Não foi confirmado no Firebase', 'A edição ficou na tela para você tentar novamente. Verifique conexão e permissões.', 'error');
-    }
+    window.fecharModalEditarProduto();
+    window.renderizarAbasIndustrias?.();
+    window.aplicarFiltros?.();
+    if (ok) window.mostrarToast('Salvo online', '"' + desc + '" atualizado no Firebase.');
+    else window.mostrarToast('Salvo só no aparelho', 'Não confirmamos gravação no Firebase. Toque no badge para reconectar.', 'error');
   } catch (err) {
     console.error(err);
     window.mostrarToast('Erro ao salvar', err.message || 'Tente de novo', 'error');
@@ -2776,7 +2591,6 @@ window.verificarDuplicidadeCampos = function() {
 
 window.salvarNovoProduto = async function(e) {
   e?.preventDefault();
-  const btn = document.getElementById('btnSalvarNovoProd');
   const cod=document.getElementById('novoCod').value.trim();
   const ean=(document.getElementById('novoEan')?.value||'').replace(/\D/g,'').trim();
   const desc=document.getElementById('novoDesc').value.trim().toUpperCase();
@@ -2788,22 +2602,10 @@ window.salvarNovoProduto = async function(e) {
   const dup = window.verificarDuplicidade(cod, desc, null, ean);
   if (dup.nivel === 'bloqueio') { window.mostrarToast('Duplicidade bloqueada', dup.motivo, 'error'); return; }
   if (dup.nivel === 'alerta' && !confirm(dup.motivo + '\n\nDeseja cadastrar mesmo assim?')) return;
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Salvando...'; }
-  try {
-    const ok = await window.salvarProdutoNoBanco({ cod, ean, desc, industria, venda, estoque, dde, validade, presenca:'pendente', contagemFisica:'', obs:'' });
-    if (ok) {
-      window.fecharModalNovoProduto();
-      window.renderizarAbasIndustrias();
-      window.mostrarToast(navigator.onLine ? 'Cadastrado' : 'Cadastro na fila offline', `"${desc}" ${navigator.onLine ? 'confirmado no Firebase.' : 'será sincronizado ao reconectar.'}`);
-    } else {
-      window.mostrarToast('Não foi confirmado no Firebase', 'Cadastro mantido no formulário para você tentar novamente.', 'error');
-    }
-  } catch (err) {
-    console.error('[NOVO PRODUTO]', err);
-    window.mostrarToast('Erro ao cadastrar', err.message || 'Tente novamente.', 'error');
-  } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph-bold ph-check"></i> Cadastrar'; }
-  }
+  await window.salvarProdutoNoBanco({ cod, ean, desc, industria, venda, estoque, dde, validade, presenca:'pendente', contagemFisica:'', obs:'' });
+  window.fecharModalNovoProduto();
+  window.renderizarAbasIndustrias();
+  window.mostrarToast('Cadastrado', `"${desc}" incluído.`);
 };
 
 /* PDF/print: ver gerarDownloadPDF / imprimirListaSimples no bloco de exportação profissional */
@@ -3367,7 +3169,7 @@ window.buscarProdutoCorrespondente = function(codExtraido, descExtraida, eanExtr
     const porEan = lista.find(p => window.eanEquivale(p.ean, eanLimpo) || window.eanEquivale(p.ean, eanNorm));
     if (porEan) return porEan;
   }
-  if (codLimpo && codLimpo.length >= 4) {
+  if (codLimpo && codLimpo.length >= 3) {
     const porCod = lista.find(p => {
       const pCod = String(p.cod || '').replace(/[^\d]/g, '').trim();
       return pCod === codLimpo || pCod.replace(/^0+/, '') === codLimpo.replace(/^0+/, '');
@@ -3407,7 +3209,7 @@ window.limparDescricaoOCR = function(texto) {
 
   // Remove lixo no INÍCIO antes da primeira letra (©@1925... ESP → ESP)
   // Se começa com símbolos/dígitos longos sem sentido de cód. curto
-  s = s.replace(/^[^A-Za-zÁ-ú]+/, function(prefix) {
+  s = s.replace(/^[^A-Za-z0-9Á-ú]+/, function(prefix) {
     const dig = prefix.replace(/\D/g, '');
     // se parece EAN solto no começo (8–14 dígitos), devolve vazio (será tratado fora)
     return '';
@@ -3420,7 +3222,7 @@ window.limparDescricaoOCR = function(texto) {
   s = s.replace(/\s+(ML|G|GR|KG|L|UN|PCT|CX)\s*$/i, '$1');
 
   // Remove caracteres ainda inválidos restantes (mantém letras, números, espaço, % . - /)
-  s = s.replace(/[^A-Z0-9ÁÉÍÓÚÂÊÔÃÕÇ\s\-%./]/gi, ' ').replace(/\s+/g, ' ').trim();
+  s = s.replace(/[^A-Z0-9À-ÿ\s\-%./,+&()']/gi, ' ').replace(/\s+/g, ' ').trim();
 
   return s;
 };
@@ -3459,13 +3261,13 @@ window.normalizarItensExtraidos = function(listaBruta) {
 
     // Se "cod" veio com EAN (13 dígitos) e não há ean separado, separar
     const codDig = cod.replace(/\D/g, '');
-    if (codDig.length >= 8 && codDig.length <= 14) {
-      if (!ean || ean.length < 8) ean = codDig;
-      cod = ''; // código longo deslocado de coluna é tratado como EAN, não como SKU
+    if (!ean && codDig.length >= 8 && codDig.length <= 14) {
+      ean = codDig;
+      cod = '';
     }
     // Se ean veio no campo errado
     if (ean && ean.length < 8) ean = '';
-    if (codDig.length >= 4 && codDig.length <= 7) cod = codDig;
+    if (codDig.length >= 3 && codDig.length <= 7) cod = codDig;
 
     if (/^(FILIAL|PRODUTO|DESCRI|QTD\s*VEND|ESTOQUE|TOTAL|CODIGO|CÓDIGO)/i.test(desc)) return;
     const existente = window.buscarProdutoCorrespondente(cod, desc, ean);
@@ -3475,8 +3277,8 @@ window.normalizarItensExtraidos = function(listaBruta) {
       if (!ind) ind = existente.industria;
       if (!ean && existente.ean) ean = existente.ean;
     } else {
-      if (codDig.length >= 4 && codDig.length <= 7) cod = codDig;
-      else if (!cod && ean) cod = 'EAN-' + ean; // evita colisões de códigos pelo sufixo
+      if (codDig.length >= 3 && codDig.length <= 7) cod = codDig;
+      else if (!cod && ean) cod = ean; // sem código reduzido: usa o EAN inteiro
     }
     if (!cod) cod = `S/COD-${idx + 1}`;
     if (!desc || desc.length < 2) return;
@@ -3502,6 +3304,49 @@ window.normalizarItensExtraidos = function(listaBruta) {
  *   CÓD REDUZIDO | EAN (código de barras) | DESCRIÇÃO | ESTOQUE
  * Ex.: 636401  7898174850322  AZEITONA VDE TIO PACO INT C/CAR VD 100G  73,00
  */
+window.ehNumeroCelula = function(v) {
+  const t = String(v == null ? '' : v).trim();
+  return /^-?\d{1,3}(?:\.\d{3})+(?:,\d+)?$/.test(t) || /^-?\d+(?:[.,]\d+)?$/.test(t);
+};
+
+/**
+ * Lê uma linha dividida em células (planilha, PDF com colunas, texto com TAB) pelo TIPO de cada célula,
+ * sem depender da ordem das colunas:
+ *   texto (descrição) = células com letras · antes dela: código reduzido (3–7 dígitos) e EAN (8–14 dígitos)
+ *   depois dela: números = estoque (1 número) | venda, estoque (2) | venda, estoque, DDE (3)
+ */
+window.interpretarCelulas = function(cellsBrutas) {
+  const cells = (cellsBrutas || []).map(c => String(c == null ? '' : c).replace(/[©®™|¦_~]/g, ' ').replace(/@/g, '0').replace(/\s+/g, ' ').trim()).filter(c => c !== '');
+  if (cells.length < 2) return null;
+  const temLetra = c => /[A-Za-zÀ-ÿ]/.test(c) && !window.ehNumeroCelula(c);
+  let f = -1, l = -1;
+  cells.forEach((c, i) => { if (temLetra(c)) { if (f < 0) f = i; l = i; } });
+  if (f < 0) return null;
+  const desc = cells.slice(f, l + 1).join(' ');
+  if (!/[A-Za-zÀ-ÿ]{2,}/.test(desc)) return null;
+  const limpaDig = c => c.replace(/[\s.\-]/g, '');
+  let ean = '', cod = '';
+  cells.slice(0, f).forEach(c => {
+    const d = limpaDig(c);
+    if (!/^\d+$/.test(d)) return;
+    if (!ean && d.length >= 8 && d.length <= 14) ean = d;
+    else if (!cod && d.length >= 3 && d.length <= 7) cod = d;
+  });
+  const nums = [];
+  cells.slice(l + 1).forEach(c => {
+    const d = limpaDig(c);
+    if (/^\d+$/.test(d) && d.length >= 8 && d.length <= 14) { if (!ean) ean = d; return; }
+    if (window.ehNumeroCelula(c)) nums.push(c);
+  });
+  if (!cod && !ean && !nums.length) return null;
+  const N = v => window.limparNumeroOCR(v, 0);
+  let venda = 0, estoque = 0, dde = 0;
+  if (nums.length === 1) estoque = N(nums[0]);
+  else if (nums.length === 2) { venda = N(nums[0]); estoque = N(nums[1]); }
+  else if (nums.length >= 3) { venda = N(nums[0]); estoque = N(nums[1]); dde = N(nums[2]); }
+  return { cod, ean, desc, estoque, venda, dde };
+};
+
 window.extrairItensDeTextoBruto = function(texto) {
   const linhas = (texto || '').split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 2);
   const resultado = [];
@@ -3510,6 +3355,12 @@ window.extrairItensDeTextoBruto = function(texto) {
     let linha = linhaBruta.replace(/[©®™]/g, ' ').replace(/@/g, '0').replace(/[|¦_~]/g, ' ').replace(/\t+/g, ' ').replace(/\s+/g, ' ').trim();
     // Pula cabeçalho
     if (/^(c[oó]digo|cod\.?|ean|descri|produto|estoque|psm|filial|total|qtd)/i.test(linha) && !/\d{5,}\s+\d{8,}/.test(linha)) return;
+
+    // Linha com colunas separadas por TAB (PDF/Excel colado): lê por tipo de célula
+    if (/\t/.test(linhaBruta)) {
+      const rc = window.interpretarCelulas(linhaBruta.split('\t'));
+      if (rc) { resultado.push(rc); return; }
+    }
 
     // --- Padrão A (principal): COD(4-7) + EAN(8-14) + DESC + ESTOQUE(opcional)
     // Ex: 636401 7898174850322 AZEITONA VDE TIO PACO ... 73,00
@@ -3586,6 +3437,7 @@ window.extrairItensDeTextoBruto = function(texto) {
     if (nums.length === 1) estoque = nums[0];
     else if (nums.length === 2) { venda = nums[0]; estoque = nums[1]; }
     else if (nums.length >= 3) { venda = nums[0]; estoque = nums[1]; dde = nums[2]; }
+    if (!cod && !ean) return; // sem código nem EAN (título, rodapé, total): não é produto
     resultado.push({ cod, ean, desc, venda, estoque, dde });
   });
   return resultado;
@@ -3596,24 +3448,7 @@ window.extrairDadosDePlanilhaExcel = async function(file) {
   const data = await file.arrayBuffer();
   const wb = window.XLSX.read(data, { type: 'array' });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  // O valor exibido respeita máscaras 0000000000000 e preserva zeros à esquerda do EAN.
-  const rows = [];
-  if (ws && ws['!ref']) {
-    const range = window.XLSX.utils.decode_range(ws['!ref']);
-    for (let r = range.s.r; r <= range.e.r; r++) {
-      const row = [];
-      for (let c = range.s.c; c <= range.e.c; c++) {
-        const cell = ws[window.XLSX.utils.encode_cell({ r, c })];
-        if (!cell) { row.push(''); continue; }
-        let valor = cell.w;
-        if (valor === undefined || valor === null || valor === '') {
-          try { valor = window.XLSX.utils.format_cell(cell); } catch (e) { valor = cell.v; }
-        }
-        row.push(valor === undefined || valor === null ? '' : String(valor).trim());
-      }
-      rows.push(row);
-    }
-  }
+  const rows = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
   const resultado = [];
   let col = { cod: -1, ean: -1, desc: -1, venda: -1, estoque: -1, dde: -1, industria: -1 };
   let cab = false;
@@ -3671,12 +3506,21 @@ window.extrairDadosDePlanilhaExcel = async function(file) {
       const codDig = String(codVal).replace(/\D/g, '');
       const eanDig = String(eanVal).replace(/\D/g, '');
       if (!eanDig && codDig.length >= 8) { eanVal = codDig; codVal = ''; }
+      const _auto = window.interpretarCelulas ? window.interpretarCelulas(cells) : null;
+      const _dg = v => String(v == null ? '' : v).replace(/[\s.\-]/g, '');
+      if (_auto) {
+        if (!/^\d{3,7}$/.test(_dg(codVal)) && _auto.cod) codVal = _auto.cod;
+        if (!/^\d{8,14}$/.test(_dg(eanVal)) && _auto.ean) eanVal = _auto.ean;
+        if (!/[A-Za-zÀ-ÿ]{3,}/.test(String(descVal)) && _auto.desc) descVal = _auto.desc;
+      }
+      const _estCel = col.estoque !== -1 ? cells[col.estoque] : null;
+      const _estVal = (_estCel !== null && (_estCel === '' || window.ehNumeroCelula(_estCel))) ? _estCel : (_auto ? _auto.estoque : '0');
       if (descVal || codVal || eanVal) {
         resultado.push({
           cod: codVal,
           ean: eanVal,
           desc: descVal,
-          estoque: col.estoque !== -1 ? cells[col.estoque] : '0',
+          estoque: _estVal,
           venda: col.venda !== -1 ? cells[col.venda] : '0',
           dde: col.dde !== -1 ? cells[col.dde] : '0',
           industria: col.industria !== -1 ? cells[col.industria] : ''
@@ -3687,7 +3531,7 @@ window.extrairDadosDePlanilhaExcel = async function(file) {
 
     // Fallback: linha no layout Posterus sem mapear cabeçalho
     // COD | EAN | DESC | ESTOQUE
-    if (cells.length >= 3) {
+    if (cells.filter(c => c !== '').length >= 3) {
       const extra = window.extrairItensDeTextoBruto(cells.join('\t'));
       if (extra.length) {
         extra.forEach(e => resultado.push(e));
@@ -4010,7 +3854,7 @@ window.renderizarPreviewItensIA = function() {
   document.getElementById('totalItensReconhecidos').innerText = itens.length;
   container.classList.remove('hidden');
   itens.forEach((item, idx) => {
-    const existe = window.buscarProdutoCorrespondente(item.cod, item.desc, item.ean);
+    const existe = window.buscarProdutoCorrespondente(item.cod, item.desc);
     if (existe && (!item.cod || String(item.cod).startsWith('S/COD'))) item.cod = existe.cod;
     if (modo === 'apenas_ajuste' && !existe && !item._autoUnchecked) { item.selecionado = false; item._autoUnchecked = true; }
     const estAnt = existe ? Number(existe.estoque || 0) : null;
@@ -4102,7 +3946,7 @@ window.aplicarDadosImportadosIA = async function() {
     const desc = String(item.desc || 'SEM DESCRIÇÃO').trim().toUpperCase();
     const ean = String(item.ean || '').replace(/\D/g, '');
     const existente = window.buscarProdutoCorrespondente(cod, desc, ean);
-    const safeKey = String(existente ? existente.cod : cod).replace(/[.#$\/\[\]]/g, '_');
+    const safeKey = String(existente ? existente.cod : cod).replace(/\.|#|\$|\[|\]/g, '_');
 
     if (existente) {
       const payload = {
@@ -4157,24 +4001,35 @@ window.aplicarDadosImportadosIA = async function() {
   if (btn) btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Enviando ' + total + ' itens...';
 
   let ok = false;
-  let salvos = 0;
   try {
-    const resultado = await window.salvarProdutosEmLote(patchMap);
-    salvos = Number(resultado?.salvos) || 0;
-    ok = resultado?.ok === true && salvos === total;
-    console.log('[UPLOAD] lote confirmado', salvos, '/', total, resultado?.modo || '');
+    // Um único PATCH no Firebase (muito mais rápido que N puts)
+    const base = (typeof RTDB_BASE !== 'undefined' && RTDB_BASE)
+      ? RTDB_BASE
+      : 'https://banco-de-prompt-815b9-default-rtdb.firebaseio.com';
+    const res = await fetch(base + '/auditoria_estoque/produtos.json?_=' + Date.now(), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
+      body: JSON.stringify(patchMap)
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    ok = true;
+    console.log('[UPLOAD] PATCH OK', total);
   } catch (err) {
-    console.warn('[UPLOAD] lote falhou; tentando gravar individualmente:', err);
+    console.warn('[UPLOAD] PATCH falhou, tentando um a um...', err);
+    // Fallback: grava em lotes de 5
     const entries = Object.entries(patchMap);
-    for (let i = 0; i < entries.length; i++) {
-      const [key, payload] = entries[i];
-      try {
-        const gravado = await window.salvarProdutoNoBanco(payload, { silencioso: true });
-        if (gravado === true) salvos++;
-      } catch (e) { console.warn('[UPLOAD] falha individual', key, e); }
-      if (btn) btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> ' + (i + 1) + '/' + total;
+    let done = 0;
+    for (let i = 0; i < entries.length; i += 5) {
+      const slice = entries.slice(i, i + 5);
+      await Promise.all(slice.map(async ([key, payload]) => {
+        try {
+          await window.salvarProdutoNoBanco(payload);
+          done++;
+          if (btn) btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> ' + done + '/' + total;
+        } catch (e) { console.warn(key, e); }
+      }));
     }
-    ok = salvos === total;
+    ok = done > 0;
   }
 
   if (typeof window.persistirLocalmente === 'function') {
@@ -4184,19 +4039,17 @@ window.aplicarDadosImportadosIA = async function() {
     localStorage.setItem('auditoria_produtos_cache', JSON.stringify(window.appState.produtos || []));
   } catch (e) {}
 
+  window.fecharModalUpload();
   window.renderizarAbasIndustrias?.();
   window.aplicarFiltros?.();
   window.atualizarEstatisticas?.();
 
   if (ok) {
-    window.fecharModalUpload();
-    const mensagem = navigator.onLine
-      ? `${atualizados} atualizados, ${adicionados} novos · ${salvos} gravados no Firebase`
-      : `${atualizados} atualizados, ${adicionados} novos · ${salvos} na fila offline`;
-    window.mostrarToast(navigator.onLine ? 'Estoque sincronizado' : 'Importação na fila offline', mensagem, navigator.onLine ? 'success' : 'info');
-    if (navigator.onLine) setTimeout(() => window.reconectarFirebase?.(), 500);
+    window.mostrarToast('Estoque sincronizado', atualizados + ' atualizados, ' + adicionados + ' novos · online');
+    // Força re-leitura do Firebase
+    setTimeout(() => window.reconectarFirebase?.(), 500);
   } else {
-    window.mostrarToast('Upload incompleto', `${salvos} de ${total} produtos confirmados. A prévia foi mantida; verifique conexão/permissões e tente novamente.`, 'error');
+    window.mostrarToast('Falha no envio', 'Não conseguiu gravar no Firebase. Toque no badge e tente de novo.', 'error');
   }
   if (btn) {
     btn.disabled = false;
