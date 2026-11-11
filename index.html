@@ -4558,6 +4558,11 @@ main#areaAuditoria>*+*{margin-top:.6rem!important}
 #modalUpload thead th:nth-child(9){width:88px}
 #modalUpload td{overflow:hidden}
 #modalUpload td input{min-width:0;max-width:100%}
+.table-shell thead th[data-k]{cursor:pointer;user-select:none}
+.table-shell thead th[data-k]:hover{color:var(--tinta)!important}
+.table-shell thead th[data-ord=asc]::after{content:" \25B2";color:var(--ouro-esc)}
+.table-shell thead th[data-ord=desc]::after{content:" \25BC";color:var(--ouro-esc)}
+.table-shell thead th[data-ord]{color:var(--tinta)!important}
 /* Seletor Dia / Noite / Auto */
 #v2TemaSel{display:inline-flex;background:rgba(255,255,255,.12);border-radius:999px;padding:2px;gap:2px}
 #v2TemaSel button{display:inline-flex;align-items:center;gap:4px;padding:4px 9px;font-size:11px;font-weight:700;border-radius:999px;color:#C8D0D8!important;background:none!important;border:0!important}
@@ -4614,6 +4619,65 @@ main#areaAuditoria>*+*{margin-top:.6rem!important}
     W.executarAcaoEmLote('presenca','pendente');
     if(W.mostrarToast)W.mostrarToast('Limpo',marcados+' item(ns) prontos para nova auditoria.');
   };
+
+  /* ---------- Ordenar ao clicar no cabeçalho ---------- */
+  var COLS={1:'cod',2:'ean',3:'desc',4:'industria',5:'estoque',6:'validade',7:'presenca',8:'contagem',9:'diverg'};
+  var ORD={k:'',d:1},CO='auditoriaOrdemV2',PRES={nao:0,pendente:1,parcial:2,sim:3};
+  function vazio(v){return v===''||v==null}
+  function numContagem(p){var c=p.contagemFisica;return (c===''||c==null||isNaN(parseInt(c,10)))?null:parseInt(c,10)}
+  function valorOrd(p,k){
+    if(k==='cod'||k==='ean'||k==='desc'||k==='industria')return String(p[k]==null?'':p[k]).trim();
+    if(k==='estoque')return Number(p.estoque)||0;
+    if(k==='validade')return (W.obterValidadePrincipal?W.obterValidadePrincipal(p):p.validade)||'';
+    if(k==='presenca'){var pr=p.presenca||'pendente';return PRES[pr]!==undefined?PRES[pr]:1}
+    if(k==='contagem')return numContagem(p);
+    if(k==='diverg'){var c=numContagem(p);return c===null?null:c-(Number(p.estoque)||0)}
+    return '';
+  }
+  function ordenarItens(itens){
+    if(!ORD.k||!itens||itens.length<2)return itens;
+    var k=ORD.k,d=ORD.d;
+    var arr=itens.map(function(p,i){return {p:p,i:i,v:valorOrd(p,k)}});
+    arr.sort(function(a,b){
+      var ea=vazio(a.v),eb=vazio(b.v);
+      if(ea&&eb)return a.i-b.i; if(ea)return 1; if(eb)return -1;
+      var r=(typeof a.v==='number'&&typeof b.v==='number')?a.v-b.v:String(a.v).localeCompare(String(b.v),'pt-BR',{numeric:true,sensitivity:'base'});
+      return r?r*d:a.i-b.i;
+    });
+    return arr.map(function(x){return x.p});
+  }
+  W._ordenarItensV2=ordenarItens;
+  function marcarOrdem(){
+    document.querySelectorAll('.table-shell thead th[data-k]').forEach(function(th){
+      if(th.dataset.k===ORD.k)th.setAttribute('data-ord',ORD.d===1?'asc':'desc');else th.removeAttribute('data-ord');
+    });
+  }
+  function salvarOrdem(){try{if(ORD.k)localStorage.setItem(CO,JSON.stringify(ORD));else localStorage.removeItem(CO)}catch(e){}}
+  W.limparOrdemV2=function(){ORD={k:'',d:1};salvarOrdem();marcarOrdem();if(W.aplicarFiltros)W.aplicarFiltros()};
+  function montarOrdenacao(){
+    try{var o=JSON.parse(localStorage.getItem(CO)||'null');if(o&&o.k&&(o.d===1||o.d===-1))ORD=o}catch(e){}
+    document.querySelectorAll('.table-shell thead th').forEach(function(th,i){
+      var k=COLS[i];if(!k||th.dataset.k)return;
+      th.dataset.k=k;th.title='Clique para ordenar (A→Z, Z→A, original)';
+      th.addEventListener('click',function(){
+        if(ORD.k===k){if(ORD.d===1)ORD.d=-1;else ORD={k:'',d:1}}else ORD={k:k,d:1};
+        salvarOrdem();marcarOrdem();if(W.aplicarFiltros)W.aplicarFiltros();
+      });
+    });
+    marcarOrdem();
+  }
+  (function(){
+    var rt=W.renderizarTabela;
+    if(typeof rt==='function')W.renderizarTabela=function(itens){
+      var l=ordenarItens(itens);
+      if(W.appState&&l!==itens)W.appState.itensExibidos=l;
+      return rt.call(this,l);
+    };
+    var risco=W.ordenarPorRisco;
+    if(typeof risco==='function')W.ordenarPorRisco=function(){
+      ORD={k:'',d:1};salvarOrdem();marcarOrdem();return risco.apply(this,arguments);
+    };
+  })();
 
   /* ---------- Painel de resumo (somente leitura do appState) ---------- */
   function montarPainel(){
@@ -4702,7 +4766,7 @@ main#areaAuditoria>*+*{margin-top:.6rem!important}
     ['Ordenar por risco','ordenarPorRisco'],['Histórico do dia','abrirModalHistorico'],
     ['Encerrar auditoria','encerrarAuditoria'],['Modo loja','alternarModoAuditoria'],
     ['Alto contraste','alternarAltoContraste'],['Densidade da tabela','alternarDensidade'],
-    ['Tema: dia',function(){W.definirTemaV2('dia')}],['Tema: noite',function(){W.definirTemaV2('noite')}],['Tema: automático',function(){W.definirTemaV2('auto')}],['Lista: simples / completa','alternarListaV2'],['Reconectar Firebase','reconectarFirebase'],
+    ['Tema: dia',function(){W.definirTemaV2('dia')}],['Tema: noite',function(){W.definirTemaV2('noite')}],['Tema: automático',function(){W.definirTemaV2('auto')}],['Lista: simples / completa','alternarListaV2'],['Remover ordenação da lista','limparOrdemV2'],['Reconectar Firebase','reconectarFirebase'],
     ['Limpar filtros','resetarFiltros'],
     ['Filtrar: pendentes',function(){W.aplicarChipFiltro('pendente')}],
     ['Filtrar: rupturas',function(){W.aplicarChipFiltro('nao')}],
@@ -4770,7 +4834,7 @@ main#areaAuditoria>*+*{margin-top:.6rem!important}
   /* ---------- Inicialização ---------- */
   function iniciar(){
     try{var t=localStorage.getItem(CHAVE);MODO=t==='claro'?'dia':t==='escuro'?'noite':(t==='dia'||t==='noite'||t==='auto')?t:'auto';LISTA=localStorage.getItem(CL)==='simples'?'simples':'completa'}catch(e){}
-    montarPainel();montarNav();montarCmd();montarBotoes();montarLista();aplicarLista();aplicarTema();
+    montarPainel();montarNav();montarCmd();montarBotoes();montarLista();montarOrdenacao();aplicarLista();aplicarTema();
     setInterval(aplicarTema,60000);
     var fab=document.getElementById('fabScanPresenca');if(fab)fab.remove();
     var tb=$('tabelaCorpo'),tmr=null;
